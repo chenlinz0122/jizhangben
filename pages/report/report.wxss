@@ -16,8 +16,10 @@
   box-shadow: 0 16rpx 36rpx rgba(18, 105, 90, 0.18);
 }
 
+/* 入账用青蓝：跟支出的墨绿是同一族冷色，比原来的土黄干净，也不抢红色的支出数 */
 .hero.hi {
-  background: linear-gradient(160deg, #b89a6d 0%, #967f52 100%);
+  background: linear-gradient(160deg, #26809b 0%, #18637c 100%);
+  box-shadow: 0 16rpx 36rpx rgba(24, 99, 124, 0.18);
 }
 
 .hrow {
@@ -65,7 +67,7 @@
 }
 
 .hi .sg.on {
-  color: #967f52;
+  color: #1a6d87;
 }
 
 .hlab {
@@ -272,11 +274,11 @@
 }
 
 .dbar.income {
-  background: #e2d8c6;
+  background: #d5e7ed;
 }
 
 .dbar.income.max {
-  background: #b89a6d;
+  background: #26809b;
 }
 
 .xaxis {
@@ -323,7 +325,7 @@
 }
 
 .hi .mval.on {
-  color: #b89a6d;
+  color: #26809b;
 }
 
 .mbararea {
@@ -348,7 +350,7 @@
 }
 
 .mbar.income.on {
-  background: #b89a6d;
+  background: #26809b;
 }
 
 .mbar.expense {
@@ -356,7 +358,7 @@
 }
 
 .mbar.income {
-  background: #ddd2b9;
+  background: #cfe0e7;
 }
 
 .mlab {
@@ -371,7 +373,7 @@
 }
 
 .hi .mlab.on {
-  color: #b89a6d;
+  color: #26809b;
 }
 
 .muted2 {

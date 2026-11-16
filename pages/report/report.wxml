@@ -115,7 +115,7 @@
   </view>
 
   <!-- 月度对比（近 6 个月，可左右滑动） -->
-  <view class="card" wx:if="{{hasData}}">
+  <view class="card {{tab === 'income' ? 'hi' : ''}}" wx:if="{{hasData}}">
     <view class="between">
       <text class="title inline">月度对比 · 近 6 个月</text>
       <text class="muted2">左右滑动 · 点柱子看明细</text>

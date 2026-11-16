@@ -1,0 +1,70 @@
+<view class="page">
+  <view class="bar">
+    <view class="search">
+      <text class="sicon">🔍</text>
+      <input class="sinput" value="{{kw}}" placeholder="搜商户 / 备注 / 分类" placeholder-class="sph"
+             bindinput="onSearch" confirm-type="search" />
+      <text class="sclear" wx:if="{{kw}}" bindtap="clearKw">×</text>
+    </view>
+    <view class="month">
+      <text class="nav" bindtap="prevMonth" wx:if="{{!searching}}">‹</text>
+      <text class="mtext">{{monthText}}</text>
+      <text class="nav {{canNext ? '' : 'off'}}" bindtap="nextMonth" wx:if="{{!searching}}">›</text>
+    </view>
+    <view class="sumrow">
+      <text class="sumi">支出 ¥{{s.expenseText}}</text>
+      <text class="sumi">收入 ¥{{s.incomeText}}</text>
+      <text class="sumi">{{s.count}} 笔</text>
+    </view>
+    <view class="chips">
+      <text class="chip on" wx:if="{{filterCat}}" bindtap="clearFilter">× {{filterCat}}</text>
+      <text class="chip on" wx:if="{{filterDay}}" bindtap="clearFilter">× {{filterDay}}</text>
+      <text class="chip {{onlyUncat ? 'on' : ''}}" bindtap="toggleUncat">只看未分类</text>
+      <text class="chip" bindtap="goImport">＋ 导入</text>
+      <text class="chip" bindtap="moreActions">⋯ 管理</text>
+    </view>
+  </view>
+
+  <view class="empty" wx:if="{{groups.length === 0}}">
+    <text>{{searching ? '没找到匹配的流水，换个关键词试试' : '这个月没有流水'}}</text>
+  </view>
+
+  <view class="group" wx:for="{{groups}}" wx:key="day" wx:for-item="g">
+    <view class="ghead">
+      <text class="gday">{{g.label}}</text>
+      <text class="gspend">支出 ¥{{g.spendText}}</text>
+    </view>
+    <view class="items">
+      <view class="item" wx:for="{{g.items}}" wx:key="id"
+            data-id="{{item.id}}" bindtap="openSheet" bindlongpress="onLongPress">
+        <view class="ic" style="background:{{item.tint}}"><text class="ic-em">{{item.icon}}</text></view>
+        <view class="ileft">
+          <text class="im">{{item.merchant}}</text>
+          <text class="isub">{{item.category}} · {{item.timeText}}</text>
+        </view>
+        <text class="iamt {{item.type === 'income' || item.type === 'refund' ? 'inc' : (item.type === 'transfer' ? 'muted' : 'exp')}}">{{item.sign}}{{item.amountText}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="tip">点一笔可以改分类或删除；右上「⋯ 管理」能删整个月、清空全部</view>
+</view>
+
+<view class="mask" wx:if="{{sheetVisible}}" bindtap="closeSheet"></view>
+<view class="sheet {{sheetVisible ? 'up' : ''}}">
+  <view class="sheethd">
+    <view class="shleft">
+      <text class="shm">{{sheetItem.merchant}}</text>
+      <text class="shsub">¥{{sheetItem.amountText}} · 现在是「{{sheetItem.category}}」</text>
+    </view>
+    <text class="shclose" bindtap="closeSheet">关闭</text>
+  </view>
+  <scroll-view scroll-y class="shlist">
+    <view class="shcat {{sheetItem.category === item ? 'on' : ''}}"
+          wx:for="{{sheetCats}}" wx:key="*this" data-cat="{{item}}" bindtap="pickCat">
+      <text>{{item}}</text>
+      <text class="shcheck" wx:if="{{sheetItem.category === item}}">✓</text>
+    </view>
+  </scroll-view>
+  <view class="shdel" bindtap="deleteSheetItem">删除这笔</view>
+</view>

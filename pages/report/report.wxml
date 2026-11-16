@@ -1,0 +1,244 @@
+<view class="page">
+  <!-- 顶部大数字卡：支出 / 入账 两个页签 -->
+  <view class="hero {{tab === 'income' ? 'hi' : ''}}">
+    <view class="hrow">
+      <text class="hnav" bindtap="prevMonth">‹</text>
+      <text class="hmonth">{{monthText}}</text>
+      <text class="hnav {{canNext ? '' : 'off'}}" bindtap="nextMonth">›</text>
+      <view class="seg">
+        <text class="sg {{tab === 'expense' ? 'on' : ''}}" data-tab="expense" bindtap="switchTab">支出</text>
+        <text class="sg {{tab === 'income' ? 'on' : ''}}" data-tab="income" bindtap="switchTab">入账</text>
+      </view>
+    </view>
+
+    <text class="hlab">{{tab === 'income' ? '共入账' : '共支出'}}</text>
+    <text class="hnum">¥{{tab === 'income' ? s.incomeText : s.expenseText}}</text>
+
+    <view class="hfoot">
+      <text>{{s.count}} 笔流水</text>
+      <text class="hdot">·</text>
+      <text>收支结余 {{s.netSign}}¥{{s.netText}}</text>
+      <block wx:if="{{s.refundText !== '0.00'}}">
+        <text class="hdot">·</text>
+        <text>退款 ¥{{s.refundText}} 计入入账</text>
+      </block>
+      <block wx:if="{{s.investText !== '0.00'}}">
+        <text class="hdot">·</text>
+        <text>理财 ¥{{s.investText}} 未计入</text>
+      </block>
+      <block wx:if="{{s.acctText !== '0.00'}}">
+        <text class="hdot">·</text>
+        <text>账户转移 ¥{{s.acctText}} 未计入</text>
+      </block>
+    </view>
+  </view>
+
+  <view class="empty" wx:if="{{!hasData}}">这个月还没有数据，先去「截图识别」或「导入」页记几笔</view>
+
+  <!-- 构成：环形图 + 分类（可展开） -->
+  <view class="card" wx:if="{{cats.length > 0}}">
+    <view class="between">
+      <text class="title inline">{{tab === 'income' ? '入账构成' : '支出构成'}}</text>
+      <text class="muted2">点分类看明细</text>
+    </view>
+    <view class="piebox">
+      <canvas type="2d" id="pie" wx:if="{{tab === 'expense'}}" class="pie"></canvas>
+      <canvas type="2d" id="piein" wx:else class="pie"></canvas>
+      <view class="piecenter">
+        <text class="pcnum">¥{{tab === 'income' ? s.incomeText : s.expenseText}}</text>
+        <text class="pclabel">{{tab === 'income' ? '本月入账' : '本月支出'}}</text>
+      </view>
+    </view>
+
+    <view class="cat" wx:for="{{cats}}" wx:key="name" data-name="{{item.name}}" bindtap="tapCat">
+      <view class="between">
+        <view class="left">
+          <view class="ic" style="background:{{item.tint}}"><text class="ic-em">{{item.icon}}</text></view>
+          <text class="cname">{{item.name}}</text>
+          <text class="delta {{item.deltaDir}}" wx:if="{{item.deltaText}}">{{item.deltaText}}</text>
+        </view>
+        <text class="camt">¥{{item.amountText}}</text>
+      </view>
+      <view class="track">
+        <view class="fill" style="width:{{item.pct}}%;background:{{item.color}}"></view>
+      </view>
+      <text class="cmeta">占比 {{item.pct}}% · {{item.count}} 笔</text>
+      <text class="cbmeta {{item.budgetOver ? 'over' : ''}}" wx:if="{{item.budget > 0}}">分类预算 ¥{{item.budgetText}} · 已花 ¥{{item.amountText}} · {{item.budgetPct}}%</text>
+    </view>
+
+    <view class="more" wx:if="{{catsHasMore}}" bindtap="toggleCats">
+      {{catsOpen ? '收起' : '展开全部 ' + catsTotal + ' 类'}}
+    </view>
+  </view>
+
+  <!-- 每日对比 -->
+  <view class="card" wx:if="{{hasData}}">
+    <view class="between">
+      <text class="title inline">{{tab === 'income' ? '每日入账' : '每日支出'}}</text>
+      <text class="muted2">点柱子看当天明细</text>
+    </view>
+    <view class="dwrap">
+      <view class="dbubble" wx:if="{{daily.show}}" style="left:{{daily.tipLeft}}%">{{daily.tipText}}</view>
+      <view class="dchart">
+        <view class="dcol" wx:for="{{daily.list}}" wx:key="d" data-d="{{item.d}}" bindtap="tapDaily">
+          <view class="dbar {{item.isMax ? 'max' : ''}} {{tab}}" style="height:{{item.h}}%"></view>
+        </view>
+      </view>
+      <view class="xaxis">
+        <text>{{daily.x1}}</text>
+        <text>{{daily.x2}}</text>
+        <text>{{daily.x3}}</text>
+        <text>{{daily.x4}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 月度对比（近 6 个月，可左右滑动） -->
+  <view class="card" wx:if="{{hasData}}">
+    <view class="between">
+      <text class="title inline">月度对比 · 近 6 个月</text>
+      <text class="muted2">左右滑动 · 点柱子看明细</text>
+    </view>
+    <scroll-view scroll-x enable-flex class="mscroll" enhanced show-scrollbar="{{false}}"
+                 scroll-into-view="{{scrollToId}}" scroll-with-animation>
+      <view class="mchart" style="width:{{chartW}}rpx">
+        <view class="mcol" wx:for="{{months}}" wx:key="ym" id="m{{index}}" data-ym="{{item.ym}}" bindtap="tapBar">
+          <text class="mval {{item.active ? 'on' : ''}}">{{item.text}}</text>
+          <view class="mbararea">
+            <view class="mbar {{tab}} {{item.active ? 'on' : ''}}" style="height:{{item.h}}%"></view>
+          </view>
+          <text class="mlab {{item.active ? 'on' : ''}}">{{item.label}}</text>
+        </view>
+      </view>
+    </scroll-view>
+  </view>
+
+  <!-- 年度汇总（自然年累计） -->
+  <view class="card" wx:if="{{year && year.count > 0}}">
+    <view class="between">
+      <text class="title inline">{{year.year}} 年度汇总</text>
+      <text class="muted2">自然年累计 · {{year.count}} 笔</text>
+    </view>
+    <view class="ygrid">
+      <view class="ycell">
+        <text class="yn">¥{{year.expenseText}}</text>
+        <text class="yl">年支出</text>
+      </view>
+      <view class="ycell">
+        <text class="yn">¥{{year.incomeText}}</text>
+        <text class="yl">年入账</text>
+      </view>
+      <view class="ycell">
+        <text class="yn">{{year.netSign}}¥{{year.netText}}</text>
+        <text class="yl">年结余</text>
+      </view>
+    </view>
+    <view class="ytop" wx:if="{{year.top.length > 0}}">
+      <text class="ytlabel">支出最多的分类</text>
+      <view class="ytrow" wx:for="{{year.top}}" wx:key="name">
+        <text class="ytname">{{item.icon}} {{item.name}}</text>
+        <text class="ytamt">¥{{item.amountText}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 排行 -->
+  <view class="card" wx:if="{{topList.length > 0}}">
+    <view class="title">{{tab === 'income' ? '入账排行' : '支出排行'}}</view>
+    <view class="mrow" wx:for="{{topList}}" wx:key="name">
+      <text class="mrank {{index < 3 ? 'top' : ''}}">{{index + 1}}</text>
+      <view class="mcol2">
+        <text class="mname">{{item.icon}} {{item.name}}</text>
+        <text class="mcat">{{item.cat}} · {{item.count}} 笔</text>
+      </view>
+      <text class="mamt {{tab === 'income' ? 'inc' : ''}}">{{tab === 'income' ? '+' : '-'}}¥{{item.amountText}}</text>
+    </view>
+  </view>
+
+  <!-- 洞察 -->
+  <view class="card" wx:if="{{hasData && tab === 'expense'}}">
+    <view class="title">这个月的情况</view>
+    <view class="igrid">
+      <view class="icell">
+        <text class="in">日均支出</text>
+        <text class="iv">¥{{avgDailyText}}</text>
+      </view>
+      <view class="icell">
+        <text class="in">最大一笔</text>
+        <text class="iv">¥{{maxAmountText}}</text>
+        <text class="isub">{{maxMerchant}}</text>
+      </view>
+      <view class="icell">
+        <text class="in">有花钱的天数</text>
+        <text class="iv">{{spentDays}} 天</text>
+      </view>
+      <view class="icell">
+        <text class="in">工作日 / 周末</text>
+        <text class="iv small">¥{{weekdayText}} / ¥{{weekendText}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 预算（只对支出有意义） -->
+  <view class="card" wx:if="{{tab === 'expense'}}">
+    <view class="between">
+      <text class="title inline">月度预算</text>
+      <view class="links">
+        <text class="link" bindtap="setCatBudget">分类预算</text>
+        <text class="link" bindtap="setBudget">{{budget > 0 ? '修改' : '设置'}}</text>
+      </view>
+    </view>
+
+    <block wx:if="{{budget > 0}}">
+      <view class="between bline">
+        <text>已花 ¥{{s.expenseText}} / 预算 ¥{{budgetText}}</text>
+        <text class="bpct {{budgetOver ? 'over' : ''}}">{{budgetPct}}%</text>
+      </view>
+      <view class="track big">
+        <view class="fill {{budgetOver ? 'over' : ''}}" style="width:{{budgetPct}}%"></view>
+      </view>
+      <text class="bsub" wx:if="{{budgetOver}}">已经超了 ¥{{budgetOverText}}，这个月剩下的日子得收着点</text>
+      <text class="bsub" wx:elif="{{isCurMonth}}">还剩 ¥{{budgetLeftText}}，剩 {{budgetRestDays}} 天，每天还能花 ¥{{budgetPerDayText}}</text>
+      <text class="bsub" wx:else>还剩 ¥{{budgetLeftText}}</text>
+    </block>
+
+    <text class="hint" wx:else>设一个月度预算，超了这里会变红提醒你。随时能改。</text>
+  </view>
+
+  <!-- 每日花销日历 -->
+  <view class="card" wx:if="{{hasData && tab === 'expense'}}">
+    <view class="title">每日花销日历</view>
+    <view class="calweek">
+      <text class="cw">日</text>
+      <text class="cw">一</text>
+      <text class="cw">二</text>
+      <text class="cw">三</text>
+      <text class="cw">四</text>
+      <text class="cw">五</text>
+      <text class="cw">六</text>
+    </view>
+    <view class="cal">
+      <view class="cell {{item.blank ? 'blank' : 'lv' + item.level}}"
+            wx:for="{{cells}}" wx:key="k" data-item="{{item}}" bindtap="tapDay">
+        <text class="cd" wx:if="{{!item.blank}}">{{item.d}}</text>
+      </view>
+    </view>
+    <view class="calsel">点一个格子，看那天的明细</view>
+    <view class="legend">
+      <text class="lgtext">少</text>
+      <view class="sw lv0"></view>
+      <view class="sw lv1"></view>
+      <view class="sw lv2"></view>
+      <view class="sw lv3"></view>
+      <view class="sw lv4"></view>
+      <text class="lgtext">多</text>
+    </view>
+  </view>
+
+  <view class="tools">
+    <view class="btn plain" bindtap="backup">备份数据（导出 JSON）</view>
+    <view class="btn plain" bindtap="restore">恢复数据（选备份文件）</view>
+    <view class="btn plain" bindtap="exportCsv">复制 CSV（发到电脑看）</view>
+    <view class="danger" bindtap="clearAll">清空所有数据</view>
+  </view>
+</view>

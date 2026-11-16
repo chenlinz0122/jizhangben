@@ -1,0 +1,277 @@
+.page {
+  min-height: 100vh;
+  background: #f4f5f7;
+  padding-bottom: 40rpx;
+  box-sizing: border-box;
+}
+
+.bar {
+  background: #ffffff;
+  padding: 24rpx 32rpx 24rpx;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.month {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24rpx;
+}
+
+.nav {
+  font-size: 40rpx;
+  color: #17806b;
+  width: 48rpx;
+  text-align: center;
+}
+
+.nav.off {
+  color: #cfd4d8;
+}
+
+.mtext {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.sumrow {
+  display: flex;
+  justify-content: center;
+  gap: 32rpx;
+  margin-top: 14rpx;
+  font-size: 24rpx;
+  color: #8b9198;
+}
+
+.chips {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 20rpx;
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  background: #f4f5f7;
+  border-radius: 28rpx;
+  padding: 14rpx 24rpx;
+  gap: 14rpx;
+}
+
+.sicon {
+  font-size: 26rpx;
+  color: #8b9198;
+}
+
+.sinput {
+  flex: 1;
+  font-size: 27rpx;
+  color: #1c1f23;
+}
+
+.sph {
+  color: #b1b7bd;
+}
+
+.sclear {
+  font-size: 30rpx;
+  color: #8b9198;
+  padding: 0 8rpx;
+}
+
+.chip {
+  font-size: 24rpx;
+  color: #5a6169;
+  background: #f2f3f5;
+  border-radius: 28rpx;
+  padding: 12rpx 24rpx;
+}
+
+.chip.on {
+  background: #e3f0ec;
+  color: #17806b;
+  font-weight: 500;
+}
+
+.group {
+  margin: 24rpx 24rpx 0;
+}
+
+.ghead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8rpx 8rpx 12rpx;
+}
+
+.gday {
+  font-size: 24rpx;
+  color: #8b9198;
+}
+
+.gspend {
+  font-size: 22rpx;
+  color: #a2a8ae;
+}
+
+.items {
+  background: #ffffff;
+  border-radius: 24rpx;
+  padding: 0 28rpx;
+  box-shadow: 0 10rpx 30rpx rgba(23, 128, 107, 0.06);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid #f1f3f4;
+}
+
+.items .item:last-child {
+  border-bottom: none;
+}
+
+.ic {
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 18rpx;
+  margin-right: 20rpx;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ic-em {
+  font-size: 30rpx;
+  line-height: 1;
+}
+
+.ileft {
+  flex: 1;
+  min-width: 0;
+  padding-right: 16rpx;
+}
+
+.im {
+  display: block;
+  font-size: 28rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.isub {
+  display: block;
+  font-size: 22rpx;
+  color: #9aa0a6;
+  margin-top: 6rpx;
+}
+
+.iamt {
+  font-size: 30rpx;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tip {
+  text-align: center;
+  font-size: 22rpx;
+  color: #b1b7bd;
+  padding: 32rpx 0;
+}
+
+.mask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 100;
+}
+
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #ffffff;
+  border-radius: 28rpx 28rpx 0 0;
+  transform: translateY(110%);
+  transition: transform 0.22s ease-out;
+  z-index: 101;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.sheet.up {
+  transform: translateY(0);
+}
+
+.sheethd {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 32rpx 32rpx 20rpx;
+  border-bottom: 1rpx solid #f1f3f4;
+}
+
+.shleft {
+  flex: 1;
+  min-width: 0;
+}
+
+.shm {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.shsub {
+  display: block;
+  font-size: 22rpx;
+  color: #9aa0a6;
+  margin-top: 8rpx;
+}
+
+.shclose {
+  font-size: 26rpx;
+  color: #8b9198;
+  padding-left: 20rpx;
+}
+
+.shlist {
+  max-height: 620rpx;
+}
+
+.shcat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 26rpx 36rpx;
+  font-size: 28rpx;
+  border-bottom: 1rpx solid #f7f8f9;
+}
+
+.shcat.on {
+  color: #17806b;
+  font-weight: 600;
+}
+
+.shcheck {
+  color: #17806b;
+}
+
+/* 弹窗底部的删除入口 */
+.shdel {
+  margin: 16rpx 24rpx 32rpx;
+  padding: 26rpx 0;
+  text-align: center;
+  font-size: 28rpx;
+  color: #d9433f;
+  background: #fdf1f0;
+  border-radius: 16rpx;
+}

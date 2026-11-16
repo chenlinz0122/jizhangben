@@ -1,0 +1,9 @@
+{
+  "name": "ocrText",
+  "version": "1.0.0",
+  "description": "账单截图 OCR，只返回文字块",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "~2.6.3"
+  }
+}

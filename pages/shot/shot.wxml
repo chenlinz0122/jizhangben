@@ -1,0 +1,60 @@
+<view class="page">
+  <view class="card">
+    <view class="title">截一张图，自动认账</view>
+    <view class="step"><text class="sn">支付宝</text><text>我的 → 账单，停在列表页，用手机的滚动截屏截一张长图</text></view>
+    <view class="step"><text class="sn">微信</text><text>我 → 服务 → 钱包 → 账单，同样截列表页</text></view>
+    <view class="step"><text class="sn">要点</text><text>截「列表页」不要截某一笔的详情页；一屏能显示多少笔，就一次认多少笔</text></view>
+    <view class="hint">识别由微信官方 OCR 完成，图片识别完立即从云端删除，流水只存手机本地。</view>
+  </view>
+
+  <view class="card">
+    <view class="title">选图识别</view>
+    <view class="btn {{busy ? 'disabled' : ''}}" bindtap="chooseShot">
+      {{busy ? stepText : '选择账单截图'}}
+    </view>
+    <view wx:if="{{!cloudReady}}" class="warn">
+      云开发环境没准备好。先在开发者工具里开通「云开发」，再把 cloudfunctions/ocrText 上传部署；没配好时用「导入账单」页的复制粘贴。
+    </view>
+  </view>
+
+  <view class="card" wx:if="{{error}}">
+    <view class="errbox">{{error}}</view>
+    <view class="btn plain" bindtap="goImport">改用复制粘贴导入</view>
+  </view>
+
+  <view class="card" wx:if="{{preview}}">
+    <view class="between title">
+      <text>识别到 {{preview.total}} 笔</text>
+      <text class="muted">{{preview.source}}</text>
+    </view>
+    <view class="stat">
+      <view class="sitem"><text class="sv">{{preview.add}}</text><text class="sl">可新增</text></view>
+      <view class="sitem"><text class="sv">{{preview.merged}}</text><text class="sl">合并</text></view>
+      <view class="sitem"><text class="sv">{{preview.dup}}</text><text class="sl">跳重复</text></view>
+    </view>
+    <view class="muted" wx:if="{{preview.trim}}">另有 {{preview.trim}} 条超出一年，导入后会被自动清理（账本只保留最近 12 个月）</view>
+    <view class="divider"></view>
+    <view class="muted">前几条长这样，看对不对：</view>
+    <view class="sample" wx:for="{{preview.sample}}" wx:key="merchant">
+      <view class="ileft">
+        <text class="sim">{{item.merchant}}</text>
+        <text class="sisub">{{item.timeText}} · {{item.category}}</text>
+      </view>
+      <text class="siamt {{item.type === 'income' || item.type === 'refund' ? 'inc' : (item.type === 'transfer' ? 'mut' : 'exp')}}">
+        {{item.type === 'income' || item.type === 'refund' ? '+' : (item.type === 'transfer' ? '' : '-')}}¥{{item.amountText}}
+      </text>
+    </view>
+    <view class="oprow">
+      <view class="btn plain half" bindtap="redraw">重选图片</view>
+      <view class="btn half" bindtap="doImport">确认导入</view>
+    </view>
+    <view class="muted tip">金额或商户认错了？先在「导入」页用复制粘贴重来；导入后也能在流水页逐笔改分类。</view>
+  </view>
+
+  <view class="card" wx:if="{{result}}">
+    <view class="done">导入完成：新增 {{result.added}} 条{{result.merged ? '，合并 ' + result.merged + ' 条' : ''}}{{result.dup ? '，跳过重复 ' + result.dup + ' 条' : ''}}{{result.trim ? '，清理超一年 ' + result.trim + ' 条' : ''}}</view>
+    <view class="btn plain" bindtap="goList">去看流水</view>
+  </view>
+
+  <view class="foot">数据只存在这台手机的小程序里</view>
+</view>

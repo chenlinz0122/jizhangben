@@ -1,0 +1,70 @@
+<view class="page">
+  <view class="card">
+    <view class="title">怎么拿到账单</view>
+    <view class="step"><text class="sn">最省事</text><text>在账单列表页截一张长图，用「截图识别」，不用导出、不用复制</text></view>
+    <view class="step"><text class="sn">支付宝</text><text>我的 → 账单 → 右上角「…」→「开具交易流水证明」→ 用于个人对账 → 填邮箱，收到的文件是 CSV</text></view>
+    <view class="step"><text class="sn">微信</text><text>我 → 服务 → 钱包 → 账单 → 右上角「…」→「下载账单」→「用于个人对账」→ 选微信下发或邮箱，拿到的 Excel（.xlsx）可以直接在这里导入</text></view>
+    <view class="step"><text class="sn">银行卡</text><text>手机银行导出 Excel/CSV，同上；银行用得少可以先不管</text></view>
+    <view class="hint">导出的整月账单比截图准：笔数全、时间准、还有原始交易单号可去重。把文件发给「文件传输助手」，或直接发到这个聊天里，再点下面的按钮选它。</view>
+  </view>
+
+  <view class="card">
+    <view class="between title">
+      <text>账单导入</text>
+      <text class="demo" bindtap="fillDemo">填入示例试试</text>
+    </view>
+
+    <view class="btn {{billBusy ? 'disabled' : ''}}" bindtap="chooseBillFile">
+      {{billBusy ? billStep : '导入账单文件 · 微信 Excel / 支付宝 CSV'}}
+    </view>
+    <view class="btnnote">选微信「下载账单」得到的 .xlsx，或支付宝「交易流水证明」得到的 .csv；整月一次导完，自动分好收支和分类</view>
+
+    <view class="btn plain" bindtap="goShot">截图识别 · 随手记</view>
+    <view class="btnnote">在账单列表页截一张长图，一次能认出十几笔，适合临时补几笔</view>
+
+    <view class="btn plain" bindtap="oneTapImport">一键导入 · 读取剪贴板</view>
+    <view class="btnnote">适合你已经在电脑 Excel 里复制好、再发到自己微信的那段文字</view>
+
+    <textarea class="ta" value="{{text}}" bindinput="onInput" maxlength="-1"
+              placeholder="备用：把账单表格整块粘在这里，第一行要是表头（含 交易时间、金额 这类列名）"
+              placeholder-class="ph"></textarea>
+    <view class="oprow">
+      <view class="btn small {{text ? '' : 'disabled'}}" bindtap="doParse">解析当前内容</view>
+    </view>
+  </view>
+
+  <view class="card" wx:if="{{preview}}">
+    <view class="between title">
+      <text>解析结果</text>
+      <text class="muted">来源 {{preview.source}}</text>
+    </view>
+    <view class="stat">
+      <view class="sitem"><text class="sv">{{preview.add}}</text><text class="sl">可新增</text></view>
+      <view class="sitem"><text class="sv">{{preview.merged}}</text><text class="sl">合并</text></view>
+      <view class="sitem"><text class="sv">{{preview.dup}}</text><text class="sl">跳重复</text></view>
+    </view>
+    <view class="dupnote" wx:if="{{preview.skipped}}">另有 {{preview.skipped}} 行读不出时间或金额，已跳过</view>
+    <view class="dupnote" wx:if="{{preview.trim}}">另有 {{preview.trim}} 条超出一年，导入后会被自动清理（账本只保留最近 12 个月）</view>
+    <view class="divider"></view>
+    <view class="muted">前几条长这样，看对不对：</view>
+    <view class="sample" wx:for="{{preview.sample}}" wx:key="merchant">
+      <view class="ileft">
+        <text class="sim">{{item.merchant}}</text>
+        <text class="sisub">{{item.timeText}} · {{item.category}}</text>
+      </view>
+      <text class="siamt {{item.type === 'income' || item.type === 'refund' ? 'inc' : (item.type === 'transfer' ? 'mut' : 'exp')}}">
+        {{item.type === 'income' || item.type === 'refund' ? '+' : (item.type === 'transfer' ? '' : '-')}}¥{{item.amountText}}
+      </text>
+    </view>
+    <view class="btn" bindtap="doImport">确认导入 {{preview.add}} 条</view>
+  </view>
+
+  <view class="card" wx:if="{{result}}">
+    <view class="done">
+      <text class="dtxt">导入完成：新增 {{result.added}} 条{{result.merged ? '，合并 ' + result.merged + ' 条' : ''}}{{result.dup ? '，跳过重复 ' + result.dup + ' 条' : ''}}{{result.trim ? '，清理超一年 ' + result.trim + ' 条' : ''}}</text>
+    </view>
+    <view class="btn plain" bindtap="goList">去看流水</view>
+  </view>
+
+  <view class="foot">数据只存在这台手机的小程序里，不会上传</view>
+</view>

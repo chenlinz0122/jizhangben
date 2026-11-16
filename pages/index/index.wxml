@@ -1,0 +1,69 @@
+<view class="wrap">
+  <view class="hero">
+    <view class="statusbar"></view>
+    <view class="month">
+      <text class="nav" bindtap="prevMonth">‹</text>
+      <text class="mtext">{{monthText}}</text>
+      <text class="nav {{canNext ? '' : 'off'}}" bindtap="nextMonth">›</text>
+    </view>
+
+    <text class="cap">本月支出</text>
+    <view class="big"><text class="cny">¥</text>{{s.expenseText}}</view>
+
+    <view class="meta">
+      <view class="metai"><text class="meT">收入</text><text class="meN">¥{{s.incomeText}}</text></view>
+      <view class="metai"><text class="meT">结余</text><text class="meN">{{s.netSign}}¥{{s.netText}}</text></view>
+      <view class="metai"><text class="meT">流水</text><text class="meN">{{s.count}} 笔</text></view>
+    </view>
+  </view>
+
+  <view class="notice" wx:if="{{s.uncatCount > 0}}" bindtap="goUncat">
+    <text>有 {{s.uncatCount}} 笔还没分类，点这里去处理</text>
+    <text class="nc-arrow">›</text>
+  </view>
+
+  <view class="guide" wx:if="{{!hasData}}">
+    <view class="gtitle">三步开始</view>
+    <view class="gstep"><text class="gn">1</text><text>在支付宝/微信里导出账单明细</text></view>
+    <view class="gstep"><text class="gn">2</text><text>把内容粘进来，点导入</text></view>
+    <view class="gstep"><text class="gn">3</text><text>看报表，顺手改几个分类</text></view>
+    <view class="btn gbtn" bindtap="goImport">去导入账单</view>
+  </view>
+
+  <view class="card" wx:if="{{cats.length > 0}}">
+    <view class="between title">
+      <text>支出构成</text>
+      <text class="muted" bindtap="goReport">报表 ›</text>
+    </view>
+    <view class="cat" wx:for="{{cats}}" wx:key="name">
+      <view class="between">
+        <text class="cname">{{item.name}}</text>
+        <text class="camt">¥{{item.amountText}} · {{item.pct}}%</text>
+      </view>
+      <view class="track">
+        <view class="fill" style="width:{{item.pct}}%;background:{{item.color}}"></view>
+      </view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="between title">
+      <text>最近流水</text>
+      <text class="muted" bindtap="goList">全部 ›</text>
+    </view>
+    <view class="empty" wx:if="{{recent.length === 0}}">这个月还没有记录</view>
+    <view class="item" wx:for="{{recent}}" wx:key="id">
+      <view class="ic" style="background:{{item.tint}}"><text class="ic-em">{{item.icon}}</text></view>
+      <view class="ileft">
+        <text class="im">{{item.merchant}}</text>
+        <text class="isub">{{item.category}} · {{item.timeText}}</text>
+      </view>
+      <text class="iamt {{item.type === 'income' || item.type === 'refund' ? 'inc' : (item.type === 'transfer' ? 'muted' : 'exp')}}">{{item.sign}}{{item.amountText}}</text>
+    </view>
+  </view>
+
+  <view class="actions">
+    <view class="btn plain" bindtap="goImport">导入账单</view>
+    <view class="btn" bindtap="goAdd">记一笔</view>
+  </view>
+</view>

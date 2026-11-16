@@ -146,7 +146,9 @@ function classify(merchant, desc, platformCat, userRules, kind) {
 
   if (userRules) {
     var ukws = Object.keys(userRules)
-    var ulist = ukws.map(function (k) { return { kw: k, cat: userRules[k] } })
+    /* 规则 key 由 learn() 原样存进来（可能带空格/括号/大写），而 text 是 normalize 过的，
+     * 匹配前必须同样归一化，否则「Apple Store」这类商户名永远命中不了自己。 */
+    var ulist = ukws.map(function (k) { return { kw: normalize(k), cat: userRules[k] } })
     var uhit = pickLongest(text, ulist)
     if (uhit && has(pool, uhit.cat)) return { cat: uhit.cat, by: 'user' }
   }

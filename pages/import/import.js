@@ -333,6 +333,13 @@ Page({
       preview: null,
       result: { added: res.added, dup: res.dup, merged: res.merged || 0, trim: res.trimmed || 0 }
     })
+    if (res.saved === false) {
+      wx.showModal({
+        title: '没能保存',
+        content: '本地存储空间已满，这次导入的流水没有存进去。建议先导出备份，再清掉一些旧流水后重试。',
+        showCancel: false
+      })
+    }
   },
 
   goList: function () {

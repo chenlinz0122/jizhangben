@@ -34,9 +34,10 @@ function mapBaidu(res) {
   return out
 }
 
-/* 百度要求 base64 后不超过 4M，留点余量 */
+/* 百度要求 base64 后不超过 4M。base64 膨胀 4/3，所以原始字节上限 = 4M × 3/4 ≈ 3M 字节；
+ * 3MiB（3.15M 字节）base64 后约 4.19M，按字节算仍然超 4M，会被拒。留足余量取 2.8MiB。 */
 function tooBig(bytes) {
-  return num(bytes) > 3.2 * 1024 * 1024
+  return num(bytes) > 2.8 * 1024 * 1024
 }
 
 /* 长图越窄越高，识别越容易糊；给个提醒阈值 */

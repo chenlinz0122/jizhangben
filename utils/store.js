@@ -1,5 +1,6 @@
 /* 本地存储：流水 / 规则 / 设置 */
 var category = require('./category')
+var format = require('./format')
 
 var KEY_TX = 'txs_v1'
 var KEY_RULE = 'rules_v1'
@@ -25,8 +26,19 @@ function all() {
 function persist() {
   try {
     wx.setStorageSync(KEY_TX, _cache || [])
+    return true
   } catch (e) {
-    wx.showToast({ title: '存储失败，数据太多', icon: 'none' })
+    /* 写失败（多半是超过单 key 1MB）时，内存里已经是最新的 _cache，磁盘却还是旧的。
+     * 不回滚的话界面显示新数据、用户以为存上了，重启就丢。这里立刻从磁盘读回真实值覆盖内存，
+     * 保证「看到的 = 存下的」，让调用方能据返回值提示用户本次没保存成功。 */
+    try {
+      var disk = wx.getStorageSync(KEY_TX)
+      _cache = Array.isArray(disk) ? disk : []
+    } catch (e2) {
+      _cache = []
+    }
+    wx.showToast({ title: '存储失败，本次修改未保存', icon: 'none' })
+    return false
   }
 }
 
@@ -115,7 +127,13 @@ function trimYear(list) {
   }
   if (!newest) return 0
   var d = new Date(newest)
-  var cutoff = new Date(d.getFullYear(), d.getMonth() - 12, d.getDate()).getTime()
+  /* 直接 new Date(y, m-12, d) 在目标月天数不足时会溢出：2024-02-29 会变成 2023-03-01，
+   * 临界日被多删。先把日期设到 1 号再退 12 个月，最后夹到该月最后一天。 */
+  var cutoffDate = new Date(d.getFullYear(), d.getMonth(), 1)
+  cutoffDate.setFullYear(cutoffDate.getFullYear() - 1)
+  var lastDay = new Date(cutoffDate.getFullYear(), cutoffDate.getMonth() + 1, 0).getDate()
+  cutoffDate.setDate(Math.min(d.getDate(), lastDay))
+  var cutoff = cutoffDate.getTime()
   /* 从末尾（最老的）往前删，直到剩下的跨度不超过一年。逐条判断而不提前 break，
    * 这样即使传进来的不是严格倒序（比如恢复备份）也不会漏删中间那条 */
   var n = 0
@@ -200,8 +218,9 @@ function runAdd(list, dry) {
     sortDesc(cur)
     var trimmed = trimYear(cur)
     if (trimmed) dirty = true
-    if (dirty) persist()
-    return { added: added, dup: dup, merged: merged, trimmed: trimmed }
+    var saved = true
+    if (dirty) saved = persist()
+    return { added: added, dup: dup, merged: merged, trimmed: trimmed, saved: saved }
   }
 
   /* 预览：在副本上算「真导进来会清掉几条」，不改动真实数据 */
@@ -215,9 +234,9 @@ function addOne(t) {
   cur.push(t)
   sortDesc(cur)
   var trimmed = trimYear(cur)
-  persist()
+  var saved = persist()
   /* 新记的这条自己就在一年之外、被清掉了：告诉调用方一声，别让它以为记上了 */
-  return { tx: t, trimmed: trimmed, kept: cur.indexOf(t) >= 0 }
+  return { tx: t, trimmed: trimmed, kept: cur.indexOf(t) >= 0, saved: saved }
 }
 
 function update(id, patch) {
@@ -318,11 +337,15 @@ function budget() {
 function setBudget(v) {
   var n = Number(v)
   if (isNaN(n) || n <= 0) {
-    wx.removeStorageSync(KEY_BUDGET)
+    try { wx.removeStorageSync(KEY_BUDGET) } catch (e) {}
     return 0
   }
   n = Math.round(n * 100) / 100
-  wx.setStorageSync(KEY_BUDGET, n)
+  try {
+    wx.setStorageSync(KEY_BUDGET, n)
+  } catch (e) {
+    wx.showToast({ title: '存储失败，预算未保存', icon: 'none' })
+  }
   return n
 }
 
@@ -336,7 +359,11 @@ function setCatBudget(name, v) {
   var m = catBudgets()
   var n = Number(v)
   if (isNaN(n) || n <= 0) { delete m[name] } else { m[name] = Math.round(n * 100) / 100 }
-  wx.setStorageSync(KEY_CATBUD, m)
+  try {
+    wx.setStorageSync(KEY_CATBUD, m)
+  } catch (e) {
+    wx.showToast({ title: '存储失败，预算未保存', icon: 'none' })
+  }
   return m
 }
 
@@ -356,7 +383,22 @@ function exportAll() {
 /* 从备份恢复：流水走现有判重合并，规则只补缺，预算以备份为准 */
 function importAll(payload) {
   if (!payload || !Array.isArray(payload.txs)) throw new Error('备份文件格式不对')
-  var res = addMany(payload.txs)
+  /* 外部 JSON 不可信：先把畸形元素挑出去，否则 addMany 里读 t.id/t.day 会整包抛异常，
+   * 导致一条坏数据让整份备份都恢复不了。 */
+  var clean = []
+  var skipped = 0
+  for (var i = 0; i < payload.txs.length; i++) {
+    var t = payload.txs[i]
+    if (t && typeof t === 'object' && t.id && isFinite(t.time) && isFinite(t.amount)) {
+      t.day = t.day || format.dayOf(t.time)
+      t.ym = t.ym || t.day.slice(0, 7)
+      clean.push(t)
+    } else {
+      skipped++
+    }
+  }
+  var res = addMany(clean)
+  res.skipped = skipped
   var r = rules()
   var ruleAdded = 0
   if (payload.rules && typeof payload.rules === 'object') {
@@ -376,6 +418,7 @@ function importAll(payload) {
     dup: res.dup,
     merged: res.merged,
     trimmed: res.trimmed,
+    skipped: skipped,
     rules: ruleAdded,
     total: all().length
   }

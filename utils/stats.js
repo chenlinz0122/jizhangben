@@ -32,6 +32,7 @@ function summary(txs, ym) {
   var refund = 0
   var transfer = 0
   var count = 0
+  var uncatCount = 0
   var expMap = emptyCatMap()
   var incMap = emptyCatMap()
   var trMap = emptyCatMap()
@@ -45,6 +46,7 @@ function summary(txs, ym) {
       bump(incMap, t.category, t.amount)
     } else if (t.type === 'expense') {
       expense += t.amount
+      if (t.category === '未分类') uncatCount++
       bump(expMap, t.category, t.amount)
     } else if (t.type === 'refund') {
       refund += t.amount
@@ -90,13 +92,7 @@ function summary(txs, ym) {
     byCat: expList,
     byIncome: incList,
     byTransfer: trList,
-    uncatCount: (function () {
-      var c = 0
-      for (var k = 0; k < txs.length; k++) {
-        if (txs[k].ym === ym && txs[k].type === 'expense' && txs[k].category === '未分类') c++
-      }
-      return c
-    })()
+    uncatCount: uncatCount
   }
 }
 

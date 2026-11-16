@@ -717,12 +717,19 @@ Page({
                   wx.showModal({
                     title: '恢复完成',
                     content: '新增 ' + out.added + ' 笔，重复跳过 ' + out.dup + ' 笔，合并 ' + out.merged + ' 笔' +
+                      (out.skipped ? '，无效数据跳过 ' + out.skipped + ' 笔' : '') +
                       (out.trimmed ? '，超出一年清掉 ' + out.trimmed + ' 笔' : '') +
                       '；库里共 ' + out.total + ' 笔。',
                     showCancel: false
                   })
                 } catch (err) {
-                  wx.showToast({ title: err.message || '恢复失败', icon: 'none' })
+                  /* 不把原始异常文案（英文）直接弹给用户 */
+                  var msg = String((err && err.message) || '')
+                  if (/格式不对/.test(msg)) {
+                    wx.showToast({ title: '备份文件格式不对', icon: 'none' })
+                  } else {
+                    wx.showToast({ title: '恢复失败，备份可能已损坏', icon: 'none' })
+                  }
                 }
               }
             })

@@ -94,8 +94,11 @@ Page({
     var cat = this.data.cat
     var merchant = this.data.merchant || this.data.note || '(手记)'
 
+    var rnd = String(Math.floor(Math.random() * 1000000))
+    while (rnd.length < 6) rnd = '0' + rnd
     var tx = {
-      id: 'm' + ts + String(Math.floor(Math.random() * 10000)),
+      /* 手记 id：毫秒时间戳 + 6 位随机，避免同一秒连记两笔时 4 位随机碰撞 */
+      id: 'm' + Date.now() + rnd,
       time: ts,
       day: format.dayOf(ts),
       ym: format.ymOf(ts),
@@ -116,6 +119,14 @@ Page({
       wx.showModal({
         title: '这条没记上',
         content: '账本只保留最近一年，这条的日期超出范围，落库时被清掉了。换个一年内的日期再试。',
+        showCancel: false
+      })
+      return
+    }
+    if (res && res.saved === false) {
+      wx.showModal({
+        title: '没能保存',
+        content: '本地存储空间已满，这笔没有存进去。建议先导出备份，再清掉一些旧流水后重试。',
         showCancel: false
       })
       return

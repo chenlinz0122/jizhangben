@@ -29,7 +29,9 @@ Page({
     var app = getApp()
     if (app.globalData.filterUncat) {
       app.globalData.filterUncat = false
-      this.setData({ onlyUncat: true })
+      /* 从总览跳进「未分类」时，把月份重置到当前月，否则会沿用上次停留的旧月份，
+       * 非搜索状态下刷新会按旧月份过滤，可能显示 0 笔。 */
+      this.setData({ onlyUncat: true, ym: format.ymOf(Date.now()), kw: '', filterDay: '' })
     }
     /* 四个筛选条件各自独立读取，不能用 filterCat 当总开关——日历跳当天时 filterCat 是空串 */
     var jumped = !!(app.globalData.filterCat || app.globalData.filterKind ||

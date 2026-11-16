@@ -102,7 +102,14 @@ Page({
   },
 
   goUncat: function () {
-    getApp().globalData.filterUncat = true
+    var app = getApp()
+    /* 清掉上一个月/分类/日期筛选的残留，否则从报表跳进「未分类」时
+     * list 页还挂在旧月份上，可能显示 0 笔，看起来像没有未分类数据。 */
+    app.globalData.filterUncat = true
+    app.globalData.filterCat = ''
+    app.globalData.filterKind = ''
+    app.globalData.filterYm = ''
+    app.globalData.filterDay = ''
     wx.switchTab({ url: '/pages/list/list' })
   }
 })

@@ -21,6 +21,16 @@ function hash(s) {
   return h.toString(36)
 }
 
+/* 账单只写「X月X日」没有年份时推断年份。账单记录的都是过去发生的交易：拿「月/日」
+ * 跟今天比，比今天晚就落回去年。只比月份会在同月内判错——11 月 16 日看到「11 月 20 日」
+ * 会算成今年，生成一条未来日期的流水。 */
+function inferYear(month, day, now) {
+  var nowDay = now.d || new Date(now.ts).getDate()
+  var md = month * 100 + (day || 1)
+  var nowMd = now.m * 100 + nowDay
+  return md > nowMd ? now.y - 1 : now.y
+}
+
 /* OCR 回来的文本可能带 HTML 实体（支付宝账单页中间的「·」就是 &middot;） */
 function decodeEntities(s) {
   return String(s || '')
@@ -145,14 +155,13 @@ function dateInText(text, now) {
   if ((m = text.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日/))) {
     var mm = parseInt(m[1], 10)
     var dd = parseInt(m[2], 10)
-    /* 账单基本是过去的：解析出的月份比现在大半年，就认为落在去年 */
-    var yy = (mm - now.m >= 6) ? now.y - 1 : now.y
+    var yy = inferYear(mm, dd, now)
     return makeDate(yy, mm, dd)
   }
   if ((m = text.match(/(\d{1,2})-(\d{1,2})(?![\d-])/))) {
     var m2 = parseInt(m[1], 10)
     var d2 = parseInt(m[2], 10)
-    var y2 = (m2 - now.m >= 6) ? now.y - 1 : now.y
+    var y2 = inferYear(m2, d2, now)
     return makeDate(y2, m2, d2)
   }
   if ((m = text.match(/(今天|昨天|前天)/))) {
@@ -171,7 +180,7 @@ function monthHeader(text, now) {
   }
   if ((m = text.match(/^(\d{1,2})\s*月(?![日号])/))) {
     var mm = parseInt(m[1], 10)
-    var yy = (mm - now.m >= 6) ? now.y - 1 : now.y
+    var yy = inferYear(mm, 1, now)
     return { y: yy, m: mm }
   }
   return null
@@ -243,7 +252,7 @@ function blockText(rows, i) {
 
 function parseItems(items, userRules, opts) {
   var now = new Date()
-  var nowInfo = { y: now.getFullYear(), m: now.getMonth() + 1, ts: now.getTime() }
+  var nowInfo = { y: now.getFullYear(), m: now.getMonth() + 1, d: now.getDate(), ts: now.getTime() }
   var rows = groupRows(items)
   if (!rows.length) {
     return { items: [], skipped: 0, source: '', error: '没识别到文字，换一张更清楚的截图' }
@@ -390,7 +399,7 @@ function parseItems(items, userRules, opts) {
       type = (source === '支付宝') ? 'income' : 'expense'
     }
 
-    var cls = category.classify(merchant, text, platformCat, userRules)
+    var cls = category.classify(merchant, text, platformCat, userRules, type)
 
     var idBase = format.dayOf(ts) + '|' + amtCell.value + '|' + merchant + '|' + source
     var idKey = hash(idBase)

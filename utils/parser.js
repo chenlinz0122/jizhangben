@@ -194,6 +194,10 @@ function parse(text, userRules) {
     wtype: findCol(headerCells, HEAD_ALIAS.wtype)
   }
 
+  /* 双列金额表头（「收入金额」+「支出金额」）：通用 alias「金额」会在第二轮模糊匹配里
+   * 错抢其中一列，于是另一列的行金额读成 0 被整行丢掉。识别出双列就强制走双列分支。 */
+  if (col.inAmount >= 0 && col.outAmount >= 0) col.amount = -1
+
   if (col.time < 0) {
     return { items: [], skipped: 0, source: source, error: '表头里没有时间列，没法按时段统计' }
   }
@@ -224,7 +228,16 @@ function parse(text, userRules) {
     } else {
       var inAmt = Math.abs(toNum(get(cells, col.inAmount)))
       var outAmt = Math.abs(toNum(get(cells, col.outAmount)))
-      if (inAmt > 0) { amount = inAmt; type = 'income' }
+      /* 双列也不能只按列猜方向：状态里写着「已退款」、收/支写着「不计收支」的，
+       * 一律以状态为准，否则退款那行会被当成一笔新收入记进来；
+       * 状态是关闭/失败的直接丢掉（st 为 null → amount 留 0 被跳过）。 */
+      var st = resolveType(get(cells, col.io), get(cells, col.wtype), get(cells, col.status))
+      if (st === null) {
+        amount = 0
+      } else if (st === 'refund' || st === 'transfer') {
+        type = st
+        amount = inAmt > 0 ? inAmt : outAmt
+      } else if (inAmt > 0) { amount = inAmt; type = 'income' }
       else if (outAmt > 0) { amount = outAmt; type = 'expense' }
     }
 
@@ -240,12 +253,14 @@ function parse(text, userRules) {
     /* 平台分类只对支出可信：收入的科目平台给的是「其他」，套上去会变成「其他支出」 */
     var pcat = (type === 'expense') ? get(cells, col.pcat) : ''
     var wt = get(cells, col.wtype)
-    var cls = category.classify(merchant, (desc + ' ' + wt).trim(), pcat, userRules)
+    var cls = category.classify(merchant, (desc + ' ' + wt).trim(), pcat, userRules, type)
     var cat = cls.cat
     if (type === 'refund') cat = '退款'
     if (type === 'transfer') cat = '转账'
 
-    var id = tradeNo ? 'n' + hash(source + tradeNo) : 'h' + hash(ts + '|' + amount + '|' + merchant)
+    /* 有交易单号的就是账单型，统一用 b 前缀（store 的 mergeInto/数据体检都只认 b），
+     * 之前用 n 前缀会导致这类记录不计入 bill、也不会触发截图记录 h→b 的升级。 */
+    var id = tradeNo ? 'b' + hash(source + tradeNo) : 'h' + hash(ts + '|' + amount + '|' + merchant)
 
     items.push({
       id: id,

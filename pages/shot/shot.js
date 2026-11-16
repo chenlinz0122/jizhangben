@@ -43,43 +43,71 @@ Page({
     })
   },
 
-  /* 多张顺序识别：某一张失败不影响其他张，最后一起出预览 */
+  /* 多张识别：2 条流水线并行跑（一张在识别时另一张已经在传），一张等一张的两倍速度。
+     不用 3 条以上：百度免费版 OCR 的 QPS 是 2，第三条就会撞「QPS 超限」，
+     反而要重试。单张时退回原来的串行 + 细化文案。 */
   runBatch: function (files) {
     var self = this
-    var acc = []
+    var total = files.length
+    var LANES = total > 1 ? 2 : 1
+    var out = []          // 按图序存：图 n 的流水放在 out[n - 1]
     var fails = []
     var skipped = 0
     var source = ''
-    var i = 0
+    var started = 0
+    var finished = 0
+    var inFlight = 0
+    this._multi = total > 1
 
-    function next() {
-      if (i >= files.length) {
-        self.finishBatch(acc, fails, skipped, source, files.length)
-        return
-      }
-      var no = i + 1
-      var file = files[i]
-      i++
-      self.setData({ done: no })
-      self.ocrOne(file.tempFilePath, no, files.length, function (err, out) {
-        if (err || !out || !out.items || !out.items.length) {
+    this.setData({ busy: true, done: 0, stepText: total > 1 ? ('识别中 · 已完成 0/' + total + ' 张') : '' })
+
+    function makeDone(no) {
+      return function (err, r) {
+        inFlight--
+        finished++
+        self.setData({ done: finished, stepText: self.stepFor(finished, total) })
+        if (err || !r || !r.items || !r.items.length) {
           fails.push({ no: no, why: String(err || '没认出流水') })
         } else {
-          acc = acc.concat(out.items)
-          skipped += out.skipped || 0
-          if (!source) source = out.source || ''
+          out[no - 1] = r.items
+          skipped += r.skipped || 0
+          if (!source) source = r.source || ''
         }
-        next()
-      })
+        if (finished >= total) {
+          var acc = []
+          for (var i = 0; i < out.length; i++) {
+            if (out[i]) acc = acc.concat(out[i])
+          }
+          self.finishBatch(acc, fails, skipped, source, total)
+          return
+        }
+        launch()
+      }
     }
-    next()
+
+    function launch() {
+      while (started < total && inFlight < LANES) {
+        var no = started + 1
+        var src = files[started].tempFilePath
+        started++
+        inFlight++
+        self.ocrOne(src, no, total, makeDone(no))
+      }
+    }
+
+    launch()
+  },
+
+  stepFor: function (done, total) {
+    if (total <= 1) return ''
+    return '识别中 · 已完成 ' + done + '/' + total + ' 张'
   },
 
   /* 单张：压缩 → 上传（带重试）→ 云函数识别 → 解析 */
   ocrOne: function (src, no, total, cb) {
     var self = this
-    var tag = total > 1 ? ('第 ' + no + '/' + total + ' 张 · ') : ''
-    function step(t) { self.setData({ stepText: tag + t }) }
+    var single = total <= 1
+    function step(t) { if (single) self.setData({ stepText: t }) }
 
     this.setData({ busy: true })
     step('正在压缩图片…')
@@ -142,7 +170,7 @@ Page({
           var msg = String((err && err.errMsg) || '')
           var retryable = /ECONNRESET|reset|timeout|network|net::|socket/i.test(msg)
           if (retryable && tries < MAX) {
-            self.setData({ stepText: '上传中断，重试中（' + tries + '/' + (MAX - 1) + '）…' })
+            if (!self._multi) self.setData({ stepText: '上传中断，重试中（' + tries + '/' + (MAX - 1) + '）…' })
             setTimeout(attempt, 800)
             return
           }

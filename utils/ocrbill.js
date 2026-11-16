@@ -125,6 +125,8 @@ function parseAmountCell(t) {
   var s = String(t || '').replace(/\s/g, '')
   if (!s) return null
   s = s.replace(/[¥￥]/g, '').replace(/元$/, '')
+  /* OCR 会把减号认成各种样子：真减号 −(U+2212)、破折号 — –、全角 － */
+  s = s.replace(/[−–—－]/g, '-').replace(/＋/g, '+')
   var sign = ''
   if (s.charAt(0) === '+' || s.charAt(0) === '-') {
     sign = s.charAt(0)
@@ -150,6 +152,10 @@ function makeDate(y, m, d) {
 function dateInText(text, now) {
   var m
   if ((m = text.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/))) {
+    return makeDate(parseInt(m[1], 10), parseInt(m[2], 10), parseInt(m[3], 10))
+  }
+  /* 详情页的时间带完整年份：2026-11-16 23:00:50 */
+  if ((m = text.match(/(\d{4})\s*[-/.年]\s*(\d{1,2})\s*[-/.月]\s*(\d{1,2})\s*(?:日|号)?/))) {
     return makeDate(parseInt(m[1], 10), parseInt(m[2], 10), parseInt(m[3], 10))
   }
   if ((m = text.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日/))) {
@@ -229,6 +235,183 @@ function parseInline(text) {
   return { value: hit.value, sign: hit.sign, merchant: merchant || '截图识别' }
 }
 
+/* ---------- 4.6 单笔详情页（微信支付凭证 / 支付宝账单详情） ---------- */
+/* 详情页版面跟列表页完全不同：商户名在金额的上方、金额是整页最大的那行字、
+ * 时间带完整年份、还带交易单号。单独走一条解析，好处很实在：
+ *   1) 日期带年份，不用再推「今年还是去年」；
+ *   2) 有交易单号就能像账单文件一样精确判重——同一天同额同商户的两笔不会被吞，
+ *      同一张截图重复导入也不会翻倍。 */
+var DETAIL_MARKS = [
+  '交易单号', '商户单号', '订单号', '收款方全称', '支付时间', '交易时间',
+  '付款方式', '支付方式', '当前状态', '收单机构', '商品说明', '账单分类',
+  '计入收支', '账单详情'
+]
+
+function detailScore(allText) {
+  var n = 0
+  for (var i = 0; i < DETAIL_MARKS.length; i++) {
+    if (allText.indexOf(DETAIL_MARKS[i]) >= 0) n++
+  }
+  return n
+}
+
+/* 金额：整页字号最大的那个短格子（详情页的大字金额比正文明显大一号） */
+function pickBigAmount(rows) {
+  var best = null
+  for (var i = 0; i < rows.length; i++) {
+    var cells = rows[i].cells
+    for (var c = 0; c < cells.length; c++) {
+      var cell = cells[c]
+      if (String(cell.text || '').replace(/\s/g, '').length > 14) continue
+      var amt = parseAmountCell(cell.text)
+      if (!amt) continue
+      var h = cell.h || 20
+      if (!best || h > best.h + 1) best = { value: amt.value, sign: amt.sign, h: h, row: i }
+    }
+  }
+  return best
+}
+
+function parseDetail(rows, nowInfo, userRules, allText, source) {
+  var best = pickBigAmount(rows)
+  if (!best) {
+    return { items: [], skipped: 0, source: source, error: '详情页里没找到金额，换张清楚点的截图' }
+  }
+
+  /* 时间：第一处带完整日期的行（详情页一定有「支付时间 2026-11-16 23:00:50」） */
+  var dRow = null
+  var tRow = null
+  for (var r = 0; r < rows.length; r++) {
+    var d = dateInText(rows[r].text, nowInfo)
+    if (!d) continue
+    dRow = d
+    tRow = timeInText(rows[r].text) || timeInText(rows[r + 1] ? rows[r + 1].text : '')
+    break
+  }
+  var base = dRow ? new Date(dRow.y, dRow.m - 1, dRow.d) : new Date(nowInfo.ts)
+  if (tRow) base.setHours(tRow.h, tRow.mi, 0, 0)
+  var ts = base.getTime()
+
+  /* 商户：金额行上方那一行（跳过状态/日期/页面标题） */
+  var merchant = ''
+  for (var up = best.row - 1; up >= 0 && up >= best.row - 4; up--) {
+    var t2 = rows[up].text
+    if (!t2 || t2.length < 2 || t2.length > 24) continue
+    if (dateInText(t2, nowInfo)) continue
+    if (/支付成功|交易成功|已收钱|收款成功|已退款|退款成功|交易关闭|已关闭|当前状态|账单详情|全部账单|账单服务|订单详情/.test(t2)) continue
+    merchant = t2
+    break
+  }
+  if (!merchant) {
+    /* 兜底：支付宝详情页的「收款方全称」 */
+    for (var r2 = 0; r2 < rows.length; r2++) {
+      var mt = rows[r2].text.match(/(?:收款方全称|商户名称|收款方|对方)\s*(.*)/)
+      if (!mt) continue
+      var v = String(mt[1] || '').trim()
+      if (!v && rows[r2 + 1]) v = String(rows[r2 + 1].text || '').trim()
+      if (v) { merchant = v.slice(0, 24); break }
+    }
+  }
+  if (!merchant) merchant = '截图识别'
+
+  /* 商品说明 → 备注（支付宝详情页有，微信那边一般没有） */
+  var desc = ''
+  for (var d3 = 0; d3 < rows.length; d3++) {
+    var dm = rows[d3].text.match(/商品说明\s*(.*)/)
+    if (!dm) continue
+    desc = String(dm[1] || '').trim()
+    if (!desc && rows[d3 + 1]) desc = String(rows[d3 + 1].text || '').trim()
+    break
+  }
+
+  /* 状态 → 方向。详情页整页只讲这一笔，所以整页文字都能当上下文 */
+  var state = ''
+  for (var s = 0; s < rows.length; s++) {
+    var mm = rows[s].text.match(/(支付成功|交易成功|已收钱|收款成功|已全额退款|已退款|退款成功|交易关闭|已关闭|等待付款|已失效)/)
+    if (mm) { state = mm[1]; break }
+  }
+
+  var type = 'expense'
+  if (/退款|已退/.test(state)) {
+    type = 'refund'
+  } else if (/已收钱|收款成功/.test(state)) {
+    type = 'income'
+  } else if (/关闭|失效/.test(state)) {
+    return { items: [], skipped: 1, source: source, error: '这一笔是「' + state + '」，没有成交，就不记账了' }
+  } else if (/转入|转出|转账给|提现|还款|赎回|申购/.test(merchant + ' ' + desc + ' ' + state)) {
+    /* 注意：不能拿「零钱通/余额宝」当转账依据——那只是付款方式，
+     * 「支付方式 零钱通」是拿零钱通付款，属于正常支出。
+     * 也只看商户/说明/状态这三处，不喂整页文字（页面上的「收单机构」等字样会把分类带偏） */
+    type = 'transfer'
+  } else if (best.sign === '+') {
+    type = 'income'
+  } else if (best.sign === '-') {
+    type = 'expense'
+  } else {
+    type = (source === '支付宝') ? 'income' : 'expense'
+  }
+
+  /* 交易单号：OCR 常把长单号折成两行，这里去掉空白再抠，能拼回去 */
+  var sn = ''
+  var packed = allText.replace(/\s/g, '')
+  var sm = packed.match(/交易单号[:：]?(\d{10,})/) ||
+    packed.match(/商户单号[:：]?(\d{10,})/) ||
+    packed.match(/订单号[:：]?(\d{10,})/)
+  if (sm) sn = sm[1]
+
+  var platformCat = findPlatformCat(allText)
+  /* 只把商户/说明/状态喂给分类器：整页文字里有「收单机构 财付通」「支付方式 零钱通」
+   * 这类字样，会命中转账类关键词把一笔正常支出带偏 */
+  var clsText = (desc + ' ' + state).trim()
+  var cls = category.classify(merchant, clsText, platformCat, userRules, type)
+
+  /* 有单号就用单号当身份（前缀 b，跟账单文件一致），没有才退回日期+金额+商户 */
+  var id = sn
+    ? 'b' + hash('sn|' + source + '|' + sn)
+    : 'h' + hash(format.dayOf(ts) + '|' + best.value + '|' + merchant + '|' + source)
+
+  var cat = type === 'refund'
+    ? '退款'
+    : (type === 'transfer' ? category.transferCat(merchant, clsText) : cls.cat)
+
+  return {
+    items: [compact({
+      id: id,
+      time: ts,
+      day: format.dayOf(ts),
+      ym: format.ymOf(ts),
+      amount: best.value,
+      type: type,
+      merchant: merchant,
+      desc: desc.slice(0, 24),
+      category: cat,
+      account: '',
+      status: state,
+      source: source,
+      byPlatform: cls.by,
+      note: ''
+    })],
+    skipped: 0,
+    source: source,
+    error: ''
+  }
+}
+
+/* 取某一行里最像商户名的那个格子（去掉金额格、时间格、纯数字） */
+function merchantCellOf(row) {
+  var best = ''
+  var cells = (row && row.cells) || []
+  for (var i = 0; i < cells.length; i++) {
+    var ct = String(cells[i].text || '').trim()
+    if (!ct) continue
+    if (parseAmountCell(ct)) continue
+    if (/^[¥￥+\-]?\s*(\d{1,3}(,\d{3})*|\d+)(\.\d{1,2})?\s*元?$/.test(ct)) continue
+    if (isDateTimeCell(ct)) continue
+    if (ct.length > best.length) best = ct
+  }
+  return best.replace(/^[·•]\s*/, '').trim()
+}
+
 /* ---------- 5. 主流程 ---------- */
 /* 账单卡片布局：商户+金额同一行，下面跟「分类」「时间」两行小字。
  * 判断某行是不是金额行 */
@@ -263,6 +446,12 @@ function parseItems(items, userRules, opts) {
   var source = '截图'
   if (allText.indexOf('支付宝') >= 0 || allText.indexOf('余额宝') >= 0) source = '支付宝'
   if (allText.indexOf('微信') >= 0 || allText.indexOf('零钱') >= 0) source = '微信'
+
+  /* 单笔详情页（微信支付凭证 / 支付宝账单详情）：版面跟列表页完全不同，走另一条解析。
+   * 只在认出 2 个以上详情页标志词时才切过去，避免把列表页误判成详情页 */
+  if (detailScore(allText) >= 2) {
+    return parseDetail(rows, nowInfo, userRules, allText, source)
+  }
 
   var ctxDate = null
   var out = []
@@ -325,6 +514,14 @@ function parseItems(items, userRules, opts) {
         if (ct.length > merchant.length) merchant = ct
       }
       merchant = merchant.replace(/^[·•]\s*/, '').trim()
+    }
+    /* 金额和商户被 OCR 认成了两行（金额那行只剩数字）：往上找一行把商户名捞回来 */
+    if (!merchant && cells.length === 1) {
+      for (var up = i - 1; up >= 0 && up >= i - 2; up--) {
+        if (rowHasAmount(rows[up])) continue
+        var pm = merchantCellOf(rows[up])
+        if (pm) { merchant = pm; break }
+      }
     }
     if (!merchant) merchant = '截图识别'
 
@@ -431,7 +628,7 @@ function parseItems(items, userRules, opts) {
       items: [],
       skipped: skipped,
       source: source,
-      error: '这张图里没找到带金额的账单行，确认截的是账单列表页（不是详情页）'
+      error: '这张图里没找到带金额的账单行，确认截的是账单列表页，或者某一笔的详情页'
     }
   }
 
@@ -515,6 +712,7 @@ function compact(o) {
 
 module.exports = {
   parseItems: parseItems,
+  parseDetail: parseDetail,
   groupRows: groupRows,
   parseAmountCell: parseAmountCell,
   fromBill: fromBill

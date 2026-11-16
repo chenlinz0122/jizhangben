@@ -67,25 +67,50 @@
     </view>
   </view>
 
-  <!-- 每日对比 -->
+  <!-- 每日对比（可放大缩小） -->
   <view class="card" wx:if="{{hasData}}">
     <view class="between">
       <text class="title inline">{{tab === 'income' ? '每日入账' : '每日支出'}}</text>
-      <text class="muted2">点柱子看当天明细</text>
+      <view class="zoomwrap">
+        <text class="zbtn {{dayZoom === 1 ? 'off' : ''}}" data-d="-1" bindtap="zoomDay">−</text>
+        <text class="zval">{{dayZoom}}×</text>
+        <text class="zbtn {{dayZoom === 3 ? 'off' : ''}}" data-d="1" bindtap="zoomDay">＋</text>
+      </view>
     </view>
-    <view class="dwrap">
-      <view class="dbubble" wx:if="{{daily.show}}" style="left:{{daily.tipLeft}}%">{{daily.tipText}}</view>
-      <view class="dchart">
-        <view class="dcol" wx:for="{{daily.list}}" wx:key="d" data-d="{{item.d}}" bindtap="tapDaily">
-          <view class="dbar {{item.isMax ? 'max' : ''}} {{tab}}" style="height:{{item.h}}%"></view>
+    <view class="dhint">
+      <text class="muted2">{{dayZoom > 1 ? '左右滑动看全月 · 点柱子看当天明细' : '点柱子看当天明细'}}</text>
+      <text class="muted2" wx:if="{{dayZoom > 1 && daily.show}}">{{daily.tipText}}</text>
+    </view>
+
+    <view class="dwrap {{dayZoom > 1 ? 'tight' : ''}}">
+      <block wx:if="{{dayZoom === 1}}">
+        <view class="dbubble" wx:if="{{daily.show}}" style="left:{{daily.tipLeft}}%">{{daily.tipText}}</view>
+        <view class="dchart">
+          <view class="dcol" wx:for="{{daily.list}}" wx:key="d" data-d="{{item.d}}" bindtap="tapDaily">
+            <view class="dbar {{item.isMax ? 'max' : ''}} {{tab}}" style="height:{{item.h}}%"></view>
+          </view>
         </view>
-      </view>
-      <view class="xaxis">
-        <text>{{daily.x1}}</text>
-        <text>{{daily.x2}}</text>
-        <text>{{daily.x3}}</text>
-        <text>{{daily.x4}}</text>
-      </view>
+        <view class="xaxis">
+          <text>{{daily.x1}}</text>
+          <text>{{daily.x2}}</text>
+          <text>{{daily.x3}}</text>
+          <text>{{daily.x4}}</text>
+        </view>
+      </block>
+
+      <scroll-view wx:else scroll-x class="dscroll" show-scrollbar="{{false}}">
+        <view class="din" style="width:{{dInW}}rpx">
+          <view class="dchart" style="width:{{dInW}}rpx">
+            <view class="dcolz" style="width:{{dColW}}rpx" wx:for="{{daily.list}}" wx:key="d"
+                  data-d="{{item.d}}" bindtap="tapDaily">
+              <view class="dbar {{item.isMax ? 'max' : ''}} {{tab}}" style="height:{{item.h}}%"></view>
+            </view>
+          </view>
+          <view class="daxis" style="width:{{dInW}}rpx">
+            <text class="dax" style="width:{{dColW}}rpx" wx:for="{{daily.list}}" wx:key="d">{{item.ax}}</text>
+          </view>
+        </view>
+      </scroll-view>
     </view>
   </view>
 

@@ -152,9 +152,78 @@
 }
 
 /* ---------- 每日柱状 ---------- */
+.zoomwrap {
+  display: flex;
+  align-items: center;
+  background: #f1f4f3;
+  border-radius: 20rpx;
+  padding: 4rpx;
+}
+
+.zbtn {
+  width: 52rpx;
+  text-align: center;
+  font-size: 28rpx;
+  line-height: 1;
+  color: #17806b;
+  padding: 8rpx 0;
+}
+
+.zbtn.off {
+  color: #c4c9cd;
+}
+
+.zval {
+  font-size: 20rpx;
+  color: #5b6167;
+  min-width: 42rpx;
+  text-align: center;
+}
+
+.dhint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10rpx;
+}
+
 .dwrap {
   position: relative;
   padding-top: 56rpx;
+}
+
+.dwrap.tight {
+  padding-top: 14rpx;
+}
+
+/* 放大后：柱子定宽 + 横向滑动 */
+.dscroll {
+  width: 100%;
+}
+
+.din {
+  padding-bottom: 4rpx;
+}
+
+.dcolz {
+  flex: none;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.daxis {
+  display: flex;
+  margin-top: 8rpx;
+}
+
+.dax {
+  flex: none;
+  text-align: center;
+  font-size: 19rpx;
+  color: #b1b7bd;
+  white-space: nowrap;
 }
 
 .dbubble {

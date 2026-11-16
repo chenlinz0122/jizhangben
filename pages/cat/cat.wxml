@@ -29,7 +29,7 @@
       <text class="msub">¥{{m.totalText}} · {{m.count}} 笔</text>
     </view>
     <view class="items">
-      <view class="item" wx:for="{{m.items}}" wx:key="id">
+      <view class="item" wx:for="{{m.items}}" wx:key="id" data-id="{{item.id}}" bindtap="openDetail">
         <view class="ileft">
           <text class="im">{{item.merchant}}</text>
           <text class="isub">{{item.dayText}} {{item.weekText}} · {{item.timeText}}<text wx:if="{{item.desc}}"> · {{item.desc}}</text></text>
@@ -39,5 +39,39 @@
     </view>
   </view>
 
-  <view class="tip" wx:if="{{months.length > 0}}">按月分段，每段里从新到旧</view>
+  <view class="tip" wx:if="{{months.length > 0}}">按月分段，每段里从新到旧 · 点一笔看详情</view>
+</view>
+
+<view class="mask" wx:if="{{sheetVisible}}" bindtap="closeDetail"></view>
+<view class="sheet {{sheetVisible ? 'up' : ''}}">
+  <view class="sheethd">
+    <view class="shleft">
+      <text class="shm">{{sheet.merchant}}</text>
+      <text class="shamt {{sheet.inc ? 'inc' : ''}}">{{sheet.sign}}¥{{sheet.amountText}}</text>
+    </view>
+    <text class="shclose" bindtap="closeDetail">关闭</text>
+  </view>
+  <view class="shbody">
+    <view class="shrow">
+      <text class="shk">时间</text>
+      <text class="shv">{{sheet.dateText}} · {{sheet.timeText}}</text>
+    </view>
+    <view class="shrow">
+      <text class="shk">分类</text>
+      <text class="shv">{{sheet.category}}</text>
+    </view>
+    <view class="shrow">
+      <text class="shk">方向</text>
+      <text class="shv">{{sheet.typeText}}</text>
+    </view>
+    <view class="shrow">
+      <text class="shk">来源</text>
+      <text class="shv">{{sheet.sourceText}}</text>
+    </view>
+    <view class="shrow" wx:if="{{sheet.desc}}">
+      <text class="shk">说明</text>
+      <text class="shv">{{sheet.desc}}</text>
+    </view>
+  </view>
+  <text class="shnote">这一页只看不动。要改金额、改分类或删单，去「流水」页点那一笔。</text>
 </view>

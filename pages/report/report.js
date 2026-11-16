@@ -80,6 +80,10 @@ Page({
 
     /* 每日 / 月度 */
     daily: { list: [], tipText: '', tipLeft: 50, show: false, x1: '', x2: '', x3: '', x4: '' },
+    /* 每日柱的缩放档位：1× 整月铺满，2×/3× 柱子加宽 + 左右滑动 */
+    dayZoom: 1,
+    dColW: 0,
+    dInW: 0,
     months: [],
     scrollToId: '',
 
@@ -168,6 +172,10 @@ Page({
     var n = this.data.catsOpen ? full.length : Math.min(full.length, 5)
     /* 每日对比 */
     var daily = this.buildDaily(txs, ym, kind)
+    /* 缩放档位换算成柱子宽度：44 / 62 rpx 之外一律铺满整行 */
+    var zoom = this.data.dayZoom || 1
+    var dColW = zoom === 1 ? 0 : (zoom === 2 ? 44 : 62)
+    var dInW = dColW ? dColW * daily.list.length : 0
 
     /* 近 6 个月对比 */
     var tr6 = stats.trend(txs, ym, 6)
@@ -276,6 +284,9 @@ Page({
       catsTotal: full.length,
 
       daily: daily,
+      dayZoom: zoom,
+      dColW: dColW,
+      dInW: dInW,
       months: months,
       chartW: months.length * 164,
       scrollToId: 'm' + activeIdx,
@@ -328,7 +339,11 @@ Page({
       var use = v > 0 ? v : 0
       var h = max > 0 ? Math.round((use / max) * 100) : 0
       if (use > 0 && h < 5) h = 5
-      return { d: idx + 1, h: h, isMax: idx === maxIdx && max > 0 }
+      var day = idx + 1
+      /* 放大后每一列下面要有个日期，不然滑着就不知道看的是哪天 */
+      var ax = ''
+      if (day === 1 || day % 5 === 0 || day === dim) ax = m + '.' + day
+      return { d: day, h: h, isMax: idx === maxIdx && max > 0, ax: ax }
     })
 
     var left = dim > 1 ? ((maxIdx + 0.5) / dim) * 100 : 50
@@ -340,6 +355,7 @@ Page({
 
     return {
       list: list,
+      dim: dim,
       show: max > 0,
       tipText: max > 0 ? (m + '月' + (maxIdx + 1) + '日 · ' + (kind === 'income' ? '共入账' : '共支出') + ' ¥' + format.money(max)) : '',
       tipLeft: left,
@@ -511,6 +527,19 @@ Page({
     app.globalData.filterYm = this.data.ym
     app.globalData.filterDay = ''
     wx.switchTab({ url: '/pages/list/list' })
+  },
+
+  /* 每日柱放大 / 缩小：1× 整月一屏，2×/3× 柱子加宽到需要左右滑 */
+  zoomDay: function (e) {
+    var self = this
+    var d = Number(e.currentTarget.dataset.d) || 0
+    var z = (this.data.dayZoom || 1) + d
+    if (z < 1) z = 1
+    if (z > 3) z = 3
+    if (z === this.data.dayZoom) return
+    this.setData({ dayZoom: z }, function () {
+      self.refresh()
+    })
   },
 
   /* 点每日柱子 → 跳到流水页看那一天的明细 */

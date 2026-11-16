@@ -153,3 +153,109 @@
   color: #b1b7bd;
   padding: 36rpx 0 0;
 }
+
+/* ---------- 单笔详情弹层 ---------- */
+.mask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 100;
+}
+
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #ffffff;
+  border-radius: 28rpx 28rpx 0 0;
+  transform: translateY(110%);
+  transition: transform 0.22s ease-out;
+  z-index: 101;
+  padding-bottom: calc(28rpx + env(safe-area-inset-bottom));
+}
+
+.sheet.up {
+  transform: translateY(0);
+}
+
+.sheethd {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 32rpx 32rpx 22rpx;
+  border-bottom: 1rpx solid #f1f3f4;
+}
+
+.shleft {
+  flex: 1;
+  min-width: 0;
+}
+
+.shm {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #2b3136;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.shamt {
+  display: block;
+  font-size: 38rpx;
+  font-weight: 700;
+  color: #d9433f;
+  margin-top: 8rpx;
+}
+
+.shamt.inc {
+  color: #1f7a4d;
+}
+
+.shclose {
+  font-size: 26rpx;
+  color: #8b9198;
+  padding-left: 20rpx;
+}
+
+.shbody {
+  padding: 8rpx 32rpx 0;
+}
+
+.shrow {
+  display: flex;
+  align-items: flex-start;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #f6f7f8;
+}
+
+.shrow:last-child {
+  border-bottom: none;
+}
+
+.shk {
+  width: 96rpx;
+  flex: none;
+  font-size: 23rpx;
+  color: #9aa0a6;
+}
+
+.shv {
+  flex: 1;
+  font-size: 25rpx;
+  color: #2b3136;
+  word-break: break-all;
+}
+
+.shn {
+  display: block;
+  padding: 22rpx 32rpx 6rpx;
+  font-size: 20rpx;
+  color: #a2a8ae;
+  line-height: 1.6;
+}

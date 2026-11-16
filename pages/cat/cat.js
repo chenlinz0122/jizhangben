@@ -18,7 +18,9 @@ Page({
     avgText: '0.00',
     maxText: '0.00',
     maxMerchant: '',
-    months: []
+    months: [],
+    sheetVisible: false,
+    sheet: null
   },
 
   onLoad: function (options) {
@@ -38,6 +40,40 @@ Page({
   /* 放在 onShow 里建：从这一页出去改了流水再回来，数字要是新的 */
   onShow: function () {
     if (this.data.cat) this.build()
+  },
+
+  /* 点一笔 → 看这一笔的完整信息（这一页只读，改/删还是回流水页做） */
+  openDetail: function (e) {
+    var id = e.currentTarget.dataset.id
+    if (!id) return
+    var txs = store.all()
+    var tx = null
+    for (var i = 0; i < txs.length; i++) {
+      if (txs[i].id === id) { tx = txs[i]; break }
+    }
+    if (!tx) return
+    var d = new Date(tx.time)
+    var income = tx.type === 'income' || tx.type === 'refund'
+    this.setData({
+      sheetVisible: true,
+      sheet: {
+        merchant: tx.merchant || '（没有商户名）',
+        amountText: format.money(tx.amount),
+        sign: income ? '+' : '-',
+        inc: income,
+        typeText: tx.type === 'expense' ? '支出' : (tx.type === 'income' ? '收入' : (tx.type === 'refund' ? '退款' : '不计收支')),
+        dateText: tx.day.slice(0, 4) + ' 年 ' + parseInt(tx.day.slice(5, 7), 10) + ' 月 ' +
+          parseInt(tx.day.slice(8), 10) + ' 日 ' + WEEK[d.getDay()],
+        timeText: format.pad(d.getHours()) + ':' + format.pad(d.getMinutes()),
+        category: tx.category,
+        sourceText: tx.source || '—',
+        desc: String(tx.desc || tx.note || '').trim()
+      }
+    })
+  },
+
+  closeDetail: function () {
+    this.setData({ sheetVisible: false, sheet: null })
   },
 
   build: function () {

@@ -2,9 +2,11 @@
   <view class="hero">
     <view class="statusbar"></view>
     <view class="month">
-      <text class="nav" bindtap="prevMonth">‹</text>
-      <text class="mtext">{{monthText}}</text>
-      <text class="nav {{canNext ? '' : 'off'}}" bindtap="nextMonth">›</text>
+      <view class="nav" bindtap="prevMonth">‹</view>
+      <picker mode="date" fields="month" value="{{ym}}" end="{{maxYm}}" bindchange="pickMonth">
+        <view class="mtext">{{monthText}}<text class="mcaret">▾</text></view>
+      </picker>
+      <view class="nav {{canNext ? '' : 'off'}}" bindtap="nextMonth">›</view>
     </view>
 
     <text class="cap">本月结余</text>

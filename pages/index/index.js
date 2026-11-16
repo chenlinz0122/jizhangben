@@ -6,6 +6,7 @@ var category = require('../../utils/category')
 Page({
   data: {
     ym: '',
+    maxYm: '',
     monthText: '',
     canNext: false,
     s: { expenseText: '0.00', incomeText: '0.00', netText: '0.00', netSign: '', count: 0, uncatCount: 0 },
@@ -15,7 +16,7 @@ Page({
   },
 
   onLoad: function () {
-    this.setData({ ym: format.ymOf(Date.now()) })
+    this.setData({ ym: format.ymOf(Date.now()), maxYm: format.ymOf(Date.now()) })
   },
 
   onShow: function () {
@@ -73,6 +74,15 @@ Page({
     if (!this.data.canNext) return
     var self = this
     this.setData({ ym: format.shiftMonth(this.data.ym, 1) }, function () { self.refresh() })
+  },
+
+  /* 点中间的月份直接弹选择器，跳任意月份（不用一格一格点箭头） */
+  pickMonth: function (e) {
+    var now = format.ymOf(Date.now())
+    var v = e.detail.value || now
+    if (v > now) v = now
+    var self = this
+    this.setData({ ym: v }, function () { self.refresh() })
   },
 
   goImport: function () {

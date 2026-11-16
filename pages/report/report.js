@@ -135,14 +135,17 @@ Page({
       var prev = cmp.amountOf(c.name)
       var deltaText = ''
       var deltaDir = ''
+      var d = prev > 0 ? Math.round(((c.amount - prev) / prev) * 100) : 0
       if (prev <= 0) {
         deltaText = '新增'
-      } else {
-        var d = Math.round(((c.amount - prev) / prev) * 100)
-        if (d === 0) { deltaText = '持平' } else {
-          deltaText = (d > 0 ? '+' : '') + d + '%'
-          deltaDir = d > 0 ? 'up' : 'down'
-        }
+      } else if (Math.abs(d) > 999) {
+        /* 上月基数只有几块钱时，百分比会算成 +29603% 这种没法看的数字，
+         * 超过 999% 就直接把上月的真实金额写出来 */
+        deltaText = '上月 ¥' + format.money(prev)
+        deltaDir = d > 0 ? 'up' : 'down'
+      } else if (d === 0) { deltaText = '持平' } else {
+        deltaText = (d > 0 ? '+' : '') + d + '%'
+        deltaDir = d > 0 ? 'up' : 'down'
       }
       var bud = cb[c.name] || 0
       /* 分类预算的「已花」要扣掉这个类目的退款，不能拿原价去比额度 */

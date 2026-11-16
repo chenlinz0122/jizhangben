@@ -103,8 +103,9 @@ Page({
         isUncat: t.category === '未分类'
       }
       cur.items.push(row)
+      /* 小计只算支出的原价：退款不冲减，否则「今天退了上个月买的东西」会让当天小计变成负数，
+       * 也跟报表「共支出=原价」、分类金额的口径对不上。退款在行内以 +¥ 显示、计入入账。 */
       if (t.type === 'expense') cur.spend += t.amount
-      if (t.type === 'refund') cur.spend -= t.amount
     }
 
     groups.forEach(function (g) {

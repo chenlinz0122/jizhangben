@@ -3,6 +3,7 @@
     "pages/index/index",
     "pages/list/list",
     "pages/report/report",
+    "pages/cat/cat",
     "pages/import/import",
     "pages/shot/shot",
     "pages/add/add"

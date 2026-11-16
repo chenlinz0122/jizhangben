@@ -1,0 +1,151 @@
+.page {
+  min-height: 100vh;
+  background: #f4f5f7;
+  padding-bottom: 60rpx;
+  box-sizing: border-box;
+}
+
+/* ---------- 顶部合计 ---------- */
+.hero {
+  background: linear-gradient(160deg, #1a8f76 0%, #12695a 100%);
+  padding: 30rpx 32rpx 34rpx;
+  border-radius: 0 0 32rpx 32rpx;
+  box-shadow: 0 16rpx 36rpx rgba(18, 105, 90, 0.18);
+}
+
+.htop {
+  display: flex;
+  align-items: baseline;
+  gap: 16rpx;
+}
+
+.hcat {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.hyear {
+  font-size: 22rpx;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.hnum {
+  display: block;
+  font-size: 60rpx;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 1rpx;
+  margin-top: 14rpx;
+  line-height: 1.2;
+}
+
+.hfoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8rpx;
+  margin-top: 10rpx;
+  font-size: 20rpx;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.hdot {
+  opacity: 0.6;
+}
+
+.hmerchant {
+  max-width: 420rpx;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ---------- 按月分段 ---------- */
+.mblock {
+  margin: 26rpx 24rpx 0;
+}
+
+.mhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8rpx 8rpx 12rpx;
+}
+
+.mlabel {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #2b3136;
+}
+
+.msub {
+  font-size: 21rpx;
+  color: #a2a8ae;
+}
+
+.items {
+  background: #ffffff;
+  border-radius: 24rpx;
+  padding: 0 28rpx;
+  box-shadow: 0 10rpx 30rpx rgba(23, 128, 107, 0.06);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  padding: 22rpx 0;
+  border-bottom: 1rpx solid #f1f3f4;
+}
+
+.items .item:last-child {
+  border-bottom: none;
+}
+
+.ileft {
+  flex: 1;
+  min-width: 0;
+  padding-right: 16rpx;
+}
+
+.im {
+  display: block;
+  font-size: 28rpx;
+  color: #2b3136;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.isub {
+  display: block;
+  font-size: 21rpx;
+  color: #9aa0a6;
+  margin-top: 6rpx;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.iamt {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #d9433f;
+  white-space: nowrap;
+}
+
+/* ---------- 其它 ---------- */
+.empty {
+  text-align: center;
+  color: #9aa0a6;
+  font-size: 26rpx;
+  padding: 90rpx 40rpx;
+  line-height: 1.8;
+}
+
+.tip {
+  text-align: center;
+  font-size: 20rpx;
+  color: #b1b7bd;
+  padding: 36rpx 0 0;
+}

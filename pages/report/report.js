@@ -477,18 +477,14 @@ Page({
     })
   },
 
-  /* 点年度里的某个分类 → 跳到流水页，看这一年这个分类的明细 */
+  /* 点年度里的某个分类 → 打开分类明细页，按月列出这一年这一类花的钱 */
   tapYearCat: function (e) {
     var name = e.currentTarget.dataset.name
     if (!name) return
-    var app = getApp()
-    app.globalData.filterCat = name
-    app.globalData.filterKind = 'expense'
-    app.globalData.filterYear = this.data.year ? String(this.data.year.year) : ''
-    app.globalData.filterYm = ''
-    app.globalData.filterDay = ''
-    app.globalData.filterUncat = false
-    wx.switchTab({ url: '/pages/list/list' })
+    var year = this.data.year ? String(this.data.year.year) : format.ymOf(Date.now()).slice(0, 4)
+    wx.navigateTo({
+      url: '/pages/cat/cat?year=' + year + '&cat=' + encodeURIComponent(name)
+    })
   },
 
   /* 点构成里的某个分类 → 跳到流水页看这个分类的明细 */

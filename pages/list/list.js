@@ -12,7 +12,6 @@ Page({
     filterCat: '',
     filterKind: '',
     filterDay: '',
-    filterYear: '',
     kw: '',
     searching: false,
     groups: [],
@@ -32,19 +31,17 @@ Page({
       app.globalData.filterUncat = false
       this.setData({ onlyUncat: true })
     }
-    /* 五个筛选条件各自独立读取，不能用 filterCat 当总开关——日历跳当天时 filterCat 是空串 */
+    /* 四个筛选条件各自独立读取，不能用 filterCat 当总开关——日历跳当天时 filterCat 是空串 */
     var jumped = !!(app.globalData.filterCat || app.globalData.filterKind ||
-      app.globalData.filterYear || app.globalData.filterYm || app.globalData.filterDay)
+      app.globalData.filterYm || app.globalData.filterDay)
     if (app.globalData.filterCat) this.setData({ filterCat: app.globalData.filterCat })
     if (app.globalData.filterKind) this.setData({ filterKind: app.globalData.filterKind })
-    if (app.globalData.filterYear) this.setData({ filterYear: app.globalData.filterYear })
     if (app.globalData.filterYm) this.setData({ ym: app.globalData.filterYm })
     if (app.globalData.filterDay) this.setData({ filterDay: app.globalData.filterDay })
     /* 从报表跳过来时清掉搜索词，否则跨月搜索会把月份筛选顶掉 */
     if (jumped) this.setData({ kw: '' })
     app.globalData.filterCat = ''
     app.globalData.filterKind = ''
-    app.globalData.filterYear = ''
     app.globalData.filterYm = ''
     app.globalData.filterDay = ''
     this.refresh()
@@ -52,7 +49,6 @@ Page({
 
   refresh: function () {
     var ym = this.data.ym
-    var fy = this.data.filterYear
     var kw = (this.data.kw || '').trim().toLowerCase()
     var searching = !!kw
     var txs = store.all()
@@ -65,9 +61,7 @@ Page({
 
     for (var i = 0; i < txs.length; i++) {
       var t = txs[i]
-      /* 按年筛选时跨所有月份，否则只看当月 */
-      if (!searching && !fy && t.ym !== ym) continue
-      if (fy && String(t.ym || '').indexOf(fy) !== 0) continue
+      if (!searching && t.ym !== ym) continue
       if (searching) {
         var hay = [t.merchant, t.desc, t.note, t.category].join(' ').toLowerCase()
         if (hay.indexOf(kw) < 0) continue
@@ -116,8 +110,8 @@ Page({
     })
 
     this.setData({
-      monthText: fy ? fy + ' 年' : (searching ? '全部流水' : format.monthLabel(ym)),
-      canNext: fy ? false : (ym < format.ymOf(Date.now())),
+      monthText: searching ? '全部流水' : format.monthLabel(ym),
+      canNext: ym < format.ymOf(Date.now()),
       searching: searching,
       groups: groups,
       s: {
@@ -156,13 +150,7 @@ Page({
 
   clearFilter: function () {
     var self = this
-    var patch = { filterCat: '', filterKind: '', filterDay: '' }
-    /* 清年份时顺便把月份拉回本月，不然会停在上次看的那个月，看着像没清干净 */
-    if (this.data.filterYear) {
-      patch.filterYear = ''
-      patch.ym = format.ymOf(Date.now())
-    }
-    this.setData(patch, function () { self.refresh() })
+    this.setData({ filterCat: '', filterKind: '', filterDay: '' }, function () { self.refresh() })
   },
 
   openSheet: function (e) {

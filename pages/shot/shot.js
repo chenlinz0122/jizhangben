@@ -233,11 +233,13 @@ Page({
     if (!acc.length) {
       var why = ''
       if (fails.length) {
-        why = '：第 ' + fails.map(function (f) { return f.no }).join('、') + ' 张没认出来'
-        if (/上传失败|ECONNRESET|network|timeout/i.test(fails[0].why)) {
+        /* 按图序排，别让「第 2、1、3」这种乱序出现在提示里 */
+        var nos = fails.slice().sort(function (a, b) { return a.no - b.no })
+        why = '：第 ' + nos.map(function (f) { return f.no }).join('、') + ' 张没认出来'
+        if (/上传失败|ECONNRESET|network|timeout/i.test(nos[0].why)) {
           why += '（网络相关，可试试：① 换个网络 ② 关掉代理/VPN ③ 截短一点再传）'
-        } else if (fails[0].why) {
-          why += '（' + fails[0].why + '）'
+        } else if (nos[0].why) {
+          why += '（' + nos[0].why + '）'
         }
       }
       this.setData({ error: (total > 1 ? '这 ' + total + ' 张都没' : '没') + '识别出流水' + why })

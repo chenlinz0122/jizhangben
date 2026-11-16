@@ -6,12 +6,19 @@
 //   2) 百度通用文字识别（含位置版，需要自己在百度智能云申请 Key，个人账号有免费额度）
 // 微信那条如果报「not enough market quota」，会自动落到百度那条。
 //
-// ── 要用百度通道，就把 Key 配成云函数的环境变量（推荐），或直接粘到下面 ──
+// ── 要用百度通道，就把 Key 配成云函数的环境变量（推荐），或写进同目录的 secret.js ──
 // 申请地址：https://console.bce.baidu.com/ai/#/ai/ocr/overview/index
 // 创建应用后拿到 API Key 和 Secret Key
-// 这两个值不要提交进仓库（本地值存在项目根目录的「本地密钥.txt」，已 gitignore）
-const BAIDU_API_KEY = process.env.BAIDU_API_KEY || ''
-const BAIDU_SECRET_KEY = process.env.BAIDU_SECRET_KEY || ''
+// 这两个值不要提交进仓库：secret.js 已在 .gitignore 里，本地真值另存项目根目录「本地密钥.txt」
+let secretConfig = {}
+try {
+  secretConfig = require('./secret') || {}
+} catch (e) {
+  secretConfig = {}
+}
+
+const BAIDU_API_KEY = process.env.BAIDU_API_KEY || secretConfig.BAIDU_API_KEY || ''
+const BAIDU_SECRET_KEY = process.env.BAIDU_SECRET_KEY || secretConfig.BAIDU_SECRET_KEY || ''
 
 /* 百度接口按顺序试：带坐标的优先，没权限就退到无坐标的那条 */
 const BAIDU_OCR_PATHS = [
@@ -28,6 +35,10 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
 
 /* 百度 access_token 缓存（有效期 30 天，这里留点余量） */
 let tokenCache = { value: '', expireAt: 0 }
+
+/* 微信那条一旦确认不可用（个人主体小程序拿不到配额 / 没权限），
+ * 同一个云函数容器里后面的调用就别再挨个撞一遍墙了——一张图省 1 秒左右 */
+let wxBroken = ''
 
 function httpsRequest(options, body) {
   return new Promise((resolve, reject) => {
@@ -140,32 +151,36 @@ exports.main = async (event) => {
   const fileID = event && event.fileID
   if (!fileID) return { ok: false, error: '缺少图片 fileID' }
 
-  let wxError = ''
-  try {
-    const items = await ocrByWx(fileID)
-    if (items.length) {
-      return { ok: true, via: 'wechat', items: items, count: items.length }
+  let wxError = wxBroken
+  if (!wxBroken) {
+    try {
+      const items = await ocrByWx(fileID)
+      if (items.length) {
+        return { ok: true, via: 'wechat', items: items, count: items.length }
+      }
+      wxError = '微信 OCR 没识别出文字'
+    } catch (e) {
+      wxError = (e && (e.errMsg || e.message)) || String(e)
+      if (amIWechatQuotaError(wxError) || /permission|48001|unauthorized/i.test(wxError)) {
+        wxBroken = wxError
+      }
     }
-    wxError = '微信 OCR 没识别出文字'
-  } catch (e) {
-    wxError = (e && (e.errMsg || e.message)) || String(e)
   }
 
   /* 微信那条不通（配额、权限、识别不出），看百度有没有配 */
   const hasBaidu = !!(BAIDU_API_KEY && BAIDU_SECRET_KEY)
   if (!hasBaidu) {
-    let hint
-    if (amIWechatQuotaError(wxError)) {
-      hint = '微信 OCR 的配额没开通（个人主体小程序通常拿不到那 100 次/天的免费额度）。' +
-             '要么去 mp 后台「服务市场」开通，要么在这个云函数里填上百度 OCR 的 Key 走备用通道。'
-    } else if (/size|too large|exceed/i.test(wxError)) {
-      hint = '图片太大了，截短一点或压缩后再传'
-    } else if (/permission|48001|unauthorized/i.test(wxError)) {
-      hint = 'OCR 接口没权限，检查云函数 config.json 里的 openapi 声明后重新上传'
-    } else {
-      hint = '微信 OCR 没成功：' + wxError
+    const shortWx = String(wxError).slice(0, 80)
+    return {
+      ok: false,
+      needBaiduKey: true,
+      raw: wxError,
+      error: '云函数 ocrText 还没配百度 OCR 的 Key，所以微信那条不通时就无路可走了。' +
+        '去 微信开发者工具 → 云开发控制台 → 云函数 → ocrText → 配置（有的版本叫「版本与配置」）→ 环境变量，' +
+        '加两条 BAIDU_API_KEY / BAIDU_SECRET_KEY，保存后直接再点一次识别；' +
+        '或者把 cloudfunctions/ocrText/secret.js 填好再「上传并部署」（值在项目根目录的「本地密钥.txt」里）。' +
+        '微信那条的原话：' + shortWx
     }
-    return { ok: false, error: hint, raw: wxError, needBaiduKey: true }
   }
 
   try {

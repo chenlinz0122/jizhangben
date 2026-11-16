@@ -6,12 +6,12 @@
 }
 
 /* ---------- 顶部大数字 ---------- */
+/* 注意：这里不能用 position: sticky。
+   canvas 是原生组件，真机上不吃 z-index，只要环形图滚到吸顶头部下面，
+   它就会浮在绿色卡片之上把大数字盖掉。 */
 .hero {
   background: linear-gradient(160deg, #1a8f76 0%, #12695a 100%);
   padding: 26rpx 32rpx 34rpx;
-  position: sticky;
-  top: 0;
-  z-index: 10;
   border-radius: 0 0 32rpx 32rpx;
   box-shadow: 0 16rpx 36rpx rgba(18, 105, 90, 0.18);
 }
@@ -376,31 +376,6 @@
 .pie {
   width: 320rpx;
   height: 320rpx;
-}
-
-.piecenter {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 320rpx;
-  height: 320rpx;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
-
-.pcnum {
-  font-size: 30rpx;
-  font-weight: 600;
-  color: #2b3136;
-}
-
-.pclabel {
-  font-size: 18rpx;
-  color: #9aa0a6;
-  margin-top: 4rpx;
 }
 
 /* ---------- 分类行 -------- */

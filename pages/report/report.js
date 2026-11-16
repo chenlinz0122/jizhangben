@@ -235,7 +235,10 @@ Page({
       }),
       selDayText: ''
     }, function () {
-      self.drawPie(kind === 'income' ? 'piein' : 'pie', self._cats)
+      self.drawPie(kind === 'income' ? 'piein' : 'pie', self._cats, {
+        text: '¥' + (kind === 'income' ? self.data.s.incomeText : self.data.s.expenseText),
+        label: kind === 'income' ? '本月入账' : '本月支出'
+      })
     })
   },
 
@@ -294,8 +297,10 @@ Page({
     }
   },
 
-  /* 环形图：只画环，中心数字用文字盖上去 */
-  drawPie: function (id, cats, attempt) {
+  /* 环形图：只画环 + 中心数字都画在画布上
+   * 中心文字必须画进 canvas，不能用 view 盖上去——canvas 是原生组件，
+   * 普通 view 在真机上会被它挡住（以前中心是空白的，就是这个原因）。 */
+  drawPie: function (id, cats, info, attempt) {
     var self = this
     if (!cats || !cats.length) return
     var n = attempt || 0
@@ -305,7 +310,7 @@ Page({
       if (!res || !res[0] || !res[0].node) {
         /* canvas 在 wx:if 里，刚切换页签时可能还没渲染出来，最多再等 3 次 */
         if (n >= 3) return
-        setTimeout(function () { self.drawPie(id, cats, n + 1) }, 150)
+        setTimeout(function () { self.drawPie(id, cats, info, n + 1) }, 150)
         return
       }
       var canvas = res[0].node
@@ -313,8 +318,8 @@ Page({
       var w = res[0].width
       var h = res[0].height
 
-      var info = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync()
-      var dpr = info.pixelRatio || 2
+      var win = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync()
+      var dpr = win.pixelRatio || 2
 
       canvas.width = w * dpr
       canvas.height = h * dpr
@@ -348,6 +353,30 @@ Page({
       ctx.strokeStyle = '#ffffff'
       ctx.lineWidth = 1
       ctx.stroke()
+
+      /* 中心数字 + 标签，直接画在画布上 */
+      var numText = String((info && info.text) || '')
+      var labText = String((info && info.label) || '')
+      if (numText) {
+        var fs = Math.round(w * 0.095)
+        ctx.font = 'bold ' + fs + 'px sans-serif'
+        /* 金额太长（六位数以上）就把字号往下缩，别顶到环上 */
+        while (fs > 8 && ctx.measureText(numText).width > rInner * 1.86) {
+          fs -= 1
+          ctx.font = 'bold ' + fs + 'px sans-serif'
+        }
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillStyle = '#2b3136'
+        ctx.fillText(numText, cx, cy - w * 0.038)
+      }
+      if (labText) {
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillStyle = '#9aa0a6'
+        ctx.font = Math.round(w * 0.055) + 'px sans-serif'
+        ctx.fillText(labText, cx, cy + w * 0.07)
+      }
     })
   },
 

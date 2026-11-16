@@ -44,10 +44,6 @@
     <view class="piebox">
       <canvas type="2d" id="pie" wx:if="{{tab === 'expense'}}" class="pie"></canvas>
       <canvas type="2d" id="piein" wx:else class="pie"></canvas>
-      <view class="piecenter">
-        <text class="pcnum">¥{{tab === 'income' ? s.incomeText : s.expenseText}}</text>
-        <text class="pclabel">{{tab === 'income' ? '本月入账' : '本月支出'}}</text>
-      </view>
     </view>
 
     <view class="cat" wx:for="{{cats}}" wx:key="name" data-name="{{item.name}}" bindtap="tapCat">

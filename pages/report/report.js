@@ -87,7 +87,8 @@ Page({
     months: [],
     scrollToId: '',
 
-    topList: [],
+    rankBoards: [],
+    rankAny: false,
 
     year: null,
     yearCatsOpen: false,
@@ -238,6 +239,15 @@ Page({
       return q._spent - p._spent
     })
 
+    /* 商户排行：支出榜和入账榜都给出来，当前页签对应的那个排前面 */
+    var topExp = topBy(txs, ym, 'expense', 6)
+    var topInc = topBy(txs, ym, 'income', 6)
+    var rankBoards = [
+      { key: 'exp', title: '支出排行', sub: '本月花得最多的商户', inc: false, list: topExp },
+      { key: 'inc', title: '入账排行', sub: '本月进账最多的商户', inc: true, list: topInc }
+    ]
+    if (kind === 'income') rankBoards = [rankBoards[1], rankBoards[0]]
+
     this.setData({
       monthText: format.monthLabel(ym),
       canNext: ym < curYm,
@@ -290,7 +300,8 @@ Page({
       months: months,
       chartW: months.length * 164,
       scrollToId: 'm' + activeIdx,
-      topList: topBy(txs, ym, kind, 6),
+      rankBoards: rankBoards,
+      rankAny: topExp.length > 0 || topInc.length > 0,
 
       year: ys,
 

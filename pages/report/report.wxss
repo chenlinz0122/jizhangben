@@ -380,6 +380,24 @@
 }
 
 /* ---------- 排行 ---------- */
+.rhead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 22rpx 0 6rpx;
+}
+
+.rhtitle {
+  font-size: 24rpx;
+  font-weight: 600;
+  color: #2b3136;
+}
+
+.rhsub {
+  font-size: 19rpx;
+  color: #b1b7bd;
+}
+
 .mrow {
   display: flex;
   align-items: center;

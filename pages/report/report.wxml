@@ -177,17 +177,23 @@
     </view>
   </view>
 
-  <!-- 排行 -->
-  <view class="card" wx:if="{{topList.length > 0}}">
-    <view class="title">{{tab === 'income' ? '入账排行' : '支出排行'}}</view>
-    <view class="mrow" wx:for="{{topList}}" wx:key="name">
-      <text class="mrank {{index < 3 ? 'top' : ''}}">{{index + 1}}</text>
-      <view class="mcol2">
-        <text class="mname">{{item.icon}} {{item.name}}</text>
-        <text class="mcat">{{item.cat}} · {{item.count}} 笔</text>
+  <!-- 商户排行：支出榜 + 入账榜并排给，当前页签对应的那个在前 -->
+  <view class="card" wx:if="{{rankAny}}">
+    <view class="title">商户排行</view>
+    <block wx:for="{{rankBoards}}" wx:for-item="board" wx:for-index="bi" wx:key="key">
+      <view class="rhead" wx:if="{{board.list.length > 0}}">
+        <text class="rhtitle">{{board.title}}</text>
+        <text class="rhsub">{{board.sub}}</text>
       </view>
-      <text class="mamt {{tab === 'income' ? 'inc' : ''}}">{{tab === 'income' ? '+' : '-'}}¥{{item.amountText}}</text>
-    </view>
+      <view class="mrow" wx:for="{{board.list}}" wx:for-item="row" wx:for-index="ri" wx:key="name">
+        <text class="mrank {{ri < 3 ? 'top' : ''}}">{{ri + 1}}</text>
+        <view class="mcol2">
+          <text class="mname">{{row.icon}} {{row.name}}</text>
+          <text class="mcat">{{row.cat}} · {{row.count}} 笔</text>
+        </view>
+        <text class="mamt {{board.inc ? 'inc' : ''}}">{{board.inc ? '+' : '-'}}¥{{row.amountText}}</text>
+      </view>
+    </block>
   </view>
 
   <!-- 洞察 -->

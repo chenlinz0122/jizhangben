@@ -134,6 +134,10 @@
   white-space: nowrap;
 }
 
+.iamt.inc {
+  color: #1f7a4d;
+}
+
 /* ---------- 其它 ---------- */
 .empty {
   text-align: center;

@@ -304,13 +304,32 @@ function audit(txs) {
   return out
 }
 
-/* 年度汇总：当前自然年的支出 / 入账 / 结余 + 支出 Top3 分类 */
+/* 排行条目：条形长度用真实占比（跟月度构成那行一样），
+ * 小到看不见的给 4% 的底，不然 21 个类目里靠后的几类条就没了 */
+function rankList(list) {
+  return list.map(function (c) {
+    var bar = Math.round(c.pct)
+    if (bar > 0 && bar < 4) bar = 4
+    return {
+      name: c.name,
+      amountText: c.amountText,
+      icon: category.iconOf(c.name),
+      color: c.color,
+      count: c.count,
+      pct: c.pct,
+      barPct: bar
+    }
+  })
+}
+
+/* 年度汇总：当前自然年的支出 / 入账 / 结余 + 支出、入账两个排行 */
 function yearSummary(txs, year) {
   var expense = 0
   var income = 0
   var refund = 0
   var count = 0
   var expMap = emptyCatMap()
+  var incMap = emptyCatMap()
 
   for (var i = 0; i < txs.length; i++) {
     var t = txs[i]
@@ -321,24 +340,17 @@ function yearSummary(txs, year) {
       bump(expMap, t.category, t.amount)
     } else if (t.type === 'income') {
       income += t.amount
+      bump(incMap, t.category, t.amount)
     } else if (t.type === 'refund') {
       refund += t.amount
+      bump(incMap, '退款', t.amount)
     }
   }
 
   var incomeTotal = income + refund
   var net = incomeTotal - expense
-  var all = toList(expMap, expense)
-  var topAll = all.map(function (c) {
-    return {
-      name: c.name,
-      amountText: c.amountText,
-      icon: category.iconOf(c.name),
-      color: c.color,
-      count: c.count,
-      pct: c.pct
-    }
-  })
+  var topAll = rankList(toList(expMap, expense))
+  var topAllIn = rankList(toList(incMap, incomeTotal))
   var top = topAll.slice(0, 3)
 
   return {
@@ -352,7 +364,8 @@ function yearSummary(txs, year) {
     netText: format.money(Math.abs(net)),
     netSign: net < 0 ? '-' : '',
     top: top,
-    topAll: topAll
+    topAll: topAll,
+    topAllIn: topAllIn
   }
 }
 

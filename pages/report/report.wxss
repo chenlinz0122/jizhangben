@@ -743,38 +743,86 @@
   color: #9aa0a6;
 }
 
-.ytrow {
+.ysub {
+  display: block;
+  font-size: 20rpx;
+  color: #b1b7bd;
+  margin-top: 6rpx;
+  margin-bottom: 4rpx;
+}
+
+/* 支出 / 入账 切换：跟顶部那个页签一个意思，但这是卡片内的浅色版本 */
+.yseg {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12rpx 0;
+  background: #f1f4f3;
+  border-radius: 22rpx;
+  padding: 4rpx;
+}
+
+.ysg {
+  font-size: 21rpx;
+  color: #8b9198;
+  padding: 8rpx 20rpx;
+  border-radius: 18rpx;
+}
+
+.ysg.on {
+  background: #ffffff;
+  color: #17806b;
+  font-weight: 600;
+  box-shadow: 0 4rpx 10rpx rgba(23, 128, 107, 0.12);
+}
+
+/* 分类行：名称 + 金额 / 条形 / 占比 · 笔数 */
+.yrow {
+  padding: 14rpx 0 12rpx;
   border-radius: 12rpx;
 }
 
-.ytrow:active {
+.yrow:active {
   background: #f6f9f8;
 }
 
-.yright {
-  display: flex;
-  align-items: center;
-  gap: 16rpx;
-}
-
-.ytpct {
-  font-size: 19rpx;
-  color: #b1b7bd;
-}
-
-.ytname {
+.yrowname {
   font-size: 26rpx;
   color: #33383e;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.ytamt {
+.yrowamt {
   font-size: 26rpx;
   color: #2b3136;
-  font-weight: 500;
+  font-weight: 600;
+  margin-left: 20rpx;
+  white-space: nowrap;
+}
+
+.yrowamt.yinc {
+  color: #1f7a4d;
+}
+
+.ybar {
+  height: 10rpx;
+  background: #eff1f3;
+  border-radius: 6rpx;
+  margin-top: 10rpx;
+  overflow: hidden;
+}
+
+.ybarfill {
+  height: 10rpx;
+  border-radius: 6rpx;
+  min-width: 6rpx;
+  opacity: 0.85;
+}
+
+.yrowmeta {
+  display: block;
+  font-size: 19rpx;
+  color: #b1b7bd;
+  margin-top: 8rpx;
 }
 
 .danger {

@@ -87,6 +87,7 @@ Page({
 
     year: null,
     yearCatsOpen: false,
+    yearTab: 'expense',
 
     cells: [],
     selDayText: ''
@@ -111,14 +112,16 @@ Page({
     var cmp = stats.compareCats(txs, ym)
     var cal = stats.calendar(txs, ym)
     var ys = stats.yearSummary(txs, ym.split('-')[0])
-    /* 年度分类：默认只露前 3 类，展开看全年全部类目 */
+    /* 年度分类：支出 / 入账两个榜，默认只露前 3 类，展开看全年全部类目 */
     if (ys) {
-      var yAll = ys.topAll || []
+      var yIncome = this.data.yearTab === 'income'
+      var yAll = (yIncome ? ys.topAllIn : ys.topAll) || []
       var yOpen = this.data.yearCatsOpen
       ys.topTotal = yAll.length
       ys.topMore = yAll.length > 3
       ys.top = yOpen ? yAll : yAll.slice(0, 3)
       ys.moreLabel = yOpen ? '收起' : '展开全部 ' + yAll.length + ' 类'
+      ys.topLabel = yIncome ? '入账最多的分类' : '支出最多的分类'
     }
 
     /* 支出分类带环比 + 分类预算 */
@@ -477,13 +480,24 @@ Page({
     })
   },
 
+  /* 年度分类：支出 / 入账 切换（跟页面顶部那个页签是两回事，互不影响） */
+  switchYearTab: function (e) {
+    var tab = e.currentTarget.dataset.tab
+    if (!tab || tab === this.data.yearTab) return
+    var self = this
+    this.setData({ yearTab: tab, yearCatsOpen: false }, function () {
+      self.refresh()
+    })
+  },
+
   /* 点年度里的某个分类 → 打开分类明细页，按月列出这一年这一类花的钱 */
   tapYearCat: function (e) {
     var name = e.currentTarget.dataset.name
     if (!name) return
     var year = this.data.year ? String(this.data.year.year) : format.ymOf(Date.now()).slice(0, 4)
     wx.navigateTo({
-      url: '/pages/cat/cat?year=' + year + '&cat=' + encodeURIComponent(name)
+      url: '/pages/cat/cat?year=' + year + '&kind=' + this.data.yearTab +
+        '&cat=' + encodeURIComponent(name)
     })
   },
 

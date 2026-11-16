@@ -1,6 +1,7 @@
-/* 分类明细：某一年的某个分类，全部支出按月分段，从上到下从新到旧
+/* 分类明细：某一年的某个分类，全部明细按月分段，从上到下从新到旧
  * 入口：报表页「年度汇总」里点分类。查账单时最常问的是「这一类今年都花在哪了」，
- * 所以按月切段 + 每段带小计，比丢进流水页混在别的分类里看要直接。 */
+ * 所以按月切段 + 每段带小计，比丢进流水页混在别的分类里看要直接。
+ * kind = expense（支出）/ income（入账，含退款）。 */
 var format = require('../../utils/format')
 var store = require('../../utils/store')
 
@@ -10,6 +11,7 @@ Page({
   data: {
     cat: '',
     year: '',
+    kind: 'expense',
     totalText: '0.00',
     count: 0,
     monthCount: 0,
@@ -28,7 +30,8 @@ Page({
     } catch (e) {
       /* 参数没编码就原样用 */
     }
-    this.setData({ year: y, cat: c })
+    var kind = options && options.kind === 'income' ? 'income' : 'expense'
+    this.setData({ year: y, cat: c, kind: kind })
     wx.setNavigationBarTitle({ title: c ? c + ' · ' + y : '分类明细' })
   },
 
@@ -40,12 +43,14 @@ Page({
   build: function () {
     var year = this.data.year
     var cat = this.data.cat
+    var income = this.data.kind === 'income'
     var txs = store.all()
 
     var list = []
     for (var i = 0; i < txs.length; i++) {
       var t = txs[i]
-      if (t.type !== 'expense') continue
+      /* 入账口径 = 收入 + 退款（退款本身就是一个类目） */
+      if (income ? !(t.type === 'income' || t.type === 'refund') : t.type !== 'expense') continue
       if (t.category !== cat) continue
       if (String(t.ym || '').indexOf(year) !== 0) continue
       list.push(t)
@@ -87,7 +92,8 @@ Page({
         dayText: parseInt(x.day.slice(8), 10) + ' 日',
         weekText: WEEK[d.getDay()],
         timeText: format.pad(d.getHours()) + ':' + format.pad(d.getMinutes()),
-        amountText: format.money(x.amount)
+        amountText: format.money(x.amount),
+        sign: income ? '+' : '-'
       })
     }
 

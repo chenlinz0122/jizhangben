@@ -2,9 +2,9 @@
   <view class="hero">
     <view class="htop">
       <text class="hcat">{{cat}}</text>
-      <text class="hyear">{{year}} 年支出明细</text>
+      <text class="hyear">{{year}} 年{{kind === 'income' ? '入账' : '支出'}}明细</text>
     </view>
-    <text class="hnum">¥{{totalText}}</text>
+    <text class="hnum">{{kind === 'income' ? '+' : ''}}¥{{totalText}}</text>
     <view class="hfoot">
       <text>{{count}} 笔</text>
       <text class="hdot">·</text>
@@ -20,7 +20,7 @@
   </view>
 
   <view class="empty" wx:if="{{months.length === 0}}">
-    <text>这一年没有「{{cat}}」的支出</text>
+    <text>这一年没有「{{cat}}」的{{kind === 'income' ? '入账' : '支出'}}</text>
   </view>
 
   <view class="mblock" wx:for="{{months}}" wx:key="ym" wx:for-item="m">
@@ -34,7 +34,7 @@
           <text class="im">{{item.merchant}}</text>
           <text class="isub">{{item.dayText}} {{item.weekText}} · {{item.timeText}}<text wx:if="{{item.desc}}"> · {{item.desc}}</text></text>
         </view>
-        <text class="iamt">-¥{{item.amountText}}</text>
+        <text class="iamt {{kind === 'income' ? 'inc' : ''}}">{{item.sign}}¥{{item.amountText}}</text>
       </view>
     </view>
   </view>

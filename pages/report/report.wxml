@@ -113,8 +113,12 @@
   <view class="card" wx:if="{{year && year.count > 0}}">
     <view class="between">
       <text class="title inline">{{year.year}} 年度汇总</text>
-      <text class="muted2">自然年累计 · {{year.count}} 笔</text>
+      <view class="yseg">
+        <text class="ysg {{yearTab === 'expense' ? 'on' : ''}}" data-tab="expense" bindtap="switchYearTab">支出</text>
+        <text class="ysg {{yearTab === 'income' ? 'on' : ''}}" data-tab="income" bindtap="switchYearTab">入账</text>
+      </view>
     </view>
+    <text class="ysub">自然年累计 · {{year.count}} 笔</text>
     <view class="ygrid">
       <view class="ycell">
         <text class="yn">¥{{year.expenseText}}</text>
@@ -131,15 +135,18 @@
     </view>
     <view class="ytop" wx:if="{{year.top.length > 0}}">
       <view class="between">
-        <text class="ytlabel">支出最多的分类</text>
+        <text class="ytlabel">{{year.topLabel}}</text>
         <text class="muted2">点分类看明细</text>
       </view>
-      <view class="ytrow" wx:for="{{year.top}}" wx:key="name" data-name="{{item.name}}" bindtap="tapYearCat">
-        <text class="ytname">{{item.icon}} {{item.name}}</text>
-        <view class="yright">
-          <text class="ytpct">{{item.pct}}% · {{item.count}} 笔</text>
-          <text class="ytamt">¥{{item.amountText}}</text>
+      <view class="yrow" wx:for="{{year.top}}" wx:key="name" data-name="{{item.name}}" bindtap="tapYearCat">
+        <view class="between">
+          <text class="yrowname">{{item.icon}} {{item.name}}</text>
+          <text class="yrowamt {{yearTab === 'income' ? 'yinc' : ''}}">¥{{item.amountText}}</text>
         </view>
+        <view class="ybar">
+          <view class="ybarfill" style="width:{{item.barPct}}%;background:{{item.color}}"></view>
+        </view>
+        <text class="yrowmeta">占比 {{item.pct}}% · {{item.count}} 笔</text>
       </view>
       <view class="more" wx:if="{{year.topMore}}" bindtap="toggleYearCats">{{year.moreLabel}}</view>
     </view>

@@ -531,6 +531,63 @@
   line-height: 1.7;
 }
 
+/* ---------- 分类预算清单 ---------- */
+.cblist {
+  margin-top: 22rpx;
+  padding-top: 18rpx;
+  border-top: 1rpx solid #f1f3f4;
+}
+
+.cbrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18rpx 0;
+  border-bottom: 1rpx solid #f6f7f8;
+}
+
+.cbrow:last-child {
+  border-bottom: none;
+}
+
+.cbleft {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.cbname {
+  font-size: 26rpx;
+  color: #2b3136;
+}
+
+.cbright {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  flex: none;
+}
+
+.cbspent {
+  font-size: 21rpx;
+  color: #b1b7bd;
+}
+
+.cbbud {
+  font-size: 24rpx;
+  font-weight: 500;
+  color: #17806b;
+}
+
+.cbbud.off {
+  color: #c4c9cd;
+  font-weight: 400;
+}
+
+.cbbud.over {
+  color: #d9433f;
+}
+
 /* ---------- 日历热力 ---------- */
 .calweek {
   display: flex;

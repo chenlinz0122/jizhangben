@@ -346,6 +346,82 @@ function yearSummary(txs, year) {
   }
 }
 
+/* 预算口径：退款要扣掉，不能按原价算
+ *
+ *   月度预算   = 本月支出 - 本月全部退款（不小于 0）
+ *   分类预算   = 该分类的原价支出 - 能追回该分类的退款
+ *
+ * 退款单本身没有类目（category 固定是「退款」），所以只能按「交易对方」回追：
+ * 商户名对得上的，就从那个类目的支出里扣；对不上的，只从月度预算里扣，
+ * 分类预算不动（宁可少扣，也不要瞎猜类目）。
+ * 这样月末对账是一致的：月度净额 = Σ分类净额 − 对不上类目的退款
+ * （也就是没追上商户的那部分退款只从总预算里扣，不动任何分类）。
+ */
+function normMerchant(s) {
+  return String(s || '').replace(/\s+/g, '').toLowerCase()
+}
+
+function sameMerchant(a, b) {
+  if (!a || !b) return false
+  if (a === b) return true
+  if (a.length < 2 || b.length < 2) return false
+  return a.indexOf(b) >= 0 || b.indexOf(a) >= 0
+}
+
+/**
+ * 某个月预算口径的已花金额（退款已扣）
+ * @returns {{expense:number, refund:number, net:number, matched:number, unmatched:number, byCat:Object}}
+ */
+function budgetSpent(txs, ym) {
+  var expense = 0
+  var refund = 0
+  var expRows = []
+  var refunds = []
+
+  for (var i = 0; i < txs.length; i++) {
+    var t = txs[i]
+    if (t.ym !== ym) continue
+    if (t.type === 'expense') {
+      expense += t.amount
+      expRows.push({ cat: t.category || '未分类', m: normMerchant(t.merchant), left: t.amount })
+    } else if (t.type === 'refund') {
+      refund += t.amount
+      refunds.push({ m: normMerchant(t.merchant), left: t.amount })
+    }
+  }
+
+  var byCat = {}
+  for (var a = 0; a < expRows.length; a++) {
+    byCat[expRows[a].cat] = (byCat[expRows[a].cat] || 0) + expRows[a].left
+  }
+
+  var matched = 0
+  for (var r = 0; r < refunds.length; r++) {
+    var rf = refunds[r]
+    if (!rf.m || rf.left <= 0) continue
+    for (var k = 0; k < expRows.length; k++) {
+      var e = expRows[k]
+      if (e.left <= 0) continue
+      if (!sameMerchant(e.m, rf.m)) continue
+      var d = Math.min(e.left, rf.left)
+      e.left = Math.round((e.left - d) * 100) / 100
+      rf.left = Math.round((rf.left - d) * 100) / 100
+      byCat[e.cat] = Math.round((byCat[e.cat] - d) * 100) / 100
+      matched = Math.round((matched + d) * 100) / 100
+      if (rf.left <= 0) break
+    }
+  }
+
+  return {
+    expense: expense,
+    refund: refund,
+    net: Math.max(expense - refund, 0),
+    matched: matched,
+    unmatched: Math.max(Math.round((refund - matched) * 100) / 100, 0),
+    byCat: byCat
+  }
+}
+
 module.exports = {
   summary: summary,
   trend: trend,
@@ -354,5 +430,6 @@ module.exports = {
   compareCats: compareCats,
   topMerchants: topMerchants,
   yearSummary: yearSummary,
+  budgetSpent: budgetSpent,
   audit: audit
 }

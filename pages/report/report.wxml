@@ -59,7 +59,7 @@
         <view class="fill" style="width:{{item.pct}}%;background:{{item.color}}"></view>
       </view>
       <text class="cmeta">占比 {{item.pct}}% · {{item.count}} 笔</text>
-      <text class="cbmeta {{item.budgetOver ? 'over' : ''}}" wx:if="{{item.budget > 0}}">分类预算 ¥{{item.budgetText}} · 已花 ¥{{item.amountText}} · {{item.budgetPct}}%</text>
+      <text class="cbmeta {{item.budgetOver ? 'over' : ''}}" wx:if="{{item.budget > 0}}">分类预算 ¥{{item.budgetText}} · 已花 ¥{{item.budgetSpentText}} · {{item.budgetPct}}%<text wx:if="{{item.budgetRefundText}}">（已扣退款 ¥{{item.budgetRefundText}}）</text></text>
     </view>
 
     <view class="more" wx:if="{{catsHasMore}}" bindtap="toggleCats">
@@ -180,14 +180,14 @@
     <view class="between">
       <text class="title inline">月度预算</text>
       <view class="links">
-        <text class="link" bindtap="setCatBudget">分类预算</text>
+        <text class="link" bindtap="toggleCatBudget">{{catBudgetOpen ? '收起分类预算' : '分类预算'}}</text>
         <text class="link" bindtap="setBudget">{{budget > 0 ? '修改' : '设置'}}</text>
       </view>
     </view>
 
     <block wx:if="{{budget > 0}}">
       <view class="between bline">
-        <text>已花 ¥{{s.expenseText}} / 预算 ¥{{budgetText}}</text>
+        <text>已花 ¥{{budgetSpentText}} / 预算 ¥{{budgetText}}</text>
         <text class="bpct {{budgetOver ? 'over' : ''}}">{{budgetPct}}%</text>
       </view>
       <view class="track big">
@@ -199,6 +199,22 @@
     </block>
 
     <text class="hint" wx:else>设一个月度预算，超了这里会变红提醒你。随时能改。</text>
+    <text class="hint" wx:if="{{budgetRefundText !== '0.00'}}">预算按扣除退款后的金额算：本月退款 ¥{{budgetRefundText}} 已经从已花里减掉了。</text>
+
+    <!-- 分类预算清单：类目一次列全，点一行填额度 -->
+    <view class="cblist" wx:if="{{catBudgetOpen}}">
+      <text class="hint">点一个类目填额度，填 0 取消。分类预算的已花同样扣掉退款（按交易对方追回类目）。</text>
+      <view class="cbrow" wx:for="{{catBudgetList}}" wx:key="name" data-name="{{item.name}}" bindtap="pickCatBudget">
+        <view class="cbleft">
+          <view class="ic" style="background:{{item.tint}}"><text class="ic-em">{{item.icon}}</text></view>
+          <text class="cbname">{{item.name}}</text>
+        </view>
+        <view class="cbright">
+          <text class="cbspent">已花 ¥{{item.spentText}}</text>
+          <text class="cbbud {{item.budClass}}">{{item.budgetLabel}}</text>
+        </view>
+      </view>
+    </view>
   </view>
 
   <!-- 每日花销日历 -->

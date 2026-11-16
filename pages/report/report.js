@@ -62,11 +62,15 @@ Page({
     /* 预算 */
     budget: 0,
     budgetText: '0.00',
+    budgetSpentText: '0.00',
+    budgetRefundText: '0.00',
     budgetLeftText: '0.00',
     budgetPct: 0,
     budgetOver: false,
     budgetPerDayText: '0.00',
     budgetRestDays: 0,
+    catBudgetOpen: false,
+    catBudgetList: [],
 
     /* 构成 */
     cats: [],
@@ -101,6 +105,7 @@ Page({
     var kind = this.data.tab
     var txs = store.all()
     var s = stats.summary(txs, ym)
+    var bs = stats.budgetSpent(txs, ym)
     var ins = stats.insights(txs, ym)
     var cmp = stats.compareCats(txs, ym)
     var cal = stats.calendar(txs, ym)
@@ -122,13 +127,18 @@ Page({
         }
       }
       var bud = cb[c.name] || 0
+      /* 分类预算的「已花」要扣掉这个类目的退款，不能拿原价去比额度 */
+      var netAmt = Math.max(Math.round((bs.byCat[c.name] || 0) * 100) / 100, 0)
+      var backAmt = Math.max(Math.round((c.amount - netAmt) * 100) / 100, 0)
       return {
         name: c.name, amountText: c.amountText, pct: c.pct, count: c.count,
         color: c.color, icon: category.iconOf(c.name), tint: category.tintOf(c.name), deltaText: deltaText, deltaDir: deltaDir,
         budget: bud,
         budgetText: bud > 0 ? format.money(bud) : '',
-        budgetPct: bud > 0 ? Math.min(100, Math.round((c.amount / bud) * 100)) : 0,
-        budgetOver: bud > 0 && c.amount > bud
+        budgetSpentText: format.money(netAmt),
+        budgetRefundText: backAmt > 0 ? format.money(backAmt) : '',
+        budgetPct: bud > 0 ? Math.min(100, Math.round((netAmt / bud) * 100)) : 0,
+        budgetOver: bud > 0 && netAmt > bud
       }
     })
 
@@ -170,7 +180,7 @@ Page({
     var activeIdx = 0
     months.forEach(function (x, i) { if (x.active) activeIdx = i })
 
-    /* 预算 */
+    /* 预算：口径是「退款也算没花」，已花 = 支出 - 退款 */
     var b = store.budget()
     var curYm = format.ymOf(Date.now())
     var isCur = ym === curYm
@@ -179,9 +189,34 @@ Page({
       var dim = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()
       restDays = dim - new Date().getDate() + 1
     }
-    var over = b > 0 && s.expense > b
-    var left = b > 0 ? Math.max(b - s.expense, 0) : 0
-    var pct = b > 0 ? Math.min(100, Math.round((s.expense / b) * 100)) : 0
+    var spent = bs.net
+    var over = b > 0 && spent > b
+    var left = b > 0 ? Math.max(b - spent, 0) : 0
+    var pct = b > 0 ? Math.min(100, Math.round((spent / b) * 100)) : 0
+
+    /* 分类预算设置清单：支出类目一次列全（类目有 21 个，
+       wx.showActionSheet 最多只能放 6 项，所以不能拿它做选择器） */
+    var catBudgetList = category.CATS.expense
+      .filter(function (n) { return n !== '未分类' })
+      .map(function (n) {
+        var budN = cb[n] || 0
+        var spentN = Math.max(Math.round((bs.byCat[n] || 0) * 100) / 100, 0)
+        return {
+          name: n,
+          icon: category.iconOf(n),
+          tint: category.tintOf(n),
+          spentText: format.money(spentN),
+          has: budN > 0,
+          budgetLabel: budN > 0 ? '¥' + format.money(budN) : '未设',
+          budClass: budN > 0 ? (spentN > budN ? 'over' : 'on') : 'off',
+          over: budN > 0 && spentN > budN,
+          _spent: spentN
+        }
+      })
+    catBudgetList.sort(function (p, q) {
+      if (p.has !== q.has) return p.has ? -1 : 1
+      return q._spent - p._spent
+    })
 
     this.setData({
       monthText: format.monthLabel(ym),
@@ -210,12 +245,17 @@ Page({
 
       budget: b,
       budgetText: format.money(b),
+      budgetSpentText: format.money(spent),
+      budgetRefundText: format.money(bs.refund),
       budgetLeftText: format.money(left),
-      budgetOverText: format.money(Math.max(s.expense - b, 0)),
+      budgetOverText: format.money(Math.max(spent - b, 0)),
       budgetPct: pct,
       budgetOver: over,
       budgetRestDays: restDays,
       budgetPerDayText: restDays > 0 ? format.money(left / restDays) : '0.00',
+
+      catBudgetOpen: this.data.catBudgetOpen,
+      catBudgetList: catBudgetList,
 
       cats: full.slice(0, n),
       catsHasMore: full.length > n,
@@ -462,8 +502,7 @@ Page({
     wx.showModal({
       title: cur > 0 ? '改月度预算' : '设月度预算',
       editable: true,
-      placeholderText: cur > 0 ? '当前 ¥' + format.money(cur) : '比如 3000',
-      content: '填一个金额（元），填 0 就取消预算',
+      placeholderText: cur > 0 ? '当前 ¥' + format.money(cur) + '，填 0 取消' : '比如 3000，填 0 不设',
       success: function (res) {
         if (!res.confirm) return
         var v = Number(String(res.content || '').replace(/[^\d.]/g, ''))
@@ -474,28 +513,26 @@ Page({
     })
   },
 
-  /* 分类预算：先选支出类目，再填额度 */
-  setCatBudget: function () {
+  /* 分类预算：直接展开成一张可点的清单（类目太多，actionSheet 塞不下） */
+  toggleCatBudget: function () {
+    this.setData({ catBudgetOpen: !this.data.catBudgetOpen })
+  },
+
+  pickCatBudget: function (e) {
     var self = this
-    var names = category.CATS.expense.filter(function (n) { return n !== '未分类' })
-    wx.showActionSheet({
-      itemList: names,
-      success: function (res) {
-        var name = names[res.tapIndex]
-        var cur = store.catBudgets()[name] || 0
-        wx.showModal({
-          title: (cur > 0 ? '改「' : '设「') + name + '」预算',
-          editable: true,
-          placeholderText: cur > 0 ? '当前 ¥' + format.money(cur) : '比如 500',
-          content: '填金额（元），填 0 取消这个分类的预算',
-          success: function (m) {
-            if (!m.confirm) return
-            var v = Number(String(m.content || '').replace(/[^\d.]/g, ''))
-            store.setCatBudget(name, v)
-            self.refresh()
-            wx.showToast({ title: v > 0 ? '预算已设' : '已取消预算', icon: 'none' })
-          }
-        })
+    var name = e.currentTarget.dataset.name
+    if (!name) return
+    var cur = store.catBudgets()[name] || 0
+    wx.showModal({
+      title: (cur > 0 ? '改「' : '设「') + name + '」预算',
+      editable: true,
+      placeholderText: cur > 0 ? '当前 ¥' + format.money(cur) + '，填 0 取消' : '比如 500，填 0 不设',
+      success: function (m) {
+        if (!m.confirm) return
+        var v = Number(String(m.content || '').replace(/[^\d.]/g, ''))
+        store.setCatBudget(name, v)
+        self.refresh()
+        wx.showToast({ title: v > 0 ? '预算已设' : '已取消预算', icon: 'none' })
       }
     })
   },

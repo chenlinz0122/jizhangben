@@ -86,6 +86,7 @@ Page({
     topList: [],
 
     year: null,
+    yearCatsOpen: false,
 
     cells: [],
     selDayText: ''
@@ -110,6 +111,15 @@ Page({
     var cmp = stats.compareCats(txs, ym)
     var cal = stats.calendar(txs, ym)
     var ys = stats.yearSummary(txs, ym.split('-')[0])
+    /* 年度分类：默认只露前 3 类，展开看全年全部类目 */
+    if (ys) {
+      var yAll = ys.topAll || []
+      var yOpen = this.data.yearCatsOpen
+      ys.topTotal = yAll.length
+      ys.topMore = yAll.length > 3
+      ys.top = yOpen ? yAll : yAll.slice(0, 3)
+      ys.moreLabel = yOpen ? '收起' : '展开全部 ' + yAll.length + ' 类'
+    }
 
     /* 支出分类带环比 + 分类预算 */
     var cb = store.catBudgets()
@@ -153,7 +163,6 @@ Page({
     var full = kind === 'income' ? incCats : expCats
     this._cats = full
     var n = this.data.catsOpen ? full.length : Math.min(full.length, 5)
-
     /* 每日对比 */
     var daily = this.buildDaily(txs, ym, kind)
 
@@ -258,7 +267,9 @@ Page({
       catBudgetList: catBudgetList,
 
       cats: full.slice(0, n),
-      catsHasMore: full.length > n,
+      /* 按钮跟「展开状态」无关：只要类目超过 5 个就一直在，
+         否则展开到全部条数后 catsHasMore 变 false，按钮消失就收不回去了 */
+      catsHasMore: full.length > 5,
       catsTotal: full.length,
 
       daily: daily,
@@ -454,6 +465,28 @@ Page({
     app.globalData.filterCat = ''
     app.globalData.filterDay = ''
     app.globalData.filterKind = ''
+    app.globalData.filterUncat = false
+    wx.switchTab({ url: '/pages/list/list' })
+  },
+
+  /* 年度分类：展开 / 收起全部类目 */
+  toggleYearCats: function () {
+    var self = this
+    this.setData({ yearCatsOpen: !this.data.yearCatsOpen }, function () {
+      self.refresh()
+    })
+  },
+
+  /* 点年度里的某个分类 → 跳到流水页，看这一年这个分类的明细 */
+  tapYearCat: function (e) {
+    var name = e.currentTarget.dataset.name
+    if (!name) return
+    var app = getApp()
+    app.globalData.filterCat = name
+    app.globalData.filterKind = 'expense'
+    app.globalData.filterYear = this.data.year ? String(this.data.year.year) : ''
+    app.globalData.filterYm = ''
+    app.globalData.filterDay = ''
     app.globalData.filterUncat = false
     wx.switchTab({ url: '/pages/list/list' })
   },

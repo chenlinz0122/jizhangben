@@ -328,9 +328,18 @@ function yearSummary(txs, year) {
 
   var incomeTotal = income + refund
   var net = incomeTotal - expense
-  var top = toList(expMap, expense).slice(0, 3).map(function (c) {
-    return { name: c.name, amountText: c.amountText, icon: category.iconOf(c.name), color: c.color }
+  var all = toList(expMap, expense)
+  var topAll = all.map(function (c) {
+    return {
+      name: c.name,
+      amountText: c.amountText,
+      icon: category.iconOf(c.name),
+      color: c.color,
+      count: c.count,
+      pct: c.pct
+    }
   })
+  var top = topAll.slice(0, 3)
 
   return {
     year: year,
@@ -342,7 +351,8 @@ function yearSummary(txs, year) {
     incomeText: format.money(incomeTotal),
     netText: format.money(Math.abs(net)),
     netSign: net < 0 ? '-' : '',
-    top: top
+    top: top,
+    topAll: topAll
   }
 }
 

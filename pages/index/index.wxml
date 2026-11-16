@@ -7,12 +7,12 @@
       <text class="nav {{canNext ? '' : 'off'}}" bindtap="nextMonth">›</text>
     </view>
 
-    <text class="cap">本月支出</text>
-    <view class="big"><text class="cny">¥</text>{{s.expenseText}}</view>
+    <text class="cap">本月结余</text>
+    <view class="big"><text class="cny">{{s.netSign}}¥</text>{{s.netText}}</view>
 
     <view class="meta">
       <view class="metai"><text class="meT">收入</text><text class="meN">¥{{s.incomeText}}</text></view>
-      <view class="metai"><text class="meT">结余</text><text class="meN">{{s.netSign}}¥{{s.netText}}</text></view>
+      <view class="metai"><text class="meT">支出</text><text class="meN">¥{{s.expenseText}}</text></view>
       <view class="metai"><text class="meT">流水</text><text class="meN">{{s.count}} 笔</text></view>
     </view>
   </view>

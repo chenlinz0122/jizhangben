@@ -6,6 +6,8 @@ Page({
   data: {
     busy: false,
     stepText: '',
+    photos: 0,
+    done: 0,
     preview: null,
     result: null,
     error: '',
@@ -26,27 +28,64 @@ Page({
       return
     }
     wx.chooseMedia({
-      count: 1,
+      /* 一次最多 9 张（微信相册多选的硬上限），逐张识别、最后合成一份预览 */
+      count: 9,
       mediaType: ['image'],
       sourceType: ['album', 'camera'],
       sizeType: ['compressed'],
       success: function (res) {
-        var f = res.tempFiles && res.tempFiles[0]
-        if (!f) return
-        self.setData({ error: '', preview: null, result: null })
-        self.runOcr(f.tempFilePath)
+        var files = (res.tempFiles || []).filter(function (f) { return f && f.tempFilePath })
+        if (!files.length) return
+        self.setData({ error: '', preview: null, result: null, photos: files.length, done: 0 })
+        self.runBatch(files)
       },
       fail: function () {}
     })
   },
 
-  /* 压缩 → 上传（带重试）→ 云函数识别 → 解析 */
-  runOcr: function (src) {
+  /* 多张顺序识别：某一张失败不影响其他张，最后一起出预览 */
+  runBatch: function (files) {
     var self = this
-    this.setData({ busy: true, stepText: '正在压缩图片…' })
+    var acc = []
+    var fails = []
+    var skipped = 0
+    var source = ''
+    var i = 0
+
+    function next() {
+      if (i >= files.length) {
+        self.finishBatch(acc, fails, skipped, source, files.length)
+        return
+      }
+      var no = i + 1
+      var file = files[i]
+      i++
+      self.setData({ done: no })
+      self.ocrOne(file.tempFilePath, no, files.length, function (err, out) {
+        if (err || !out || !out.items || !out.items.length) {
+          fails.push({ no: no, why: String(err || '没认出流水') })
+        } else {
+          acc = acc.concat(out.items)
+          skipped += out.skipped || 0
+          if (!source) source = out.source || ''
+        }
+        next()
+      })
+    }
+    next()
+  },
+
+  /* 单张：压缩 → 上传（带重试）→ 云函数识别 → 解析 */
+  ocrOne: function (src, no, total, cb) {
+    var self = this
+    var tag = total > 1 ? ('第 ' + no + '/' + total + ' 张 · ') : ''
+    function step(t) { self.setData({ stepText: tag + t }) }
+
+    this.setData({ busy: true })
+    step('正在压缩图片…')
 
     this.compress(src, function (path) {
-      self.setData({ stepText: '正在上传…' })
+      step('正在上传…')
       var cloudPath = 'shot/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.jpg'
 
       self.uploadWithRetry(path, cloudPath, function (err, up) {
@@ -55,13 +94,13 @@ Page({
           if (/env|environment|invalid/i.test(msg)) {
             msg = '云开发环境没对上，检查开发者工具里是否已开通云开发并选中环境'
           } else if (/ECONNRESET|reset|network|timeout|net::/i.test(msg)) {
-            msg = '网络连接被中断（ECONNRESET），已自动重试 3 次仍未成功。可试试：① 换个网络（Wi-Fi 与流量互换）② 关掉代理/VPN ③ 截短一点再传'
+            msg = '网络连接被中断（ECONNRESET），已自动重试 3 次仍未成功'
           }
-          self.setData({ busy: false, stepText: '', error: '上传失败：' + msg })
+          cb('上传失败：' + msg)
           return
         }
 
-        self.setData({ stepText: '正在识别文字…' })
+        step('正在识别文字…')
         self.callOcr(up.fileID, function (err2, res) {
           self.cleanup(up.fileID)
           if (err2) {
@@ -69,14 +108,19 @@ Page({
             if (/function not found|FunctionName/i.test(m2)) {
               m2 = '云函数还没上传，先在开发者工具里右键 cloudfunctions/ocrText → 上传并部署'
             }
-            self.setData({ busy: false, stepText: '', error: '调用云函数失败：' + m2 })
+            cb('调用云函数失败：' + m2)
             return
           }
           if (!res.ok) {
-            self.setData({ busy: false, stepText: '', error: res.error || '识别失败' })
+            cb(res.error || '识别失败')
             return
           }
-          self.buildPreview(res.items)
+          var r = ocrbill.parseItems(res.items, store.rules())
+          if (r.error) {
+            cb(r.error)
+            return
+          }
+          cb(null, r)
         })
       })
     })
@@ -153,17 +197,27 @@ Page({
     } catch (e) {}
   },
 
-  buildPreview: function (items) {
-    var r = ocrbill.parseItems(items, store.rules())
-    if (r.error) {
-      this.setData({ busy: false, stepText: '', error: r.error })
+  /* 所有图都过完：合成一份预览；多张之间重叠的那几笔交给 store 判重去合并 */
+  finishBatch: function (acc, fails, skipped, source, total) {
+    var self = this
+    this.setData({ busy: false, stepText: '' })
+
+    if (!acc.length) {
+      var why = ''
+      if (fails.length) {
+        why = '：第 ' + fails.map(function (f) { return f.no }).join('、') + ' 张没认出来'
+        if (/上传失败|ECONNRESET|network|timeout/i.test(fails[0].why)) {
+          why += '（网络相关，可试试：① 换个网络 ② 关掉代理/VPN ③ 截短一点再传）'
+        } else if (fails[0].why) {
+          why += '（' + fails[0].why + '）'
+        }
+      }
+      this.setData({ error: (total > 1 ? '这 ' + total + ' 张都没' : '没') + '识别出流水' + why })
       return
     }
 
-    /* 用 store 的预览算「新增 / 合并 / 重复」：截图没有单号，和账单文件里同一笔要能合并 */
-    var plan = store.previewAdd(r.items)
-
-    var sample = r.items.slice(0, 6).map(function (t) {
+    var plan = store.previewAdd(acc)
+    var sample = acc.slice(0, 6).map(function (t) {
       return {
         merchant: t.merchant,
         amountText: format.money(t.amount),
@@ -174,19 +228,21 @@ Page({
     })
 
     /* 暂存解析结果，确认导入时直接用，避免再解析一遍 */
-    this._parsed = r.items
+    this._parsed = acc
 
     this.setData({
       busy: false,
       stepText: '',
       error: '',
       preview: {
-        total: r.items.length,
+        total: acc.length,
         add: plan.added,
         merged: plan.merged,
         dup: plan.dup,
-        skipped: r.skipped,
-        source: r.source,
+        skipped: skipped,
+        source: source,
+        photos: total,
+        fails: fails,
         sample: sample,
         trim: plan.trimmed || 0
       }
@@ -212,7 +268,7 @@ Page({
   },
 
   redraw: function () {
-    this.setData({ preview: null, result: null, error: '' })
+    this.setData({ preview: null, result: null, error: '', photos: 0, done: 0, stepText: '' })
     this._parsed = null
   },
 

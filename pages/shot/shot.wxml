@@ -3,15 +3,19 @@
     <view class="title">截一张图，自动认账</view>
     <view class="step"><text class="sn">支付宝</text><text>我的 → 账单，停在列表页，用手机的滚动截屏截一张长图</text></view>
     <view class="step"><text class="sn">微信</text><text>我 → 服务 → 钱包 → 账单，同样截列表页</text></view>
-    <view class="step"><text class="sn">要点</text><text>截「列表页」不要截某一笔的详情页；一屏能显示多少笔，就一次认多少笔</text></view>
+    <view class="step"><text class="sn">要点</text><text>截「列表页」不要截某一笔的详情页；一次可以多选几张（相册里连续截的那几张一起选），会按选的顺序逐张识别、最后合成一份预览</text></view>
     <view class="hint">识别由微信官方 OCR 完成，图片识别完立即从云端删除，流水只存手机本地。</view>
   </view>
 
   <view class="card">
     <view class="title">选图识别</view>
     <view class="btn {{busy ? 'disabled' : ''}}" bindtap="chooseShot">
-      {{busy ? stepText : '选择账单截图'}}
+      {{busy ? stepText : '选择账单截图（可多选，最多 9 张）'}}
     </view>
+    <view class="bar" wx:if="{{busy && photos > 1}}">
+      <view class="barin" style="width:{{done * 100 / photos}}%"></view>
+    </view>
+    <view class="muted" wx:if="{{photos > 1}}">共 {{photos}} 张，已处理 {{done}} 张</view>
     <view wx:if="{{!cloudReady}}" class="warn">
       云开发环境没准备好。先在开发者工具里开通「云开发」，再把 cloudfunctions/ocrText 上传部署；没配好时用「导入账单」页的复制粘贴。
     </view>
@@ -25,7 +29,10 @@
   <view class="card" wx:if="{{preview}}">
     <view class="between title">
       <text>识别到 {{preview.total}} 笔</text>
-      <text class="muted">{{preview.source}}</text>
+      <text class="muted">{{preview.photos > 1 ? preview.photos + ' 张图 · ' : ''}}{{preview.source}}</text>
+    </view>
+    <view class="muted" wx:if="{{preview.fails.length > 0}}">
+      有 {{preview.fails.length}} 张没认出流水（第 {{preview.fails[0].no}} 张：{{preview.fails[0].why}}），这些图的内容没有进下面的预览。
     </view>
     <view class="stat">
       <view class="sitem"><text class="sv">{{preview.add}}</text><text class="sl">可新增</text></view>

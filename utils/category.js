@@ -1,4 +1,4 @@
-/* 分类体系 + 归类引擎
+﻿/* 分类体系 + 归类引擎
  *
  * 口径只有一套，对齐「微信记账本」官方分类（支出 19 / 入账 9 / 不计收支 3）：
  *   支出：餐饮 交通 服饰 购物 服务 教育 娱乐 运动 生活缴费 旅行 宠物 医疗
@@ -89,14 +89,38 @@ function normalize(s) {
     .toLowerCase()
 }
 
+/* 公司法定全称去掉这些壳，剩下的才是「字号」。
+ * 「上海格物致品网络科技有限公司」→「上海格物致品网络科技」，
+ * 这样关键词能命中「网络科技」这类业务词，也不会被「有限公司」这几个字干扰。 */
+function stripCo(s) {
+  return String(s || '')
+    .replace(/有限责任公司|股份有限公司|有限公司|分公司|公司|集团|控股|实业|门店|旗舰店|专营店|专卖店|官方|自营|商城|小程序/g, '')
+}
+
 function indexOfRules(list) {
-  return list.map(function (it) { return { kw: it[0], cat: it[1] } })
+  /* 关键词也要归一化：商户名 normalize 之后空格、括号都没了
+   * （「Apple Store」→「applestore」），关键词不去空格就永远命中不了 */
+  return list.map(function (it) { return { kw: normalize(it[0]), cat: it[1] } })
 }
 
 var _expIndex = null
 var _incIndex = null
+var _coIndex = null
 function expIndex() { return _expIndex || (_expIndex = indexOfRules(R.EXP)) }
 function incIndex() { return _incIndex || (_incIndex = indexOfRules(R.INC)) }
+function coIndex() { return _coIndex || (_coIndex = indexOfRules(R.COMPANY_KW || [])) }
+
+/* 是不是「什么都能买」的大平台商户（淘宝/京东/抖音……）：
+ * 这类名字不能用来学本地规则，否则一次平台分类就把整个平台锁死。 */
+function isLooseMerchant(s) {
+  var n = normalize(s)
+  if (!n) return false
+  var list = R.LOOSE_MERCHANTS || []
+  for (var i = 0; i < list.length; i++) {
+    if (n.indexOf(normalize(list[i])) >= 0) return true
+  }
+  return false
+}
 
 /* 取最长命中：关键词越长越具体，「中国电信」不能输给「电信」 */
 function pickLongest(text, list) {
@@ -124,7 +148,8 @@ function has(list, cat) {
  * @param {string} kind expense / income / refund / transfer
  */
 function classify(merchant, desc, platformCat, userRules, kind) {
-  var text = normalize(merchant) + '|' + normalize(desc)
+  var m = normalize(merchant)
+  var d = normalize(desc)
   var dir = (kind === 'income' || kind === 'refund') ? 'income' : 'expense'
   var pool = CATS[dir]
 
@@ -134,29 +159,75 @@ function classify(merchant, desc, platformCat, userRules, kind) {
   if (dir === 'expense') {
     /* 这两类抢在平台分类之前：学费在支付宝被记成「公共服务」（映射下来是生活缴费），
      * 税费/社保被记成「充值缴费」。抢在映射前面才不会被带偏。 */
-    var eduPay = /学费|学杂费|教育收费|缴款单号|执收单位/.test(text) ||
-      (/财政厅|财政局|非税/.test(text) && /大学|学院|学校|教育|中学|小学|幼儿园|职业/.test(text))
+    var eduPay = /学费|学杂费|教育收费|缴款单号|执收单位/.test(m + '|' + d) ||
+      (/财政厅|财政局|非税/.test(m + '|' + d) && /大学|学院|学校|教育|中学|小学|幼儿园|职业/.test(m + '|' + d))
     if (eduPay) return { cat: '教育', by: 'builtin' }
-    if (/税务局|税务|社保费|公积金|罚款/.test(text)) return { cat: '其他支出', by: 'builtin' }
+    if (/税务局|税务|社保费|公积金|罚款/.test(m + '|' + d)) return { cat: '其他支出', by: 'builtin' }
   }
 
-  if (platformCat && R.PLATFORM_MAP[platformCat] && has(pool, R.PLATFORM_MAP[platformCat])) {
+  /* 1) 用户手动改过的「同一个商户」：精确同名优先，平台分类也别盖它。
+   *    这是「我改过一次，下次又错了」的主要来源——以前平台分类排在用户规则前面。 */
+  if (userRules) {
+    var ukws0 = Object.keys(userRules)
+    for (var e = 0; e < ukws0.length; e++) {
+      if (normalize(ukws0[e]) === m) {
+        var exactCat = userRules[ukws0[e]]
+        if (has(pool, exactCat)) return { cat: exactCat, by: 'user' }
+      }
+    }
+  }
+
+  /* 2) 平台给的分类（支付宝「交易分类」、微信账单的分类列）。
+   *    但「文化休闲 / 商业服务 / 其他 / 信用借还」这几个是支付宝倒垃圾的桶：
+   *    在抖音商城买东西被记成「文化休闲」（映射过来是娱乐），企业服务被记成「商业服务」。
+   *    这几个桶不采信，先让关键词判，关键词也没有再拿它兜底。 */
+  var weakPlatform = isWeakPlatform(platformCat)
+  if (platformCat && !weakPlatform && R.PLATFORM_MAP[platformCat] && has(pool, R.PLATFORM_MAP[platformCat])) {
     return { cat: R.PLATFORM_MAP[platformCat], by: 'platform' }
   }
 
+  /* 3) 用户规则里的其他写法（商户名略有差异时靠子串命中） */
   if (userRules) {
     var ukws = Object.keys(userRules)
     /* 规则 key 由 learn() 原样存进来（可能带空格/括号/大写），而 text 是 normalize 过的，
      * 匹配前必须同样归一化，否则「Apple Store」这类商户名永远命中不了自己。 */
     var ulist = ukws.map(function (k) { return { kw: normalize(k), cat: userRules[k] } })
-    var uhit = pickLongest(text, ulist)
+    var uhit = pickLongest(m + '|' + d, ulist)
     if (uhit && has(pool, uhit.cat)) return { cat: uhit.cat, by: 'user' }
   }
 
-  var hit = pickLongest(text, dir === 'income' ? incIndex() : expIndex())
-  if (hit) return { cat: hit.cat, by: 'builtin' }
+  /* 4) 商户名命中内置词库。商户名优先于商品说明：
+   *    「淘宝」下单、说明里写着「美团外卖优惠券」，按商户算才对。 */
+  var mText = m + '|' + stripCo(m)
+  var hitM = pickLongest(mText, dir === 'income' ? incIndex() : expIndex())
+  if (hitM) return { cat: hitM.cat, by: 'builtin' }
+
+  /* 5) 商户名认不出来再看商品说明 / 备注 */
+  var hitD = pickLongest(d, dir === 'income' ? incIndex() : expIndex())
+  if (hitD) return { cat: hitD.cat, by: 'builtin' }
+
+  /* 6) 上面都没认出来，才用那个不靠谱的平台分类兜底 */
+  if (weakPlatform && R.PLATFORM_MAP[platformCat] && has(pool, R.PLATFORM_MAP[platformCat])) {
+    return { cat: R.PLATFORM_MAP[platformCat], by: 'platform' }
+  }
+
+  /* 7) 只给了公司法定全称时（支付宝详情页的「收款方全称」），按里面的业务词猜 */
+  if (dir === 'expense') {
+    var coHit = pickLongest(mText, coIndex())
+    if (coHit && has(pool, coHit.cat)) return { cat: coHit.cat, by: 'biz' }
+  }
 
   return { cat: UNCAT, by: 'none' }
+}
+
+/* 支付宝这几个分类是「倒垃圾的桶」，见 classify 里的说明 */
+var WEAK_PLATFORM = ['文化休闲', '商业服务', '其他', '信用借还']
+function isWeakPlatform(cat) {
+  if (!cat) return false
+  for (var i = 0; i < WEAK_PLATFORM.length; i++) {
+    if (String(cat).indexOf(WEAK_PLATFORM[i]) >= 0) return true
+  }
+  return false
 }
 
 function catsOf(type) {
@@ -199,6 +270,7 @@ module.exports = {
   ICON: ICON,
   PLATFORM_MAP: R.PLATFORM_MAP,
   classify: classify,
+  isLooseMerchant: isLooseMerchant,
   catsOf: catsOf,
   transferCat: transferCat,
   migrate: migrate,

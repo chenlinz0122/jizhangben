@@ -253,8 +253,24 @@ function update(id, patch) {
   return null
 }
 
-function remove(id) {
+/* 批量改分类：同一个商户的历史记录一起改，只写一次存储。
+ * 一共 3000 笔的时候逐笔 update() 会写 3000 次，卡死。 */
+function relabel(ids, cat) {
   var cur = all()
+  var mark = {}
+  for (var i = 0; i < ids.length; i++) mark[ids[i]] = true
+  var n = 0
+  for (var j = 0; j < cur.length; j++) {
+    if (mark[cur[j].id] && cur[j].category !== cat) {
+      cur[j].category = cat
+      n++
+    }
+  }
+  if (n) persist()
+  return n
+}
+
+function remove(id) {  var cur = all()
   for (var i = 0; i < cur.length; i++) {
     if (cur[i].id === id) {
       cur.splice(i, 1)
@@ -320,6 +336,9 @@ function learnFromItems(items) {
     var key = String(it.merchant || '').trim()
     if (!key || key.length < 2) continue
     if (it.category === '未分类') continue
+    /* 淘宝/京东/抖音这类「什么都能买」的平台名不学：一旦学成购物，
+     * 下次在上面买课、买药也永远是购物。它们交给平台分类每次重新判定。 */
+    if (category.isLooseMerchant(key)) continue
     if (r[key]) continue
     r[key] = it.category
     changed = true
@@ -430,6 +449,7 @@ module.exports = {
   previewAdd: previewAdd,
   addOne: addOne,
   update: update,
+  relabel: relabel,
   remove: remove,
   removeMonth: removeMonth,
   clearAll: clearAll,

@@ -198,6 +198,41 @@ Page({
     this.setData({ sheetVisible: false, sheetItem: null })
     this.refresh()
     wx.showToast({ title: '已改成「' + cat + '」', icon: 'none' })
+    this.offerBatch(tx, cat)
+  },
+
+  /* 改完一笔，顺手问一句：这个商户之前的账要不要一起改？
+   * 不然同一个商户错 20 笔，就得点 20 次。 */
+  offerBatch: function (tx, cat) {
+    var name = String(tx.merchant || '').trim()
+    if (!name || name.length < 2) return
+    var income = tx.type === 'income' || tx.type === 'refund'
+    var ids = []
+    var all = store.all()
+    for (var i = 0; i < all.length; i++) {
+      var t = all[i]
+      if (t.id === tx.id) continue
+      if (String(t.merchant || '').trim() !== name) continue
+      if ((t.type === 'income' || t.type === 'refund') !== income) continue
+      if (t.category === cat) continue
+      ids.push(t.id)
+    }
+    if (!ids.length) return
+    var self = this
+    /* toast 先让一眼看完再弹窗，两个一起出来会互相盖住 */
+    setTimeout(function () {
+      wx.showModal({
+        title: '一起改「' + name + '」？',
+        content: '这个商户还有 ' + ids.length + ' 笔不是「' + cat + '」，要一起改成「' + cat + '」吗',
+        confirmText: '一起改',
+        success: function (res) {
+          if (!res.confirm) return
+          var n = store.relabel(ids, cat)
+          self.refresh()
+          wx.showToast({ title: '又改了 ' + n + ' 笔', icon: 'none' })
+        }
+      })
+    }, 260)
   },
 
   onLongPress: function (e) {

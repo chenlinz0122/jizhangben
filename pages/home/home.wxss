@@ -434,3 +434,108 @@
   color: #8fa9a1;
   padding: 8rpx 0 20rpx;
 }
+
+/* ---------- 深色模式（跟随系统） ----------
+   只改「背景 / 卡片 / 正文 / 大数字」这几层，绿色头部本身够深，深色下反而更协调 */
+.wrap.dark {
+  background: #12161a;
+}
+
+.wrap.dark .hero.theme-green {
+  background: linear-gradient(160deg, #145247 0%, #0c3730 100%);
+}
+
+.wrap.dark .hero.theme-ink {
+  background: linear-gradient(160deg, #223f5e 0%, #182b42 100%);
+}
+
+.wrap.dark .hero.theme-amber {
+  background: linear-gradient(160deg, #7a4520 0%, #4d2b14 100%);
+}
+
+.wrap.dark .mcard {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.wrap.dark .mnum {
+  color: #ffffff;
+}
+
+.wrap.dark .quick {
+  background: #1b2026;
+  box-shadow: none;
+}
+
+.wrap.dark .qname {
+  color: #e6e9ec;
+}
+
+.wrap.dark .qsub {
+  color: #7f878f;
+}
+
+.wrap.dark .q-add { background: #1e2c29; }
+.wrap.dark .q-shot { background: #2e2620; }
+.wrap.dark .q-imp { background: #212733; }
+.wrap.dark .q-rep { background: #2a2233; }
+
+.wrap.dark .card {
+  background: #1b2026;
+  box-shadow: none;
+}
+
+.wrap.dark .title,
+.wrap.dark .rname {
+  color: #e6e9ec;
+}
+
+.wrap.dark .rmeta,
+.wrap.dark .morelink {
+  color: #7f878f;
+}
+
+.wrap.dark .row {
+  border-color: #262c33;
+}
+
+.wrap.dark .ramt.inc {
+  color: #6fd0a8;
+}
+
+.wrap.dark .emptybox {
+  background: #15191e;
+  border-color: #262c33;
+}
+
+.wrap.dark .eb-t {
+  color: #dfe3e7;
+}
+
+.wrap.dark .eb-s,
+.wrap.dark .foot {
+  color: #7f878f;
+}
+
+.wrap.dark .notice {
+  background: #2a2418;
+}
+
+.wrap.dark .n-t { color: #e0bd7e; }
+.wrap.dark .n-l { color: #c99f57; }
+
+.wrap.dark .promo {
+  background: linear-gradient(135deg, #1c2a27 0%, #15191e 100%);
+}
+
+.wrap.dark .p-title { color: #e6e9ec; }
+.wrap.dark .p-desc { color: #8b939b; }
+
+.wrap.dark .themebar {
+  background: #1b2026;
+}
+
+.wrap.dark .tb-label,
+.wrap.dark .foot-link {
+  color: #7f878f;
+}

@@ -298,3 +298,86 @@
   color: #b1b7bd;
   line-height: 1.6;
 }
+
+/* ---------- 邀请好友 ---------- */
+.invite {
+  border: 1rpx solid #e3f0ea;
+  background: linear-gradient(180deg, #fbfffd 0%, #ffffff 100%);
+}
+
+.iv-desc {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  color: #5c6469;
+  line-height: 1.65;
+}
+
+.iv-code {
+  margin-top: 20rpx;
+  padding: 20rpx 24rpx;
+  border-radius: 14rpx;
+  background: #f5f9f7;
+  border: 1rpx dashed #b9dfd2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.iv-lab {
+  font-size: 23rpx;
+  color: #8b9198;
+}
+
+.iv-val {
+  font-size: 34rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
+  color: #12695a;
+  font-family: Menlo, Consolas, monospace;
+}
+
+.iv-row {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 20rpx;
+}
+
+.iv-btn {
+  flex: 1;
+  height: 84rpx;
+  line-height: 84rpx;
+  text-align: center;
+  border-radius: 14rpx;
+  font-size: 27rpx;
+  color: #12695a;
+  background: #eef7f3;
+  border: 1rpx solid #d5eae2;
+  padding: 0;
+  margin: 0;
+}
+
+.iv-btn.main {
+  color: #ffffff;
+  background: linear-gradient(135deg, #1a8f76 0%, #12695a 100%);
+  border-color: transparent;
+}
+
+.iv-btn::after {
+  border: none;
+}
+
+.iv-stat {
+  display: block;
+  margin-top: 18rpx;
+  font-size: 22rpx;
+  color: #8b9198;
+}
+
+.iv-note {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 21rpx;
+  color: #b1b7bd;
+  line-height: 1.6;
+}

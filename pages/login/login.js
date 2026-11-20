@@ -26,9 +26,16 @@ Page({
       nick: a.nick,
       from: (opts && opts.from) || ''
     })
+
+    /* 从分享链接进来：先把邀请码存住，再核销（双方各 +7 天） */
+    if (opts && opts.invite) vip.setPendingInvite(opts.invite)
+
     /* 顺手向云函数要一次 openid / 会员状态：
        首次在崭新环境里跑时，服务端会自己把集合建好、把卡密灌进去，这里正好当探针 */
-    try { vip.refresh() } catch (e) {}
+    try {
+      vip.autoAcceptInvite(function () { vip.refresh() })
+      vip.refresh()
+    } catch (e) {}
   },
 
   onUnload: function () {

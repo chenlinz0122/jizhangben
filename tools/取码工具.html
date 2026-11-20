@@ -326,7 +326,7 @@ document.getElementById('btnExportJson').addEventListener('click', function(){
   var lines = pending.map(function(d){
     return JSON.stringify({
       code: d.code, codeText: d.codeText, days: d.days,
-      usedBy: '', usedAt: 0, batch: d.batch, createdAt: d.createdAt
+      usedBy: '', usedAt: 0, soldTo: d.buyer || '', batch: d.batch, createdAt: d.createdAt
     });
   });
   download('codes-' + newBatch() + '.json', lines.join('\n') + '\n');
@@ -336,7 +336,7 @@ document.getElementById('btnExportJson').addEventListener('click', function(){
 });
 
 document.getElementById('btnExportCsv').addEventListener('click', function(){
-  var head = '卡密,天数,批次,状态,售出时间,买家备注\n';
+  var head = '卡密,天数,批次,状态,售出时间,买家备注（soldTo）\n';
   var body = DATA.map(function(d){
     return [d.codeText, d.days, d.batch, d.state, fmt(d.soldAt), (d.buyer||'').replace(/,/g,'、')].join(',');
   }).join('\n');
@@ -365,3 +365,4 @@ render();
 </script>
 </body>
 </html>
+

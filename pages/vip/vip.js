@@ -1,4 +1,5 @@
 var vip = require('../../utils/vip')
+var config = require('../../utils/config')
 
 Page({
   data: {
@@ -12,12 +13,21 @@ Page({
     msg: '',
     contact: vip.CONTACT,
 
+    /* 邀请：双方各得 7 天，邀请人最多领 5 次 */
+    inviteCode: '',
+    inviteCodeText: '',
+    invited: 0,
+    inviteMax: config.INVITE.maxReward,
+    inviteDays: config.INVITE.days,
+    inviteDesc: config.INVITE.desc,
+    inviteErr: '',
+
     /* 档位只用于说明和「拿码时说要哪档」，页面里不放任何支付 */
     tierIdx: 2,
     tiers: [
-      { name: '月卡', days: 30, price: '9.9', tag: '', note: '先试一个月，每天约 0.33 元。' },
-      { name: '季卡', days: 90, price: '25.9', tag: '省 ¥3.8', note: '按月卡算要 29.7，季卡省 3.8。' },
-      { name: '年卡', days: 365, price: '68', tag: '最划算', note: '每天约 0.19 元，一年一次不用惦记。' }
+      { name: '月卡', days: 30, price: '6.9', tag: '', note: '先试一个月，每天约 0.23 元。' },
+      { name: '季卡', days: 90, price: '15.9', tag: '省 ¥4.8', note: '按月卡算要 20.7，季卡省 4.8。' },
+      { name: '年卡', days: 365, price: '39', tag: '最划算', note: '每天约 0.11 元，一年一次不用惦记。' }
     ],
 
     /* 对比表：左边功能，右边两列。— 表示这版没有 */
@@ -47,10 +57,70 @@ Page({
   onLoad: function () {
     this.syncLocal()
     this.refresh()
+    this.loadInvite()
   },
 
   onShow: function () {
     this.syncLocal()
+    this.loadInvite()
+  },
+
+  /* 拿自己的邀请码（失败就只是不显示，不影响兑换） */
+  loadInvite: function () {
+    var self = this
+    vip.invite(function (res) {
+      if (!res || !res.ok) {
+        self.setData({ inviteErr: (res && res.msg) || '邀请码暂时拿不到，稍后再试' })
+        return
+      }
+      self.setData({
+        inviteCode: res.code || '',
+        inviteCodeText: res.codeText || '',
+        invited: Number(res.invited) || 0,
+        inviteErr: ''
+      })
+    })
+  },
+
+  /* 复制邀请码；朋友打开小程序时把码粘到兑换框也能兑 */
+  copyInvite: function () {
+    var self = this
+    var code = this.data.inviteCodeText || this.data.inviteCode
+    if (!code) {
+      wx.showToast({ title: '邀请码还没生成好', icon: 'none' })
+      return
+    }
+    wx.setClipboardData({
+      data: code,
+      success: function () {
+        wx.showToast({ title: '邀请码已复制', icon: 'none' })
+        self.loadInvite()
+      }
+    })
+  },
+
+  /* 推广得会员：发帖/评论换会员，凭证在推广页提交 */
+  goPromo: function () {
+    wx.navigateTo({ url: '/pages/promo/promo' })
+  },
+
+  /* 右上角转发：带邀请码，对方一进来就自动领 7 天 */
+  onShareAppMessage: function () {
+    var code = this.data.inviteCode || ''
+    if (code && !this.data.inviteErr) this.loadInvite()
+    return {
+      title: config.INVITE.title,
+      path: '/pages/login/login?invite=' + (code || ''),
+      imageUrl: ''
+    }
+  },
+
+  onShareTimeline: function () {
+    var code = this.data.inviteCode || ''
+    return {
+      title: config.INVITE.title,
+      query: 'invite=' + (code || '')
+    }
   },
 
   syncLocal: function () {

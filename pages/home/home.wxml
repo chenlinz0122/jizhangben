@@ -1,5 +1,5 @@
 <!-- pages/home/home - 首页 -->
-<view class="wrap">
+<view class="wrap {{dark ? 'dark' : ''}}">
 
   <!-- 顶部绿卡：问候 + 本月数字 -->
   <view class="hero theme-{{themeKey}}">

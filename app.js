@@ -15,7 +15,16 @@ App({
     backTab: '',
     backLabel: ''
   },
-  onLaunch: function () {
+  onLaunch: function (options) {
+    /* 分享进来的邀请码可能落在任意入口页，先存起来，登录页/首页会核销 */
+    try {
+      var q = (options && options.query) || {}
+      if (q.invite) {
+        var vipUtil = require('./utils/vip')
+        vipUtil.setPendingInvite(q.invite)
+      }
+    } catch (e) {}
+
     /* 云开发只用于「截图识别」的 OCR，流水仍然存在手机本地。
        没用云环境也不影响记账，只是截图识别不可用。 */
     if (wx.cloud) {

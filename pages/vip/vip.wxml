@@ -29,6 +29,42 @@
     <text class="tier-note">{{tiers[tierIdx].note}}</text>
   </view>
 
+  <!-- 邀请好友：双方各得 7 天（不花钱也能用上会员） -->
+  <view class="card invite">
+    <view class="between">
+      <text class="title inline">邀请好友，各得 {{inviteDays}} 天</text>
+      <text class="muted2">最多 {{inviteMax}} 次</text>
+    </view>
+    <text class="iv-desc">{{inviteDesc}}</text>
+
+    <view class="iv-code">
+      <text class="iv-lab">我的邀请码</text>
+      <text class="iv-val">{{inviteCodeText || '生成中…'}}</text>
+    </view>
+
+    <view class="iv-row">
+      <button class="iv-btn main" open-type="share">转发给朋友</button>
+      <view class="iv-btn" bindtap="copyInvite">复制邀请码</view>
+    </view>
+
+    <text class="iv-stat">已邀请 {{invited}} 人 · 已到账 {{invited > inviteMax ? inviteMax : invited}} 次</text>
+    <text class="err" wx:if="{{inviteErr}}">{{inviteErr}}</text>
+    <text class="iv-note">对方第一次打开就会自动 +{{inviteDays}} 天；同一个微信号只算一次，别拿小号刷。</text>
+  </view>
+
+  <!-- 不想花钱也行：发帖 / 评论推荐，按浏览量换会员 -->
+  <view class="card invite">
+    <view class="between">
+      <text class="title inline">推广得会员</text>
+      <text class="muted2">不花钱，发帖就行</text>
+    </view>
+    <text class="iv-desc">在抖音 / 小红书 / B站 / 公众号 发一篇推荐，浏览量到了就换会员：1000 → 月卡，5000 → 季卡，12000 → 年卡。评论区在别人的测评下推荐我们，50 赞换月卡。</text>
+    <view class="iv-row">
+      <view class="iv-btn main" bindtap="goPromo">去看看规则 / 交凭证</view>
+    </view>
+    <text class="iv-note">人工审核，48 小时内出结果；同一条帖子只算一次。</text>
+  </view>
+
   <!-- 对比表：参考别家会员页，一列会员一列免费 -->
   <view class="card">
     <text class="title">会员 vs 免费</text>

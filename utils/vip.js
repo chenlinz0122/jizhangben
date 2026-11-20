@@ -8,9 +8,13 @@
  */
 
 var KEY = 'vip_member_v1'
+var PENDING_INVITE = 'pending_invite_v1'
+
+/* 购买渠道文案与邀请口径统一放 utils/config.js，改那一处就行 */
+var config = require('./config')
 
 /* 购买渠道文案：只写联系方式，别写支付方式，也别放二维码/收款码 —— 那是违规的 */
-var CONTACT = '购买卡密：微信 / 闲鱼搜「记账Book」，联系作者拿码'
+var CONTACT = config.CONTACT
 
 function nowMs() {
   return Date.now()
@@ -138,6 +142,79 @@ function redeem(code, cb) {
   })
 }
 
+/* ---------- 邀请好友：双方各得 7 天 ---------- */
+
+/* 分享进来时带着 ?invite=XXXX，先存下来，等身份（openid）拿到再核销 */
+function setPendingInvite(code) {
+  var c = String(code || '').trim().toUpperCase().replace(/[^0-9A-Z]/g, '')
+  if (!c) return
+  try { wx.setStorageSync(PENDING_INVITE, c) } catch (e) {}
+}
+
+function pendingInvite() {
+  try { return String(wx.getStorageSync(PENDING_INVITE) || '') } catch (e) { return '' }
+}
+
+function clearPendingInvite() {
+  try { wx.removeStorageSync(PENDING_INVITE) } catch (e) {}
+}
+
+/* 取自己的邀请码 + 已经邀到几个人 */
+function invite(cb) {
+  var done = typeof cb === 'function' ? cb : function () {}
+  if (!wx.cloud) {
+    done({ ok: false, msg: '当前微信版本用不了云开发' })
+    return
+  }
+  wx.cloud.callFunction({
+    name: 'vip',
+    data: { action: 'invite' },
+    success: function (r) { done((r && r.result) || { ok: false }) },
+    fail: function () { done({ ok: false, msg: '网络出问题了，稍后再试' }) }
+  })
+}
+
+/* 核销一个邀请码（朋友第一次打开时自动跑一次） */
+function acceptInvite(code, cb) {
+  var done = typeof cb === 'function' ? cb : function () {}
+  var c = String(code || '').trim().toUpperCase().replace(/[^0-9A-Z]/g, '')
+  if (!c) { done({ ok: false, code: 'BAD_FORMAT' }); return }
+  if (!wx.cloud) { done({ ok: false, msg: '当前微信版本用不了云开发' }); return }
+  wx.cloud.callFunction({
+    name: 'vip',
+    data: { action: 'accept', code: c },
+    success: function (r) {
+      var res = (r && r.result) || {}
+      if (res.ok) {
+        apply(res)
+        clearPendingInvite()
+      } else if (res.code === 'ALREADY_INVITED' || res.code === 'SELF_INVITE' || res.code === 'BAD_CODE') {
+        /* 这几种不用再重试，清掉就行 */
+        clearPendingInvite()
+      }
+      done(res)
+    },
+    fail: function () { done({ ok: false, msg: '网络出问题了，稍后再试' }) }
+  })
+}
+
+/* 页面进来时调用：有存着的邀请码就核销一次，成功给个轻提示 */
+function autoAcceptInvite(cb) {
+  var done = typeof cb === 'function' ? cb : function () {}
+  var p = pendingInvite()
+  if (!p) { done(null); return }
+  acceptInvite(p, function (res) {
+    if (res && res.ok) {
+      wx.showToast({
+        title: '邀请奖励 +' + (res.days || config.INVITE.days) + ' 天已到账',
+        icon: 'none',
+        duration: 2200
+      })
+    }
+    done(res)
+  })
+}
+
 /* 功能拦截：未开通就弹窗引导到会员页，返回 true 表示放行 */
 function guard(feature) {
   if (isVip()) return true
@@ -156,6 +233,8 @@ function guard(feature) {
 
 module.exports = {
   CONTACT: CONTACT,
+  INVITE_RULE: config.INVITE,
+  PENDING_INVITE: PENDING_INVITE,
   KEY: KEY,
   isVip: isVip,
   expireAt: expireAt,
@@ -165,6 +244,12 @@ module.exports = {
   openid: openid,
   refresh: refresh,
   redeem: redeem,
+  invite: invite,
+  acceptInvite: acceptInvite,
+  autoAcceptInvite: autoAcceptInvite,
+  setPendingInvite: setPendingInvite,
+  pendingInvite: pendingInvite,
+  clearPendingInvite: clearPendingInvite,
   apply: apply,
   guard: guard
 }

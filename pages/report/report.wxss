@@ -1127,3 +1127,38 @@
   font-size: 21rpx;
   color: #a8aeb4;
 }
+
+/* ---------- 深色模式（跟随系统）：只救背景 / 卡片 / 正文，图表色本身够亮 ---------- */
+.page.dark {
+  background: #12161a;
+}
+
+.page.dark .card {
+  background: #1b2026;
+  box-shadow: none;
+}
+
+.page.dark .title,
+.page.dark .cname,
+.page.dark .dname {
+  color: #e6e9ec;
+}
+
+.page.dark .cmeta,
+.page.dark .bsub,
+.page.dark .hint {
+  color: #818a92;
+}
+
+.page.dark .tease {
+  background: #171c21;
+  border-color: #262c33;
+}
+
+.page.dark .tease .tc-name {
+  color: #cfd5da;
+}
+
+.page.dark .tease .tc-bar {
+  background: #2a3138;
+}

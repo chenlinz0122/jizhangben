@@ -1,0 +1,85 @@
+<!-- pages/promo/promo - 推广得会员（发帖 / 评论换会员，人工审核） -->
+<view class="page {{dark ? 'dark' : ''}}">
+  <view class="hero">
+    <text class="h1">推广得会员</text>
+    <text class="h2">在抖音 / 小红书 / B站 / 公众号 推荐记账Book，按浏览量换会员</text>
+  </view>
+
+  <!-- 规则：三档门槛 -->
+  <view class="card">
+    <view class="ct">发帖换会员</view>
+    <view class="tier" wx:for="{{tiers}}" wx:key="name">
+      <view class="tl">
+        <text class="tv">浏览量 ≥ {{item.views}}</text>
+        <text class="tb">发布满 {{days}} 天后可兑换</text>
+      </view>
+      <text class="tname">{{item.name}}</text>
+    </view>
+    <view class="note">{{note}}</view>
+  </view>
+
+  <!-- 帖子要求 -->
+  <view class="card">
+    <view class="ct">帖子要满足这几点</view>
+    <view class="li">· 内容不限：日常分享、使用体验、功能展示都行</view>
+    <view class="li">· 标题或正文里得有「记账Book」这个名字</view>
+    <view class="li">· 发布满 {{days}} 天、帖子还在，才能兑换</view>
+    <view class="li">· 评论区也行：在别人的记账软件测评下推荐我们，50 赞换月卡</view>
+  </view>
+
+  <!-- 提交凭证 -->
+  <view class="card">
+    <view class="ct">提交凭证</view>
+
+    <view class="row">
+      <text class="lab">平台</text>
+      <view class="plats">
+        <text
+          class="pl {{pIdx === index ? 'on' : ''}}"
+          wx:for="{{platforms}}"
+          wx:key="*this"
+          data-i="{{index}}"
+          bindtap="pickPlatform">{{item}}</text>
+      </view>
+    </view>
+
+    <view class="row">
+      <text class="lab">浏览量</text>
+      <input class="ipt" type="number" placeholder="比如 1520" value="{{views}}" bindinput="onViews" />
+    </view>
+
+    <view class="row">
+      <text class="lab">帖子链接</text>
+      <input class="ipt" placeholder="复制帖子链接粘这儿" value="{{link}}" bindinput="onLink" />
+    </view>
+
+    <view class="row">
+      <text class="lab">联系方式</text>
+      <input class="ipt" placeholder="微信号 / 闲鱼号，好发兑换码" value="{{contact}}" bindinput="onContact" />
+    </view>
+
+    <view class="row top">
+      <text class="lab">后台截图</text>
+      <view class="shot" wx:if="{{!imagePath}}" bindtap="pickImage">+ 上传数据截图</view>
+      <view class="shotbox" wx:else>
+        <image class="thumb" src="{{imagePath}}" mode="aspectFill" bindtap="pickImage" />
+        <text class="del" bindtap="clearImage">换一张 / 删掉</text>
+      </view>
+    </view>
+
+    <text class="err" wx:if="{{msg}}">{{msg}}</text>
+
+    <button class="btn" loading="{{busy}}" bindtap="submit">提交，等审核</button>
+    <view class="tip">人工审核，48 小时内给结果。通过后按你留的联系方式发兑换码，自己在会员页输进去就生效。</view>
+  </view>
+
+  <!-- 规则说明 -->
+  <view class="card">
+    <view class="ct">说明</view>
+    <view class="li">· 同一个帖子只算一次，删了、隐藏了、数据明显异常都不发</view>
+    <view class="li">· 换到的兑换码是卡密，和你自己买的一样，能叠加天数</view>
+    <view class="li">· 活动随时可能调整，以本页当前写的为准</view>
+  </view>
+
+  <view class="foot">推荐的时候顺手截个数据图，比事后补更容易过。</view>
+</view>

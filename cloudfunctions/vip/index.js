@@ -23,6 +23,12 @@ const _ = db.command
 const CODES = 'codes'
 const MEMBERS = 'members'
 const FEEDBACKS = 'feedbacks'
+const INVITES = 'invites'
+const INVITE_LOGS = 'invite_logs'
+
+/* 邀请口径：双方各 +7 天，邀请人最多领 5 次 */
+const INVITE_DAYS = 7
+const INVITE_MAX = 5
 
 /* 首跑自建：集合不存在时，第一次调用会自动把 codes / members / feedbacks 建好，
    并把内置的 70 张卡密灌进 codes（已存在同号卡密就跳过，重复跑也不会重复灌） */
@@ -99,9 +105,11 @@ async function bootstrap() {
   const r1 = await ensureCollection(CODES)
   const r2 = await ensureCollection(MEMBERS)
   const r3 = await ensureCollection(FEEDBACKS)
+  const r5 = await ensureCollection(INVITES)
+  const r6 = await ensureCollection(INVITE_LOGS)
   const r4 = await seedCodes()
   booted = true
-  return { codes: r1, members: r2, feedbacks: r3, seed: r4 }
+  return { codes: r1, members: r2, feedbacks: r3, invites: r5, inviteLogs: r6, seed: r4 }
 }
 
 function isNoCollection(msg) {
@@ -176,6 +184,113 @@ async function redeem(openid, rawCode) {
   return ok({ expireAt: expireAt, isVip: true, daysLeft: core.daysLeft(Date.now(), expireAt), days: days, openid: openid })
 }
 
+/* ---------- 邀请好友：双方各 +7 天 ---------- */
+
+/* 给某个 openid 加天数（没开通就直接开），返回新的到期日 */
+async function grantDays(openid, days) {
+  const member = await getMember(openid)
+  const expireAt = core.calcExpire(Date.now(), member && member.expireAt, days)
+  if (member && member._id) {
+    await db.collection(MEMBERS).doc(member._id).update({
+      data: { expireAt: expireAt, updatedAt: Date.now() }
+    })
+  } else {
+    await db.collection(MEMBERS).add({
+      data: { openid: openid, expireAt: expireAt, code: 'invite', updatedAt: Date.now() }
+    })
+  }
+  return expireAt
+}
+
+/* 取/建自己的邀请码 */
+async function invite(openid) {
+  const mine = await db.collection(INVITES).where({ openid: openid }).limit(1).get()
+  let doc = mine.data && mine.data[0]
+
+  if (!doc) {
+    let created = null
+    for (let i = 0; i < 5 && !created; i++) {
+      const code = core.randomCode()
+      const dup = await db.collection(INVITES).where({ code: code }).limit(1).get()
+      if (dup.data && dup.data.length) continue
+      const add = await db.collection(INVITES).add({
+        data: {
+          openid: openid,
+          code: code,
+          codeText: core.format(code),
+          createdAt: Date.now()
+        }
+      })
+      created = { _id: add._id, code: code, codeText: core.format(code) }
+    }
+    if (!created) return bad('SERVER_ERROR', '邀请码生成失败，稍后再试')
+    doc = created
+  }
+
+  /* 已经邀到几个人：以核销日志为准，别信计数字段（可能是旧数据） */
+  const logs = await db.collection(INVITE_LOGS).where({ inviter: openid }).count()
+  const rewardedLogs = await db.collection(INVITE_LOGS).where({ inviter: openid, rewarded: true }).count()
+
+  return ok({
+    code: doc.code,
+    codeText: doc.codeText,
+    invited: (logs && logs.total) || 0,
+    rewarded: (rewardedLogs && rewardedLogs.total) || 0,
+    maxReward: INVITE_MAX,
+    days: INVITE_DAYS
+  })
+}
+
+/* 核销邀请码：被邀请人 +7 天，邀请人再 +7 天（最多 5 次） */
+async function accept(openid, rawCode) {
+  const code = core.normalize(rawCode)
+  if (!core.isRightShape(code)) return bad('BAD_FORMAT', '邀请码格式不对')
+
+  const inviterSnap = await db.collection(INVITES).where({ code: code }).limit(1).get()
+  const inviter = inviterSnap.data && inviterSnap.data[0]
+  if (!inviter) return bad('BAD_CODE', '这个邀请码不存在，检查有没有输错')
+
+  if (inviter.openid === openid) {
+    return bad('SELF_INVITE', '不能邀请自己，发给朋友吧')
+  }
+
+  /* 一个人一辈子只算一次被邀请 */
+  const dup = await db.collection(INVITE_LOGS).where({ invitee: openid }).limit(1).get()
+  if (dup.data && dup.data.length) {
+    return bad('ALREADY_INVITED', '你已经用过一次邀请奖励了')
+  }
+
+  const expireAt = await grantDays(openid, INVITE_DAYS)
+
+  /* 邀请人的奖励：超过 5 次就不再加天数，但日志照记（方便你看真实拉新数） */
+  const used = await db.collection(INVITE_LOGS).where({ inviter: inviter.openid, rewarded: true }).count()
+  const rewarded = ((used && used.total) || 0) < INVITE_MAX
+  if (rewarded) await grantDays(inviter.openid, INVITE_DAYS)
+
+  await db.collection(INVITE_LOGS).add({
+    data: {
+      inviter: inviter.openid,
+      invitee: openid,
+      code: code,
+      days: INVITE_DAYS,
+      rewarded: rewarded,
+      at: Date.now()
+    }
+  })
+
+  const member = await getMember(openid)
+  return ok({
+    days: INVITE_DAYS,
+    rewarded: rewarded,
+    expireAt: expireAt,
+    isVip: true,
+    daysLeft: core.daysLeft(Date.now(), (member && member.expireAt) || expireAt),
+    openid: openid,
+    inviterRewarded: rewarded,
+    maxReward: INVITE_MAX
+  })
+}
+
 exports.main = async function (event) {
   const wxContext = cloud.getWXContext()
   const openid = wxContext && wxContext.OPENID
@@ -186,6 +301,8 @@ exports.main = async function (event) {
   const run = async function () {
     if (action === 'status') return await status(openid)
     if (action === 'redeem') return await redeem(openid, event && event.code)
+    if (action === 'invite') return await invite(openid)
+    if (action === 'accept') return await accept(openid, event && event.code)
     if (action === 'initdb') return ok(await bootstrap())
     return bad('BAD_ACTION', '不认识的操作：' + action)
   }

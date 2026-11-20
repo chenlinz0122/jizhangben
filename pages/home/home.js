@@ -10,6 +10,7 @@ var category = require('../../utils/category')
 var vip = require('../../utils/vip')
 var account = require('../../utils/account')
 var theme = require('../../utils/theme')
+var darkmode = require('../../utils/darkmode')
 
 function greetText() {
   var h = new Date().getHours()
@@ -37,15 +38,20 @@ Page({
     uncatCount: 0,
 
     themeKey: 'green',
-    themes: []
+    themes: [],
+    dark: false
   },
 
   onLoad: function () {
+    var self = this
     this.setData({
       greeting: greetText(),
       themeKey: theme.get().key,
-      themes: theme.list()
+      themes: theme.list(),
+      dark: darkmode.isDark()
     })
+    /* 系统切换深浅色时跟着变，不用重启小程序 */
+    darkmode.watch(function (dark) { self.setData({ dark: dark }) })
     /* 第一次进来、没登录、也还没点过「先逛逛」→ 引导一次登录。
        延迟 300ms，别在首屏渲染时把页面盖住。 */
     if (!account.isLogin() && !account.skipped()) {
@@ -60,12 +66,23 @@ Page({
     this.syncData()
     this.syncVip()
     this.syncTheme()
+    this.syncDark()
+
+    /* 分享进来（?invite=）时，这里兜一次：核销成功会 +7 天，再刷一次状态 */
+    var self = this
+    vip.autoAcceptInvite(function (res) {
+      if (res && res.ok) self.syncVip()
+    })
   },
 
   syncTheme: function () {
     var t = theme.get()
     this.setData({ themeKey: t.key, themes: theme.list() })
     theme.syncTabBar()
+  },
+
+  syncDark: function () {
+    this.setData({ dark: darkmode.isDark() })
   },
 
   /* 换配色：只动主色和首页头部；tabBar 选中色只能在运行时改，顺手一起改 */

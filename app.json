@@ -10,6 +10,7 @@
     "pages/add/add",
     "pages/vip/vip",
     "pages/login/login",
+    "pages/promo/promo",
     "pages/feedback/feedback"
   ],
   "window": {

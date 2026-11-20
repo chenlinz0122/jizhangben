@@ -3,6 +3,7 @@ var store = require('../../utils/store')
 var stats = require('../../utils/stats')
 var category = require('../../utils/category')
 var vip = require('../../utils/vip')
+var darkmode = require('../../utils/darkmode')
 
 /* 按类型排个名：支出看花得最多，入账看进得最多 */
 function topBy(txs, ym, kind, n) {
@@ -110,11 +111,18 @@ Page({
       { name: '近 6 个月对比', hint: '会员可见 · 点这里开通', bars: ['52%', '68%', '40%', '82%', '58%', '74%'] },
       { name: '商户排行', hint: '会员可见 · 点这里开通', bars: ['90%', '66%', '48%'] },
       { name: '年度汇总', hint: '会员可见 · 点这里开通', bars: ['84%', '60%', '70%', '46%'] }
-    ]
+    ],
+
+    /* 系统深色模式：环形图要把中心文字画成浅色，否则深色底上看不清 */
+    dark: false
   },
 
   onLoad: function () {
-    this.setData({ ym: format.ymOf(Date.now()) })
+    var self = this
+    this.setData({ ym: format.ymOf(Date.now()), dark: darkmode.isDark() })
+    darkmode.watch(function (dark) {
+      self.setData({ dark: dark }, function () { self.refresh() })
+    })
   },
 
   onShow: function () {
@@ -494,7 +502,7 @@ Page({
 
       ctx.beginPath()
       ctx.arc(cx, cy, rInner, 0, Math.PI * 2)
-      ctx.strokeStyle = '#ffffff'
+      ctx.strokeStyle = (self.data && self.data.dark) ? '#1b2026' : '#ffffff'
       ctx.lineWidth = 1
       ctx.stroke()
 
@@ -511,13 +519,13 @@ Page({
         }
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
-        ctx.fillStyle = '#2b3136'
+        ctx.fillStyle = (self.data && self.data.dark) ? '#f2f4f6' : '#2b3136'
         ctx.fillText(numText, cx, cy - w * 0.038)
       }
       if (labText) {
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
-        ctx.fillStyle = '#9aa0a6'
+        ctx.fillStyle = (self.data && self.data.dark) ? '#9aa4ad' : '#9aa0a6'
         ctx.font = Math.round(w * 0.055) + 'px sans-serif'
         ctx.fillText(labText, cx, cy + w * 0.07)
       }

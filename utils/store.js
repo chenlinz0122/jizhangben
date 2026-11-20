@@ -10,6 +10,15 @@ var KEY_CATBUD = 'budcats_v1'
 var _cache = null
 var _rules = null
 
+/* 老账本里被当成收入的理财收益：只在「收益发放 / 理财收益 / 余额宝收益」这类
+ * 明确字眼上动手，申购/赎回/转入/转出仍按原来的资金搬移处理 */
+function isOldYield(t) {
+  if (!t || t.type === 'transfer') return false
+  var text = String(t.merchant || '') + '|' + String(t.desc || '') + '|' + String(t.category || '')
+  if (!/收益发放|收益入账|理财收益|余额宝收益/.test(text)) return false
+  return !/申购|赎回|转入|转出/.test(text)
+}
+
 function all() {
   if (_cache) return _cache
   var v = wx.getStorageSync(KEY_TX)
@@ -19,6 +28,15 @@ function all() {
     var t = _cache[i]
     var c = category.migrate(t)
     if (c !== t.category) t.category = c
+    /* 类目落在「不计收支」那几类时，类型也跟着纠正：
+     * 老账本把银行卡进出记成了收入/支出，只改类目不改类型的话还会被算进收支 */
+    if (category.isMoveCat(t.category)) t.type = 'transfer'
+    /* 老口径遗留：理财收益（余额宝-收益发放）曾被记成一笔「其他收入」，
+     * 现在统一认成「不计收支 / 理财」——收益只是账户自己涨了，不算进账 */
+    if (isOldYield(t)) {
+      t.type = 'transfer'
+      t.category = '理财'
+    }
   }
   return _cache
 }
@@ -386,6 +404,34 @@ function setCatBudget(name, v) {
   return m
 }
 
+/* AI 补分类：按「商户名」把这批未分类的支出改掉，并把结果沉淀成规则
+ * 只动「未分类」的行，已经分好类的一律不碰——AI 判错了也只是浪费一次，不会污染旧数据 */
+function applyCategories(map) {
+  var cur = all()
+  var r = rules()
+  var keys = Object.keys(map || {})
+  var changed = 0
+  var learned = 0
+
+  for (var i = 0; i < keys.length; i++) {
+    var key = String(keys[i] || '').trim()
+    var cat = map[keys[i]]
+    if (key.length < 2 || !cat || cat === '未分类') continue
+    for (var j = 0; j < cur.length; j++) {
+      var t = cur[j]
+      if (t.type !== 'expense' || t.category !== '未分类') continue
+      if (String(t.merchant || '').trim() !== key) continue
+      t.category = cat
+      changed++
+    }
+    if (!r[key]) { r[key] = cat; learned++ }
+  }
+
+  if (changed) persist()
+  if (learned) saveRules()
+  return { changed: changed, learned: learned }
+}
+
 /* 全量备份：流水 + 规则 + 预算，打成一个 JSON */
 function exportAll() {
   return {
@@ -450,6 +496,7 @@ module.exports = {
   addOne: addOne,
   update: update,
   relabel: relabel,
+  applyCategories: applyCategories,
   remove: remove,
   removeMonth: removeMonth,
   clearAll: clearAll,

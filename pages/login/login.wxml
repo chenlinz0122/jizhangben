@@ -1,0 +1,96 @@
+<!-- pages/login/login - 登录 / 完善资料 -->
+<view class="login-page">
+
+  <!-- Logo 区 -->
+  <view class="logo-area">
+    <view class="logo-icon">📒</view>
+    <view class="logo-title">记账Book</view>
+    <view class="logo-sub">账本存在你自己手机上，登录只管昵称和会员</view>
+  </view>
+
+  <view class="form-card">
+    <view class="form-title">完善一下资料</view>
+    <view class="form-sub">不填也能记账，填了首页会好看一点</view>
+
+    <!-- 头像 -->
+    <view class="form-item avatar-item">
+      <view class="form-label">头像</view>
+      <button class="avatar-btn" open-type="chooseAvatar" bind:chooseavatar="onChooseAvatar">
+        <image wx:if="{{avatar}}" class="avatar-img" src="{{avatar}}" mode="aspectFill" />
+        <view wx:else class="avatar-placeholder">
+          <text class="avatar-placeholder-icon">📷</text>
+          <text class="avatar-placeholder-text">点击选头像</text>
+        </view>
+      </button>
+    </view>
+
+    <!-- 昵称 -->
+    <view class="form-item">
+      <view class="form-label">昵称 <text class="required-mark">*</text></view>
+      <input class="form-input" type="nickname" placeholder="直接用微信昵称，或自己起一个"
+             value="{{nick}}" bindinput="onNickInput" bindblur="onNickBlur" />
+    </view>
+
+    <view class="divider"></view>
+
+    <!-- 协议 -->
+    <view class="privacy-check {{agreedError ? 'agreed-error' : ''}}" bindtap="toggleAgree">
+      <view class="checkbox {{agreed ? 'checked' : ''}}">
+        <text wx:if="{{agreed}}" class="check-icon">✓</text>
+      </view>
+      <text class="privacy-text">我已阅读并同意</text>
+      <text class="privacy-link" catchtap="openPrivacy">《数据与隐私说明》</text>
+    </view>
+    <view class="privacy-error" wx:if="{{agreedError}}">请先勾选同意这份说明</view>
+
+    <view class="login-btn {{busy ? 'disabled' : ''}}" bindtap="doLogin">
+      {{busy ? '登录中…' : '微信一键登录'}}
+    </view>
+    <view class="err" wx:if="{{errMsg}}">{{errMsg}}</view>
+    <text class="no-phone">不需要手机号，也不读通讯录</text>
+  </view>
+
+  <view class="skip-login" bindtap="skipLogin">暂不登录，先逛逛 ›</view>
+
+  <!-- 说明弹窗 -->
+  <view wx:if="{{showPrivacy}}" class="modal-mask" catchtap="closePrivacy">
+    <view class="modal-dialog" catchtap="stopProp">
+      <view class="modal-title">数据与隐私说明</view>
+      <scroll-view class="modal-body" scroll-y="true">
+        <view class="privacy-meta">适用于「记账Book」小程序</view>
+
+        <view class="privacy-h2">一、这个账号是什么</view>
+        <view class="privacy-p">本小程序的「登录」不是注册账号，只是在这台手机上记一个昵称和一个头像，用来在首页打招呼。你的流水、分类、预算全部存在本机 Storage，不上传、不跨设备同步。</view>
+
+        <view class="privacy-h2">二、会收集哪些信息</view>
+        <view class="privacy-list">1. 昵称、头像：你主动填写/选择，只存在本机，可随时清空。</view>
+        <view class="privacy-list">2. 微信 OpenID：仅在你使用会员功能时，由云函数用于识别「这张卡密属于谁」，不用于其他用途。</view>
+        <view class="privacy-list">3. 不会收集：手机号、通讯录、位置、相册全量照片、微信好友关系。</view>
+
+        <view class="privacy-h2">三、什么时候会把数据发出去</view>
+        <view class="privacy-list">1. 截图识别：只把你选的那几张图上传到云开发做文字识别，识别完即用即弃，不做留存。</view>
+        <view class="privacy-list">2. 账单导入：解析在云端完成，返回的是结构化流水，原始文件不留存。</view>
+        <view class="privacy-list">3. AI 补分类：只发「商户名 + 金额 + 收支方向」，不发图片、不发你的昵称头像。</view>
+        <view class="privacy-list">4. 会员核销：只发卡密和 OpenID。</view>
+
+        <view class="privacy-h2">四、数据存在哪、怎么删</view>
+        <view class="privacy-list">1. 账本数据：仅本机。卸载小程序或在「报表 → 清空所有数据」都能删掉，删了不可恢复。</view>
+        <view class="privacy-list">2. 会员记录：微信云开发数据库，只有「OpenID + 到期日 + 用过的卡密」，不含任何账目内容。</view>
+        <view class="privacy-list">3. 退出登录：在首页点头像可以退出，退出只清昵称头像，不动账本。</view>
+
+        <view class="privacy-h2">五、第三方</view>
+        <view class="privacy-p">图片文字识别走微信云开发（腾讯云），可另配百度 OCR；AI 补分类走智谱 GLM。除上述能力外未接入其他 SDK，也不向任何第三方出售、共享你的数据。</view>
+
+        <view class="privacy-h2">六、未成年人</view>
+        <view class="privacy-p">本工具不面向 14 岁以下儿童单独提供服务，若你是未成年人，请在监护人指导下使用。</view>
+
+        <view class="privacy-h2">七、联系与更新</view>
+        <view class="privacy-p">对本说明有疑问，可通过小程序内「会员」页的联系方式找作者。说明如有变更会在小程序内提示。</view>
+      </scroll-view>
+      <view class="modal-footer">
+        <button class="modal-btn" bindtap="disagreePrivacy">不同意</button>
+        <button class="modal-btn modal-btn-primary" bindtap="agreePrivacy">同意</button>
+      </view>
+    </view>
+  </view>
+</view>

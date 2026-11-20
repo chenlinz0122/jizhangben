@@ -2,6 +2,7 @@ var parser = require('../../utils/parser')
 var store = require('../../utils/store')
 var format = require('../../utils/format')
 var ocrbill = require('../../utils/ocrbill')
+var vip = require('../../utils/vip')
 
 var DEMO = [
   '交易时间\t交易分类\t交易对方\t商品说明\t收/支\t金额\t收/付款方式\t交易状态\t交易订单号\t商家订单号\t备注',
@@ -41,6 +42,7 @@ Page({
   chooseBillFile: function () {
     var self = this
     if (this.data.billBusy) return
+    if (!vip.guard('账单导入')) return
     if (!wx.chooseMessageFile) {
       wx.showToast({ title: '这个版本不支持选文件，请用截图识别', icon: 'none' })
       return

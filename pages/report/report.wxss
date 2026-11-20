@@ -9,9 +9,23 @@
 /* 注意：这里不能用 position: sticky。
    canvas 是原生组件，真机上不吃 z-index，只要环形图滚到吸顶头部下面，
    它就会浮在绿色卡片之上把大数字盖掉。 */
+/* 返回按钮：从总览跳过来时贴在 hero 顶部（switchTab 没有原生返回箭头） */
+.rback {
+  position: absolute;
+  left: 24rpx;
+  top: 14rpx;
+  z-index: 20;
+  padding: 10rpx 22rpx;
+  font-size: 24rpx;
+  font-weight: 500;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 999rpx;
+}
+
 .hero {
   background: linear-gradient(160deg, #1a8f76 0%, #12695a 100%);
-  padding: 26rpx 32rpx 34rpx;
+  padding: 70rpx 32rpx 34rpx;
   border-radius: 0 0 32rpx 32rpx;
   box-shadow: 0 16rpx 36rpx rgba(18, 105, 90, 0.18);
 }
@@ -787,6 +801,46 @@
   color: #8b9198;
 }
 
+/* ---------- AI 补分类 ---------- */
+.aicat {
+  margin-top: 8rpx;
+}
+
+.aicat-row {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+}
+
+.aicat-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.aicat-t {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #2b3339;
+}
+
+.aicat-s {
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  line-height: 1.5;
+  color: #8b9198;
+}
+
+.aicat-btn {
+  flex-shrink: 0;
+  padding: 16rpx 26rpx;
+  border-radius: 999rpx;
+  font-size: 24rpx;
+  font-weight: 600;
+  color: #ffffff;
+  background: linear-gradient(135deg, #1a8f76, #12695a);
+  box-shadow: 0 6rpx 16rpx rgba(23, 128, 107, 0.24);
+}
+
 /* ---------- 底部工具 ---------- */
 .tools {
   margin: 8rpx 24rpx 0;
@@ -919,4 +973,157 @@
   color: #b1b7bd;
   font-size: 24rpx;
   padding: 32rpx 0;
+}
+
+/* ---------- 会员锁 ---------- */
+.lock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: #f3f5f6;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 80rpx;
+}
+
+.lock-ico {
+  font-size: 88rpx;
+  margin-bottom: 24rpx;
+}
+
+.lock-title {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: #1c1f23;
+}
+
+.lock-desc {
+  margin-top: 20rpx;
+  font-size: 26rpx;
+  color: #8b9198;
+  line-height: 1.7;
+  text-align: center;
+}
+
+.lock-btn {
+  width: 420rpx;
+  margin-top: 48rpx;
+}
+
+.lock-hint {
+  margin-top: 24rpx;
+  font-size: 22rpx;
+  color: #b1b7bd;
+}
+
+/* ---------- 免费版「解锁更多」引导卡 ---------- */
+.upsell {
+  margin: 24rpx 24rpx 0;
+  padding: 36rpx 32rpx 40rpx;
+  background: #ffffff;
+  border: 2rpx solid #e3ece9;
+  border-radius: 28rpx;
+  box-shadow: 0 8rpx 24rpx rgba(24, 32, 38, 0.05);
+}
+
+.up-head {
+  display: flex;
+  align-items: center;
+}
+
+.up-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #1c1f23;
+}
+
+.up-badge {
+  margin-left: 12rpx;
+  padding: 2rpx 12rpx;
+  border-radius: 8rpx;
+  background: linear-gradient(135deg, #1a8f76, #12695a);
+  color: #ffffff;
+  font-size: 20rpx;
+  letter-spacing: 2rpx;
+  line-height: 1.6;
+}
+
+.up-desc {
+  display: block;
+  margin-top: 16rpx;
+  font-size: 25rpx;
+  line-height: 1.75;
+  color: #7d858d;
+}
+
+.up-btn {
+  margin-top: 28rpx;
+  height: 84rpx;
+  line-height: 84rpx;
+  text-align: center;
+  border-radius: 44rpx;
+  background: linear-gradient(135deg, #1a8f76, #12695a);
+  color: #ffffff;
+  font-size: 29rpx;
+  font-weight: 600;
+  box-shadow: 0 10rpx 24rpx rgba(18, 105, 90, 0.2);
+}
+
+.up-hint {
+  display: block;
+  margin-top: 16rpx;
+  text-align: center;
+  font-size: 22rpx;
+  color: #b1b7bd;
+}
+
+/* ---------- 被锁卡片的灰化占位 ---------- */
+.tease {
+  margin: 20rpx 24rpx 0;
+}
+
+.tag-card {
+  position: relative;
+  margin-bottom: 18rpx;
+  padding: 26rpx 28rpx 22rpx;
+  background: #f2f4f5;
+  border: 2rpx dashed #e1e5e8;
+  border-radius: 24rpx;
+  overflow: hidden;
+}
+
+.tc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tc-name {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #6f767d;
+}
+
+.tc-lock {
+  font-size: 24rpx;
+  opacity: 0.55;
+}
+
+.tc-bar {
+  height: 12rpx;
+  margin-top: 16rpx;
+  border-radius: 8rpx;
+  background: linear-gradient(90deg, #dfe4e7 0%, #eceff1 100%);
+}
+
+.tc-hint {
+  display: block;
+  margin-top: 16rpx;
+  font-size: 21rpx;
+  color: #a8aeb4;
 }

@@ -2,6 +2,7 @@ var format = require('../../utils/format')
 var store = require('../../utils/store')
 var stats = require('../../utils/stats')
 var category = require('../../utils/category')
+var vip = require('../../utils/vip')
 
 Page({
   data: {
@@ -18,7 +19,10 @@ Page({
     s: { expenseText: '0.00', incomeText: '0.00', count: 0 },
     sheetVisible: false,
     sheetItem: null,
-    sheetCats: []
+    sheetCats: [],
+    catMode: false,
+    backTab: '',
+    backLabel: ''
   },
 
   onLoad: function () {
@@ -46,7 +50,39 @@ Page({
     app.globalData.filterKind = ''
     app.globalData.filterYm = ''
     app.globalData.filterDay = ''
+    /* 从报表/总览点柱子、点分类跳过来时，记下「回哪儿」。
+     * switchTab 没有页面栈，不这样记一笔，用户就被困在流水页、只能自己摸索回 tab。 */
+    if (app.globalData.backFor === '/pages/list/list' && app.globalData.backTab) {
+      this.setData({
+        backTab: app.globalData.backTab,
+        backLabel: app.globalData.backLabel || '返回'
+      })
+      app.globalData.backFor = ''
+      app.globalData.backTab = ''
+      app.globalData.backLabel = ''
+    } else {
+      this.setData({ backTab: '', backLabel: '' })
+    }
     this.refresh()
+  },
+
+  /* 页面内的返回按钮：清掉跳转带过来的筛选，再回到来源页 */
+  goBack: function () {
+    var target = this.data.backTab
+    var self = this
+    this.setData({
+      backTab: '', backLabel: '',
+      kw: '', filterCat: '', filterDay: '', filterKind: '',
+      onlyUncat: false,
+      ym: format.ymOf(Date.now())
+    }, function () { self.refresh() })
+    if (!target) return
+    var tabs = ['/pages/index/index', '/pages/list/list', '/pages/report/report']
+    if (tabs.indexOf(target) >= 0) {
+      wx.switchTab({ url: target })
+    } else {
+      wx.navigateTo({ url: target, fail: function () { wx.switchTab({ url: '/pages/index/index' }) } })
+    }
   },
 
   refresh: function () {
@@ -91,7 +127,7 @@ Page({
 
       var row = {
         id: t.id,
-        merchant: t.merchant,
+        merchant: t.merchant || '（没有商户名）',
         category: t.category,
         amountText: format.money(t.amount),
         timeText: format.pad(new Date(t.time).getHours()) + ':' + format.pad(new Date(t.time).getMinutes()),
@@ -100,7 +136,10 @@ Page({
         color: category.colorOf(t.category),
         icon: category.iconOf(t.category),
         tint: category.tintOf(t.category),
-        isUncat: t.category === '未分类'
+        isUncat: t.category === '未分类',
+        /* 行内也把说明带出来：账单里的「美团-机票」这种关键信息，藏在详情里等于没有 */
+        desc: t.desc || '',
+        note: t.note || ''
       }
       cur.items.push(row)
       /* 小计只算支出的原价：退款不冲减，否则「今天退了上个月买的东西」会让当天小计变成负数，
@@ -166,21 +205,91 @@ Page({
     if (!tx) return
     var cats = category.catsOf(tx.type).slice(0)
     if (tx.type !== 'transfer' && cats.indexOf('未分类') < 0) cats.push('未分类')
+
+    var d = new Date(tx.time)
+    var wk = '日一二三四五六'.charAt(d.getDay())
+    var dirMap = {
+      expense: { t: '支出', cls: 'exp' },
+      income: { t: '收入', cls: 'inc' },
+      refund: { t: '退款', cls: 'inc' },
+      transfer: { t: '不计收支', cls: 'muted' }
+    }
+    var dir = dirMap[tx.type] || dirMap.expense
+
+    /* 分类依据：重跑一遍规则，顺手把命中的词也拿回来。
+     * 只有重算结果和库里存的类目一致时才敢展示——否则说明当初是别的来源（比如平台分类、AI）定的。 */
+    var why = ''
+    if (tx.category === '未分类') {
+      why = '规则和词库都没认出来'
+    } else {
+      var calc = category.classify(tx.merchant || '', tx.desc || '', '', store.rules(), tx.type)
+      if (calc.cat === tx.category) {
+        if (calc.by === 'platform-sub') why = '平台细分：说明里「' + calc.kw + '」→ ' + calc.cat
+        else if (calc.by === 'platform-name') why = calc.plat + ' 默认类目（说明里没线索）'
+        else if (calc.by === 'builtin') why = calc.kw ? '词库命中「' + calc.kw + '」' : '硬规则（学费 / 税费）'
+        else if (calc.by === 'user') why = '你改过这个商户 / 之前学过「' + (calc.kw || tx.merchant || '这个商户') + '」'
+        else if (calc.by === 'kind') why = tx.type === 'transfer'
+          ? '钱在自己账户之间搬，不计收支（' + calc.cat + '）'
+          : '退款固定归「退款」'
+        else if (calc.by === 'biz') why = '公司名里有「' + calc.kw + '」'
+      } else if (tx.byPlatform === 'platform') {
+        why = '导入时按平台的分类定的（' + (tx.source || '平台') + '自己标的）'
+      }
+    }
+
     this.setData({
       sheetVisible: true,
+      catMode: false,
       sheetItem: {
         id: tx.id,
-        merchant: tx.merchant,
+        merchant: tx.merchant || '（没有商户名）',
         amountText: format.money(tx.amount),
+        sign: (tx.type === 'income' || tx.type === 'refund') ? '+' : (tx.type === 'transfer' ? '' : '-'),
+        dirText: dir.t,
+        dirClass: dir.cls,
         category: tx.category,
-        source: tx.source
+        icon: category.iconOf(tx.category),
+        color: category.colorOf(tx.category),
+        dateText: d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日 周' + wk,
+        timeText: format.pad(d.getHours()) + ':' + format.pad(d.getMinutes()),
+        desc: tx.desc || '',
+        note: tx.note || '',
+        status: tx.status || '',
+        account: tx.account || '',
+        source: tx.source || '',
+        why: why
       },
       sheetCats: cats
     })
   },
 
   closeSheet: function () {
-    this.setData({ sheetVisible: false, sheetItem: null })
+    this.setData({ sheetVisible: false, sheetItem: null, catMode: false })
+  },
+
+  /* 默认先看明细，点「改分类」才展开类目清单，别一上来甩 21 个选项 */
+  toggleCatMode: function () {
+    this.setData({ catMode: !this.data.catMode })
+  },
+
+  editNote: function () {
+    var item = this.data.sheetItem
+    if (!item) return
+    var self = this
+    wx.showModal({
+      title: '这笔的备注',
+      editable: true,
+      placeholderText: '比如「和室友 AA」「报销用」',
+      content: item.note || '',
+      success: function (res) {
+        if (!res.confirm) return
+        var v = String(res.content || '').trim()
+        store.update(item.id, { note: v })
+        self.setData({ 'sheetItem.note': v })
+        self.refresh()
+        wx.showToast({ title: v ? '备注已保存' : '备注已清空', icon: 'none' })
+      }
+    })
   },
 
   pickCat: function (e) {
@@ -195,7 +304,7 @@ Page({
     if (!tx) return
     store.update(item.id, { category: cat })
     store.learn(tx.merchant, cat)
-    this.setData({ sheetVisible: false, sheetItem: null })
+    this.setData({ sheetVisible: false, sheetItem: null, catMode: false })
     this.refresh()
     wx.showToast({ title: '已改成「' + cat + '」', icon: 'none' })
     this.offerBatch(tx, cat)
@@ -264,7 +373,7 @@ Page({
       success: function (res) {
         if (!res.confirm) return
         store.remove(item.id)
-        self.setData({ sheetVisible: false, sheetItem: null })
+        self.setData({ sheetVisible: false, sheetItem: null, catMode: false })
         self.refresh()
         wx.showToast({ title: '已删除', icon: 'none' })
       }
@@ -275,13 +384,21 @@ Page({
   moreActions: function () {
     var self = this
     var ym = this.data.ym
+    var vipItem = vip.isVip()
+      ? '会员（已开通 · 至 ' + vip.dateText(vip.expireAt()) + '）'
+      : '会员 · 输入卡密开通'
     wx.showActionSheet({
-      itemList: ['删除 ' + format.monthLabel(ym) + ' 的全部流水', '清空全部数据（含分类规则）'],
+      itemList: [vipItem, '删除 ' + format.monthLabel(ym) + ' 的全部流水', '清空全部数据（含分类规则）'],
       success: function (res) {
-        if (res.tapIndex === 0) self.clearMonth()
-        else if (res.tapIndex === 1) self.clearEverything()
+        if (res.tapIndex === 0) self.goVip()
+        else if (res.tapIndex === 1) self.clearMonth()
+        else if (res.tapIndex === 2) self.clearEverything()
       }
     })
+  },
+
+  goVip: function () {
+    wx.navigateTo({ url: '/pages/vip/vip' })
   },
 
   clearMonth: function () {

@@ -17,6 +17,7 @@
       <text class="sumi">{{s.count}} 笔</text>
     </view>
     <view class="chips">
+      <text class="chip back" wx:if="{{backTab}}" bindtap="goBack">‹ 返回{{backLabel}}</text>
       <text class="chip on" wx:if="{{filterCat}}" bindtap="clearFilter">× {{filterCat}}</text>
       <text class="chip on" wx:if="{{filterDay}}" bindtap="clearFilter">× {{filterDay}}</text>
       <text class="chip {{onlyUncat ? 'on' : ''}}" bindtap="toggleUncat">只看未分类</text>
@@ -40,31 +41,76 @@
         <view class="ic" style="background:{{item.tint}}"><text class="ic-em">{{item.icon}}</text></view>
         <view class="ileft">
           <text class="im">{{item.merchant}}</text>
-          <text class="isub">{{item.category}} · {{item.timeText}}</text>
+          <text class="isub">{{item.category}} · {{item.timeText}}<text class="notedot" wx:if="{{item.note}}"> · 有备注</text></text>
+          <text class="idesc" wx:if="{{item.desc}}">{{item.desc}}</text>
         </view>
         <text class="iamt {{item.type === 'income' || item.type === 'refund' ? 'inc' : (item.type === 'transfer' ? 'muted' : 'exp')}}">{{item.sign}}{{item.amountText}}</text>
       </view>
     </view>
   </view>
 
-  <view class="tip">点一笔可以改分类或删除；右上「⋯ 管理」能删整个月、清空全部</view>
+  <view class="tip">点一笔看明细：时间、说明、来源、备注都在里面，顺手能改分类、加备注、删除；右上「⋯ 管理」能删整个月、清空全部</view>
 </view>
 
 <view class="mask" wx:if="{{sheetVisible}}" bindtap="closeSheet"></view>
 <view class="sheet {{sheetVisible ? 'up' : ''}}">
-  <view class="sheethd">
-    <view class="shleft">
-      <text class="shm">{{sheetItem.merchant}}</text>
-      <text class="shsub">¥{{sheetItem.amountText}} · 现在是「{{sheetItem.category}}」</text>
+  <!-- 明细头：金额 + 方向 -->
+  <view class="shamt-row">
+    <view class="shamt {{sheetItem.dirClass}}">
+      <text class="shsign">{{sheetItem.sign}}</text><text class="shnum">{{sheetItem.amountText}}</text>
     </view>
+    <text class="shdir {{sheetItem.dirClass}}">{{sheetItem.dirText}}</text>
     <text class="shclose" bindtap="closeSheet">关闭</text>
   </view>
-  <scroll-view scroll-y class="shlist">
+  <view class="shmerchant">{{sheetItem.merchant}}</view>
+
+  <!-- 明细字段 -->
+  <view class="shcard">
+    <view class="srow">
+      <text class="sl">分类</text>
+      <view class="sv-right">
+        <text class="scatdot" style="background:{{sheetItem.color}}"></text>
+        <text class="sv">{{sheetItem.icon}} {{sheetItem.category}}</text>
+      </view>
+    </view>
+    <view class="srow">
+      <text class="sl">时间</text>
+      <text class="sv">{{sheetItem.dateText}} {{sheetItem.timeText}}</text>
+    </view>
+    <view class="srow" wx:if="{{sheetItem.desc}}">
+      <text class="sl">说明</text>
+      <text class="sv sv-wrap">{{sheetItem.desc}}</text>
+    </view>
+    <view class="srow" wx:if="{{sheetItem.status}}">
+      <text class="sl">状态</text>
+      <text class="sv">{{sheetItem.status}}</text>
+    </view>
+    <view class="srow" wx:if="{{sheetItem.why}}">
+      <text class="sl">分类依据</text>
+      <text class="sv sv-wrap sv-dim">{{sheetItem.why}}</text>
+    </view>
+    <view class="srow">
+      <text class="sl">来源</text>
+      <text class="sv">{{sheetItem.source || '—'}}<text class="sv-dim" wx:if="{{sheetItem.account}}"> · {{sheetItem.account}}</text></text>
+    </view>
+    <view class="srow">
+      <text class="sl">备注</text>
+      <text class="sv {{sheetItem.note ? '' : 'sv-dim'}}" bindtap="editNote">{{sheetItem.note || '点这里添加'}}</text>
+    </view>
+  </view>
+
+  <!-- 操作 -->
+  <view class="shacts">
+    <view class="act {{catMode ? 'on' : ''}}" bindtap="toggleCatMode">{{catMode ? '收起类目' : '改分类'}}</view>
+    <view class="act" bindtap="editNote">改备注</view>
+    <view class="act danger" bindtap="deleteSheetItem">删除</view>
+  </view>
+
+  <scroll-view scroll-y class="shlist" wx:if="{{catMode}}">
     <view class="shcat {{sheetItem.category === item ? 'on' : ''}}"
           wx:for="{{sheetCats}}" wx:key="*this" data-cat="{{item}}" bindtap="pickCat">
       <text>{{item}}</text>
       <text class="shcheck" wx:if="{{sheetItem.category === item}}">✓</text>
     </view>
   </scroll-view>
-  <view class="shdel" bindtap="deleteSheetItem">删除这笔</view>
 </view>

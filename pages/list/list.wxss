@@ -95,6 +95,13 @@
   font-weight: 500;
 }
 
+/* 返回按钮：跨 tab 跳转没有原生返回箭头，得自己给一个 */
+.chip.back {
+  background: #17806b;
+  color: #ffffff;
+  font-weight: 600;
+}
+
 .group {
   margin: 24rpx 24rpx 0;
 }
@@ -171,10 +178,27 @@
   margin-top: 6rpx;
 }
 
+/* 行内的商品说明：账单里的「美团-机票」这种关键信息 */
+.idesc {
+  display: block;
+  font-size: 22rpx;
+  color: #b1b7bd;
+  margin-top: 4rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notedot {
+  color: #b89a6d;
+}
+
 .iamt {
   font-size: 30rpx;
   font-weight: 600;
   white-space: nowrap;
+  align-self: flex-start;
+  padding-top: 4rpx;
 }
 
 .tip {
@@ -211,40 +235,154 @@
   transform: translateY(0);
 }
 
-.sheethd {
+.shclose {
+  font-size: 26rpx;
+  color: #8b9198;
+  padding-left: 20rpx;
+  align-self: center;
+}
+
+/* ---------- 明细弹层 ---------- */
+.shamt-row {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: 32rpx 32rpx 20rpx;
-  border-bottom: 1rpx solid #f1f3f4;
+  align-items: baseline;
+  gap: 16rpx;
+  padding: 40rpx 36rpx 0;
 }
 
-.shleft {
+.shamt {
+  display: flex;
+  align-items: baseline;
+  font-size: 56rpx;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.shamt.exp { color: #d9433f; }
+.shamt.inc { color: #1f7a4d; }
+.shamt.muted { color: #6b8f7f; }
+
+.shsign {
+  font-size: 32rpx;
+  margin-right: 2rpx;
+}
+
+.shdir {
   flex: 1;
-  min-width: 0;
-}
-
-.shm {
-  display: block;
-  font-size: 28rpx;
-  font-weight: 600;
-}
-
-.shsub {
-  display: block;
   font-size: 22rpx;
-  color: #9aa0a6;
-  margin-top: 8rpx;
+  padding: 4rpx 16rpx;
+  border-radius: 999rpx;
+  align-self: center;
 }
+
+.shdir.exp { color: #d9433f; background: #fdf1f0; }
+.shdir.inc { color: #1f7a4d; background: #eef6f1; }
+.shdir.muted { color: #6b8f7f; background: #f1f4f2; }
 
 .shclose {
   font-size: 26rpx;
   color: #8b9198;
   padding-left: 20rpx;
+  align-self: center;
+}
+
+.shmerchant {
+  padding: 14rpx 36rpx 24rpx;
+  font-size: 28rpx;
+  color: #2b3339;
+  font-weight: 500;
+}
+
+.shcard {
+  margin: 0 24rpx;
+  background: #f8f9fa;
+  border-radius: 20rpx;
+  padding: 8rpx 24rpx;
+}
+
+.srow {
+  display: flex;
+  align-items: flex-start;
+  padding: 18rpx 0;
+  border-bottom: 1rpx solid #eff1f2;
+}
+
+.srow:last-child {
+  border-bottom: none;
+}
+
+.sl {
+  width: 120rpx;
+  flex: none;
+  font-size: 24rpx;
+  color: #9aa0a6;
+}
+
+.sv {
+  flex: 1;
+  min-width: 0;
+  font-size: 25rpx;
+  color: #2b3339;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sv-wrap {
+  white-space: normal;
+  line-height: 1.45;
+  text-align: right;
+}
+
+.sv-dim {
+  color: #b1b7bd;
+}
+
+.sv-right {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10rpx;
+}
+
+.scatdot {
+  width: 14rpx;
+  height: 14rpx;
+  border-radius: 50%;
+  flex: none;
+}
+
+.shacts {
+  display: flex;
+  gap: 16rpx;
+  margin: 24rpx 24rpx 0;
+}
+
+.act {
+  flex: 1;
+  text-align: center;
+  padding: 22rpx 0;
+  border-radius: 16rpx;
+  font-size: 26rpx;
+  color: #17806b;
+  background: #e3f0ec;
+}
+
+.act.on {
+  background: #17806b;
+  color: #ffffff;
+}
+
+.act.danger {
+  color: #d9433f;
+  background: #fdf1f0;
 }
 
 .shlist {
-  max-height: 620rpx;
+  max-height: 520rpx;
+  margin-top: 8rpx;
 }
 
 .shcat {
@@ -263,15 +401,4 @@
 
 .shcheck {
   color: #17806b;
-}
-
-/* 弹窗底部的删除入口 */
-.shdel {
-  margin: 16rpx 24rpx 32rpx;
-  padding: 26rpx 0;
-  text-align: center;
-  font-size: 28rpx;
-  color: #d9433f;
-  background: #fdf1f0;
-  border-radius: 16rpx;
 }

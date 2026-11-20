@@ -94,10 +94,18 @@ Page({
   },
 
   goList: function () {
+    var app = getApp()
+    app.globalData.backFor = '/pages/list/list'
+    app.globalData.backTab = '/pages/index/index'
+    app.globalData.backLabel = '总览'
     wx.switchTab({ url: '/pages/list/list' })
   },
 
   goReport: function () {
+    var app = getApp()
+    app.globalData.backFor = '/pages/report/report'
+    app.globalData.backTab = '/pages/index/index'
+    app.globalData.backLabel = '总览'
     wx.switchTab({ url: '/pages/report/report' })
   },
 
@@ -110,6 +118,9 @@ Page({
     app.globalData.filterKind = ''
     app.globalData.filterYm = ''
     app.globalData.filterDay = ''
+    app.globalData.backFor = '/pages/list/list'
+    app.globalData.backTab = '/pages/index/index'
+    app.globalData.backLabel = '总览'
     wx.switchTab({ url: '/pages/list/list' })
   }
 })

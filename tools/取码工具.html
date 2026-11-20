@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>记账Book · 卡密取码工具</title>
+<style>
+  :root{
+    --bg:#f4f6f5; --card:#ffffff; --line:#e6e9e7; --txt:#1f2422;
+    --mute:#7b8480; --green:#0e7a5f; --green2:#12946f;
+    --yellow:#fff8e6; --yellowLine:#f0d79a; --red:#c0392b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font:14px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;}
+  .wrap{max-width:960px;margin:0 auto;padding:24px 20px 60px}
+  h1{font-size:18px;margin:0 0 4px}
+  .sub{color:var(--mute);font-size:12px;margin-bottom:18px}
+  .stats{display:flex;gap:10px;margin-bottom:14px}
+  .stat{flex:1;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+  .stat b{display:block;font-size:22px;line-height:1.2}
+  .stat span{color:var(--mute);font-size:12px}
+  .alert{display:none;background:var(--yellow);border:1px solid var(--yellowLine);
+    border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:13px}
+  .alert.on{display:block}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:14px;margin-bottom:16px}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  button{font:inherit;border-radius:9px;border:1px solid var(--line);
+    background:#fff;padding:9px 14px;cursor:pointer}
+  button:hover{border-color:#cfd6d3}
+  button.primary{background:var(--green);border-color:var(--green);color:#fff;font-weight:600;
+    padding:12px 20px;font-size:15px}
+  button.primary:hover{background:var(--green2)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  input,textarea,select{font:inherit;border:1px solid var(--line);border-radius:8px;
+    padding:7px 10px;background:#fff;color:var(--txt)}
+  input.w60{width:70px}
+  textarea{width:100%;min-height:64px;resize:vertical}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--mute);font-weight:500;font-size:12px}
+  code{font-family:ui-monospace,Consolas,monospace;letter-spacing:.5px}
+  .tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:12px}
+  .tag.unused{background:#e8f5f0;color:#0e7a5f}
+  .tag.sold{background:#fff1e0;color:#a4600f}
+  .tag.used{background:#f0f0f2;color:#6b6b73}
+  td .mini{padding:5px 9px;font-size:12px;border-radius:7px}
+  .hidden{display:none}
+  .hint{color:var(--mute);font-size:12px}
+  .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);
+    background:#1f2422;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;
+    opacity:0;transition:opacity .2s;pointer-events:none}
+  .toast.on{opacity:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>记账Book · 卡密取码工具</h1>
+  <div class="sub">纯本地页面，数据只存在这台电脑的浏览器里（localStorage），不联网、不上传。</div>
+
+  <div class="stats">
+    <div class="stat"><b id="nUnused">0</b><span>未售（可直接卖）</span></div>
+    <div class="stat"><b id="nSold">0</b><span>已售（已复制给买家）</span></div>
+    <div class="stat"><b id="nUsed">0</b><span>已兑换（买家已在小程序激活）</span></div>
+    <div class="stat"><b id="nTotal">0</b><span>总张数</span></div>
+  </div>
+
+  <div id="alert" class="alert"></div>
+
+  <div class="panel">
+    <div class="row">
+      <button class="primary" id="btnTake">取一张码（复制并标已售）</button>
+      <span class="hint">复制的内容直接粘到闲鱼聊天窗口即可。</span>
+    </div>
+    <div style="margin-top:12px" class="row">
+      <label class="hint">快捷短语：</label>
+      <select id="tplSel">
+        <option value="1">标准版（含使用说明）</option>
+        <option value="2">极简版（只有卡密）</option>
+        <option value="0">自定义</option>
+      </select>
+      <button id="btnCopyTpl">复制当前短语（不带码）</button>
+    </div>
+    <textarea id="tpl" style="margin-top:10px"></textarea>
+    <div class="hint" style="margin-top:6px">占位符 <code>{CODE}</code> 会被替换成卡密，<code>{DAYS}</code> 替换成天数。</div>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <span class="hint">库存告警阈值</span>
+      <input class="w60" id="thres" type="number" min="0" value="5">
+      <span class="hint">张，低于它就在上面亮黄条</span>
+      <span style="flex:1"></span>
+      <button id="btnGen">库存不够 → 生成新批次</button>
+      <button id="btnExportJson">导出 JSON（导入云开发用）</button>
+      <button id="btnExportCsv">导出 CSV（对账用）</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <span class="hint">新批次</span>
+      <input class="w60" id="genCount" type="number" min="1" value="20">
+      <span class="hint">张 /</span>
+      <input class="w60" id="genDays" type="number" min="1" value="365">
+      <span class="hint">天</span>
+      <span class="hint">（生成后仍要手动导入云开发数据库，否则买家兑不了）</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="row" style="margin-bottom:10px">
+      <input id="filter" placeholder="搜索卡密 / 批次 / 备注" style="flex:1">
+      <select id="filterState">
+        <option value="all">全部状态</option>
+        <option value="unused">未售</option>
+        <option value="sold">已售</option>
+        <option value="used">已兑换</option>
+      </select>
+      <button id="btnReset">重置本机记录</button>
+    </div>
+    <table>
+      <thead><tr><th style="width:150px">卡密</th><th style="width:90px">状态</th><th style="width:66px">天数</th>
+      <th style="width:120px">批次</th><th>买家备注</th><th style="width:170px">操作</th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------------- 基础数据 ---------------- */
+var CHARSET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // 去 0/1/I/O，与 gen-codes.js 一致
+var STORE_KEY = 'jzb_codes_v1';
+
+// 初始池：当前已生成的 20 张（批次 B202611200042 / 365 天）
+var SEED = [{"code":"ZBH85BKZDECS474V","codeText":"ZBH8-5BKZ-DECS-474V","days":365,"usedBy":"","usedAt":0,"batch":"B202611200042","createdAt":1795106535970},{"code":"JQPB5T8WQTXBMC2X","codeText":"JQPB-5T8W-QTXB-MC2X","days":365,"usedBy":"","usedAt":0,"batch":"B202611200042","createdAt":1795106535971},{"code":"KD7N9RXULAAKFPZG","codeText":"KD7N-9RXU-LAAK-FPZG","days":365,"usedBy":"","usedAt":0,"batch":"B202611200042","createdAt":1795106535971},{"code":"7ZN4DXLQBDTXFS74","codeText":"7ZN4-DXLQ-BDTX-FS74","days":365,"usedBy":"","usedAt":0,"batch":"B202611200042","createdAt":1795106535971},{"code":"V68MNLRSDA4UQXRK","codeText":"V68M-NLRS-DA4U-QXRK","days":365,"usedBy":"","usedAt":0,"batch":"B202611200042","createdAt":1795106535971},{"code":"4UQJNKZ2RMY65UKN","codeText":"4UQJ-NKZ2-RMY6-5UKN","days":365,"usedBy":"","usedAt":0,"batch":"B202611200042","createdAt":1795106535971},{"code":"SL2UNPAZAPEQD7LL","codeText":"SL2U-NPAZ-APEQ-D7LL","days":365,"usedBy":"","usedAt":0,"batch":"B202611200042","createdAt":1795106535971},{"code":"H2MG2PJNCAYDXM7B","codeText":"H2MG-2PJN-CAYD-XM7B","days":365,"usedBy":"","usedAt":0,"batch":"B202611200042","createdAt":1795106535971},{"code":"WVJQJ6L2LCPU4DSZ","codeText":"WVJQ-J6L2-LCPU-4DSZ","days":365,"usedBy":"","usedAt":0,"batch":"B202611200042","createdAt":1795106535971},{"code":"Z9C6AT46W7EL2BDJ","codeText":"Z9C6-AT46-W7EL-2BDJ","days":365,"usedBy":"","usedAt":0,"batch":"B202611200042","createdAt":1795106535971},{"code":"QF3RHHV4B7D8MPWJ","codeText":"QF3R-HHV4-B7D8-MPWJ","days":365,"usedBy":"","usedAt":0,"batch":"B202611200042","createdAt":1795106535971},{"code":"KGQ7TP55QHB9VLLG","codeText":"KGQ7-TP55-QHB9-VLLG","days":365,"usedBy":"","usedAt":0,"batch":"B202611200042","createdAt":1795106535971},{"code":"UA9TR7LV997XVB4E","codeText":"UA9T-R7LV-997X-VB4E","days":365,"usedBy":"","usedAt":0,"batch":"B202611200042","createdAt":1795106535971},{"code":"H6RZGWZ9Q49VJAKH","codeText":"H6RZ-GWZ9-Q49V-JAKH","days":365,"usedBy":"","usedAt":0,"batch":"B202611200042","createdAt":1795106535971},{"code":"R5AZQWH985LESBEF","codeText":"R5AZ-QWH9-85LE-SBEF","days":365,"usedBy":"","usedAt":0,"batch":"B202611200042","createdAt":1795106535971},{"code":"WX7SZB99NRC8S2JA","codeText":"WX7S-ZB99-NRC8-S2JA","days":365,"usedBy":"","usedAt":0,"batch":"B202611200042","createdAt":1795106535971},{"code":"YWKVU7KRH5JEFXCE","codeText":"YWKV-U7KR-H5JE-FXCE","days":365,"usedBy":"","usedAt":0,"batch":"B202611200042","createdAt":1795106535971},{"code":"BSBSUL5CARCQP8G8","codeText":"BSBS-UL5C-ARCQ-P8G8","days":365,"usedBy":"","usedAt":0,"batch":"B202611200042","createdAt":1795106535971},{"code":"HHXRN2W5F5EJRURS","codeText":"HHXR-N2W5-F5EJ-RURS","days":365,"usedBy":"","usedAt":0,"batch":"B202611200042","createdAt":1795106535971},{"code":"2LQFW8G63JVRXEAF","codeText":"2LQF-W8G6-3JVR-XEAF","days":365,"usedBy":"","usedAt":0,"batch":"B202611200042","createdAt":1795106535971},{"code":"LZTX6XN3XFXW3AXE","codeText":"LZTX-6XN3-XFXW-3AXE","days":30,"usedBy":"","usedAt":0,"batch":"B20261121020305D30","createdAt":1795197785582},{"code":"MFSJ22RLAYYWM72U","codeText":"MFSJ-22RL-AYYW-M72U","days":30,"usedBy":"","usedAt":0,"batch":"B20261121020305D30","createdAt":1795197785582},{"code":"X8KMT7EP35VBJBHZ","codeText":"X8KM-T7EP-35VB-JBHZ","days":30,"usedBy":"","usedAt":0,"batch":"B20261121020305D30","createdAt":1795197785582},{"code":"AHBXE6F27T2DTXRC","codeText":"AHBX-E6F2-7T2D-TXRC","days":30,"usedBy":"","usedAt":0,"batch":"B20261121020305D30","createdAt":1795197785582},{"code":"UQLVBJF8VJ2PX6XG","codeText":"UQLV-BJF8-VJ2P-X6XG","days":30,"usedBy":"","usedAt":0,"batch":"B20261121020305D30","createdAt":1795197785582},{"code":"PMCXC7YFTYP5U5A3","codeText":"PMCX-C7YF-TYP5-U5A3","days":30,"usedBy":"","usedAt":0,"batch":"B20261121020305D30","createdAt":1795197785582},{"code":"BWR3HJHTTU9RM42T","codeText":"BWR3-HJHT-TU9R-M42T","days":30,"usedBy":"","usedAt":0,"batch":"B20261121020305D30","createdAt":1795197785582},{"code":"79UQZUZLQNHQRATT","codeText":"79UQ-ZUZL-QNHQ-RATT","days":30,"usedBy":"","usedAt":0,"batch":"B20261121020305D30","createdAt":1795197785582},{"code":"FWCCJB3Z7VWCTWXW","codeText":"FWCC-JB3Z-7VWC-TWXW","days":30,"usedBy":"","usedAt":0,"batch":"B20261121020305D30","createdAt":1795197785582},{"code":"N842W4SKRZ5SGVHE","codeText":"N842-W4SK-RZ5S-GVHE","days":30,"usedBy":"","usedAt":0,"batch":"B20261121020305D30","createdAt":1795197785582},{"code":"Q6S5CH8RTE6XAX3L","codeText":"Q6S5-CH8R-TE6X-AX3L","days":30,"usedBy":"","usedAt":0,"batch":"B20261121020305D30","createdAt":1795197785583},{"code":"43SMTNNK7GTBCQLW","codeText":"43SM-TNNK-7GTB-CQLW","days":30,"usedBy":"","usedAt":0,"batch":"B20261121020305D30","createdAt":1795197785583},{"code":"GZYF623RFANMHBXL","codeText":"GZYF-623R-FANM-HBXL","days":30,"usedBy":"","usedAt":0,"batch":"B20261121020305D30","createdAt":1795197785583},{"code":"PB3DT693HF5V6URB","codeText":"PB3D-T693-HF5V-6URB","days":30,"usedBy":"","usedAt":0,"batch":"B20261121020305D30","createdAt":1795197785583},{"code":"ZZ2EEYF88PC9URGU","codeText":"ZZ2E-EYF8-8PC9-URGU","days":30,"usedBy":"","usedAt":0,"batch":"B20261121020305D30","createdAt":1795197785583},{"code":"FPKCSK2H2TQEVRS6","codeText":"FPKC-SK2H-2TQE-VRS6","days":30,"usedBy":"","usedAt":0,"batch":"B20261121020305D30","createdAt":1795197785583},{"code":"J8UT5ZGY6RZWVM55","codeText":"J8UT-5ZGY-6RZW-VM55","days":30,"usedBy":"","usedAt":0,"batch":"B20261121020305D30","createdAt":1795197785583},{"code":"JVY3HUZZCJEGRBC9","codeText":"JVY3-HUZZ-CJEG-RBC9","days":30,"usedBy":"","usedAt":0,"batch":"B20261121020305D30","createdAt":1795197785583},{"code":"LWJS9E7XRDF8ZPUB","codeText":"LWJS-9E7X-RDF8-ZPUB","days":30,"usedBy":"","usedAt":0,"batch":"B20261121020305D30","createdAt":1795197785583},{"code":"G3RLXA35XMFZ3YQJ","codeText":"G3RL-XA35-XMFZ-3YQJ","days":30,"usedBy":"","usedAt":0,"batch":"B20261121020305D30","createdAt":1795197785583},{"code":"RE4EG4X9X9XJKEHD","codeText":"RE4E-G4X9-X9XJ-KEHD","days":90,"usedBy":"","usedAt":0,"batch":"B20261121020306D90","createdAt":1795197786097},{"code":"NQPQPSXAW83LDDXX","codeText":"NQPQ-PSXA-W83L-DDXX","days":90,"usedBy":"","usedAt":0,"batch":"B20261121020306D90","createdAt":1795197786097},{"code":"AUFKH498GARUZH6Z","codeText":"AUFK-H498-GARU-ZH6Z","days":90,"usedBy":"","usedAt":0,"batch":"B20261121020306D90","createdAt":1795197786097},{"code":"UUMMNA3LQMKBLJRK","codeText":"UUMM-NA3L-QMKB-LJRK","days":90,"usedBy":"","usedAt":0,"batch":"B20261121020306D90","createdAt":1795197786097},{"code":"4QQSWK28ZHUVXL5U","codeText":"4QQS-WK28-ZHUV-XL5U","days":90,"usedBy":"","usedAt":0,"batch":"B20261121020306D90","createdAt":1795197786097},{"code":"ZM7VDK4Y5HGZDV8A","codeText":"ZM7V-DK4Y-5HGZ-DV8A","days":90,"usedBy":"","usedAt":0,"batch":"B20261121020306D90","createdAt":1795197786097},{"code":"645GTLTPT7VJLH6H","codeText":"645G-TLTP-T7VJ-LH6H","days":90,"usedBy":"","usedAt":0,"batch":"B20261121020306D90","createdAt":1795197786097},{"code":"5Q2TEXDGUTYFTWUL","codeText":"5Q2T-EXDG-UTYF-TWUL","days":90,"usedBy":"","usedAt":0,"batch":"B20261121020306D90","createdAt":1795197786097},{"code":"Y8V4DWEWR484JRNL","codeText":"Y8V4-DWEW-R484-JRNL","days":90,"usedBy":"","usedAt":0,"batch":"B20261121020306D90","createdAt":1795197786097},{"code":"KRA54955MYHQZFUL","codeText":"KRA5-4955-MYHQ-ZFUL","days":90,"usedBy":"","usedAt":0,"batch":"B20261121020306D90","createdAt":1795197786097},{"code":"2K2GV6AYN22FR9FL","codeText":"2K2G-V6AY-N22F-R9FL","days":365,"usedBy":"","usedAt":0,"batch":"B20261121020306D365","createdAt":1795197786614},{"code":"4WGT2PNF29QBHPH2","codeText":"4WGT-2PNF-29QB-HPH2","days":365,"usedBy":"","usedAt":0,"batch":"B20261121020306D365","createdAt":1795197786614},{"code":"SGJC9F4EPVU363SK","codeText":"SGJC-9F4E-PVU3-63SK","days":365,"usedBy":"","usedAt":0,"batch":"B20261121020306D365","createdAt":1795197786614},{"code":"4V5LLEU73GUXTLMS","codeText":"4V5L-LEU7-3GUX-TLMS","days":365,"usedBy":"","usedAt":0,"batch":"B20261121020306D365","createdAt":1795197786614},{"code":"SB9W5WKCY6RMUHVU","codeText":"SB9W-5WKC-Y6RM-UHVU","days":365,"usedBy":"","usedAt":0,"batch":"B20261121020306D365","createdAt":1795197786614},{"code":"GECPGTC97LDQNEB7","codeText":"GECP-GTC9-7LDQ-NEB7","days":365,"usedBy":"","usedAt":0,"batch":"B20261121020306D365","createdAt":1795197786614},{"code":"2YVWTU5GLV8379FM","codeText":"2YVW-TU5G-LV83-79FM","days":365,"usedBy":"","usedAt":0,"batch":"B20261121020306D365","createdAt":1795197786614},{"code":"U2U2W7NXNENVT3Y7","codeText":"U2U2-W7NX-NENV-T3Y7","days":365,"usedBy":"","usedAt":0,"batch":"B20261121020306D365","createdAt":1795197786614},{"code":"WXMJZ4GYQZHH9EQL","codeText":"WXMJ-Z4GY-QZHH-9EQL","days":365,"usedBy":"","usedAt":0,"batch":"B20261121020306D365","createdAt":1795197786614},{"code":"2PKWUJGD9SV5MXBT","codeText":"2PKW-UJGD-9SV5-MXBT","days":365,"usedBy":"","usedAt":0,"batch":"B20261121020306D365","createdAt":1795197786614},{"code":"WW4LQ43HJT3SDTD5","codeText":"WW4L-Q43H-JT3S-DTD5","days":365,"usedBy":"","usedAt":0,"batch":"B20261121020306D365","createdAt":1795197786615},{"code":"UBEDXMBS3FDH8TSK","codeText":"UBED-XMBS-3FDH-8TSK","days":365,"usedBy":"","usedAt":0,"batch":"B20261121020306D365","createdAt":1795197786615},{"code":"MP2DQVZR3J8C5ZZG","codeText":"MP2D-QVZR-3J8C-5ZZG","days":365,"usedBy":"","usedAt":0,"batch":"B20261121020306D365","createdAt":1795197786615},{"code":"KLZHFQSB646YUY22","codeText":"KLZH-FQSB-646Y-UY22","days":365,"usedBy":"","usedAt":0,"batch":"B20261121020306D365","createdAt":1795197786615},{"code":"L6MLWBAADKV7UKGP","codeText":"L6ML-WBAA-DKV7-UKGP","days":365,"usedBy":"","usedAt":0,"batch":"B20261121020306D365","createdAt":1795197786615},{"code":"9QPT3EKRHLDC9D96","codeText":"9QPT-3EKR-HLDC-9D96","days":365,"usedBy":"","usedAt":0,"batch":"B20261121020306D365","createdAt":1795197786615},{"code":"KCB3LH7ZS5YKN5ER","codeText":"KCB3-LH7Z-S5YK-N5ER","days":365,"usedBy":"","usedAt":0,"batch":"B20261121020306D365","createdAt":1795197786615},{"code":"GRC9KR3LTXUBM7TK","codeText":"GRC9-KR3L-TXUB-M7TK","days":365,"usedBy":"","usedAt":0,"batch":"B20261121020306D365","createdAt":1795197786615},{"code":"FQBXGGPTF29TLH6G","codeText":"FQBX-GGPT-F29T-LH6G","days":365,"usedBy":"","usedAt":0,"batch":"B20261121020306D365","createdAt":1795197786615},{"code":"4A6A6JM92K6QPLQL","codeText":"4A6A-6JM9-2K6Q-PLQL","days":365,"usedBy":"","usedAt":0,"batch":"B20261121020306D365","createdAt":1795197786615}];
+var TPL = {
+  1: '卡密：{CODE}\n有效期 {DAYS} 天。\n开通方式：打开微信搜「记账Book」小程序 → 右下角「我的」→ 输入卡密开通。\n卡密仅本人使用，请勿转发。',
+  2: '{CODE}',
+  0: ''
+};
+
+function now(){ return Date.now() }
+function fmt(ts){ if(!ts) return '—'; var d=new Date(ts);
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes()) }
+function pad(n){ return ('0'+n).slice(-2) }
+
+/* ---------------- 存储 ---------------- */
+function load(){
+  var raw = localStorage.getItem(STORE_KEY);
+  if(raw){ try{ return JSON.parse(raw) }catch(e){} }
+  // 首次：把种子码写进来
+  var list = SEED.map(function(o){ return {
+    code:o.code, codeText:o.codeText, days:o.days, batch:o.batch,
+    createdAt:o.createdAt||now(), state:'unused', soldAt:0, buyer:'', exported:false
+  }});
+  save(list); return list;
+}
+function save(list){ localStorage.setItem(STORE_KEY, JSON.stringify(list)) }
+
+var DATA = load();
+
+/* ---------------- 工具 ---------------- */
+function randBytes(n){
+  var a = new Uint8Array(n);
+  if(window.crypto && crypto.getRandomValues) crypto.getRandomValues(a);
+  else for(var i=0;i<n;i++) a[i] = Math.floor(Math.random()*256);
+  return a;
+}
+function makeCode(){
+  var out = '';
+  var bytes = randBytes(16);
+  for(var i=0;i<16;i++) out += CHARSET[bytes[i] % CHARSET.length];
+  return out;
+}
+function text(code){ return code.replace(/(.{4})(?=.)/g,'$1-') }
+function newBatch(){
+  var d = new Date();
+  return 'B'+d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+pad(d.getHours())+pad(d.getMinutes());
+}
+
+function toast(msg){
+  var el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('on');
+  clearTimeout(el._t); el._t = setTimeout(function(){ el.classList.remove('on') }, 1600);
+}
+function copy(str){
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    return navigator.clipboard.writeText(str).catch(function(){ fallbackCopy(str) });
+  }
+  fallbackCopy(str);
+}
+function fallbackCopy(str){
+  var ta = document.createElement('textarea');
+  ta.value = str; ta.style.position='fixed'; ta.style.opacity='0';
+  document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy') }catch(e){}
+  document.body.removeChild(ta);
+}
+
+/* ---------------- 渲染 ---------------- */
+function stats(){
+  var un=0, so=0, us=0;
+  DATA.forEach(function(d){ if(d.state==='used') us++; else if(d.state==='sold') so++; else un++ });
+  document.getElementById('nUnused').textContent = un;
+  document.getElementById('nSold').textContent = so;
+  document.getElementById('nUsed').textContent = us;
+  document.getElementById('nTotal').textContent = DATA.length;
+
+  var th = Number(document.getElementById('thres').value)||0;
+  var el = document.getElementById('alert');
+  if(un === 0){
+    el.className = 'alert on';
+    el.innerHTML = '<b>没码了。</b>买家现在下单你发不出东西——点下面「生成新批次」，生成后记得去云开发控制台导入 codes 集合。';
+  } else if(un <= th){
+    el.className = 'alert on';
+    el.innerHTML = '<b>只剩 '+un+' 张了。</b>到 0 张就断货，建议现在就补一批（生成后仍需导入云开发）。';
+  } else {
+    el.className = 'alert';
+  }
+}
+
+function render(){
+  var q = (document.getElementById('filter').value||'').trim().toUpperCase();
+  var st = document.getElementById('filterState').value;
+  var tb = document.getElementById('tbody');
+  var html = '';
+  var shown = 0;
+  DATA.forEach(function(d, idx){
+    if(st !== 'all' && d.state !== st) return;
+    if(q && (d.codeText+' '+d.batch+' '+(d.buyer||'')).toUpperCase().indexOf(q) === -1) return;
+    shown++;
+    var tag = d.state==='unused' ? '<span class="tag unused">未售</span>'
+            : d.state==='sold' ? '<span class="tag sold">已售</span>'
+            : '<span class="tag used">已兑换</span>';
+    html += '<tr>'
+      + '<td><code>'+d.codeText+'</code></td>'
+      + '<td>'+tag+'</td>'
+      + '<td>'+d.days+'</td>'
+      + '<td class="hint">'+d.batch+'</td>'
+      + '<td>'+(d.buyer ? esc(d.buyer) : '<span class="hint">—</span>')+'</td>'
+      + '<td>'
+      + (d.state!=='used' ? '<button class="mini" data-act="used" data-i="'+idx+'">标记已兑换</button> ' : '')
+      + (d.state!=='unused' ? '<button class="mini" data-act="back" data-i="'+idx+'">退回未售</button> ' : '')
+      + '<button class="mini" data-act="copy" data-i="'+idx+'">复制</button>'
+      + '</td></tr>';
+  });
+  if(!shown) html = '<tr><td colspan="6" class="hint">没有匹配的记录</td></tr>';
+  tb.innerHTML = html;
+  stats();
+}
+
+function esc(s){ return String(s).replace(/[&<>"]/g, function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c] }) }
+
+/* ---------------- 交互 ---------------- */
+document.getElementById('btnTake').addEventListener('click', function(){
+  var next = DATA.find(function(d){ return d.state==='unused' });
+  if(!next){ toast('没码了，先补一批'); return }
+  var tpl = document.getElementById('tpl').value
+    .replace(/\{CODE\}/g, next.codeText)
+    .replace(/\{DAYS\}/g, next.days);
+  copy(tpl);
+  next.state = 'sold'; next.soldAt = now();
+  save(DATA); render();
+  toast('已复制并标记已售：' + next.codeText);
+});
+
+document.getElementById('tbody').addEventListener('click', function(e){
+  var btn = e.target.closest('button[data-act]');
+  if(!btn) return;
+  var i = Number(btn.dataset.i), act = btn.dataset.act, d = DATA[i];
+  if(!d) return;
+  if(act === 'used'){
+    var buyer = prompt('买家备注（闲鱼昵称/订单后四位，可留空）：', d.buyer || '');
+    if(buyer === null) return;
+    d.buyer = buyer; d.state = 'used'; d.usedAt = now();
+  } else if(act === 'back'){
+    d.state = 'unused'; d.soldAt = 0;
+  } else if(act === 'copy'){
+    var tpl = document.getElementById('tpl').value
+      .replace(/\{CODE\}/g, d.codeText).replace(/\{DAYS\}/g, d.days);
+    copy(tpl); toast('已复制：' + d.codeText);
+  }
+  save(DATA); render();
+});
+
+document.getElementById('thres').addEventListener('input', function(){
+  localStorage.setItem('jzb_thres_v1', this.value); stats();
+});
+document.getElementById('tplSel').addEventListener('change', function(){
+  document.getElementById('tpl').value = TPL[this.value];
+  localStorage.setItem('jzb_tpl_v1', document.getElementById('tpl').value);
+});
+document.getElementById('tpl').addEventListener('input', function(){
+  localStorage.setItem('jzb_tpl_v1', this.value);
+});
+document.getElementById('btnCopyTpl').addEventListener('click', function(){
+  var txt = document.getElementById('tpl').value.replace(/\{CODE\}/g,'XXXX-XXXX-XXXX-XXXX')
+    .replace(/\{DAYS\}/g,'365');
+  copy(txt); toast('短语已复制');
+});
+document.getElementById('filter').addEventListener('input', render);
+document.getElementById('filterState').addEventListener('change', render);
+
+document.getElementById('btnGen').addEventListener('click', function(){
+  var n = Math.max(1, Number(document.getElementById('genCount').value)||20);
+  var days = Math.max(1, Number(document.getElementById('genDays').value)||365);
+  var batch = newBatch();
+  var added = [];
+  for(var i=0;i<n;i++){
+    var code, dup;
+    do{ code = makeCode(); dup = DATA.some(function(d){ return d.code === code }) }while(dup);
+    var item = { code:code, codeText:text(code), days:days, batch:batch,
+      createdAt: now()+i, state:'unused', soldAt:0, buyer:'', exported:false };
+    DATA.push(item); added.push(item);
+  }
+  save(DATA); render();
+  toast('已加入 '+n+' 张（批次 '+batch+'），记得导出 JSON 并导入云开发');
+});
+
+document.getElementById('btnExportJson').addEventListener('click', function(){
+  // 云开发「导入」认的格式：一行一个对象（JSON Lines），usedBy 必须是空字符串。
+  // 只导出「还没导入过云端、且还没卖出去」的码：已售/已兑换的绝不能再导回去，
+  // 否则同一个 code 在库里出现两条文档，会同时发给两个买家。
+  var pending = DATA.filter(function(d){ return !d.exported && d.state === 'unused' });
+  if(!pending.length){ toast('没有待导入的新码（都已导出过）'); return }
+  var lines = pending.map(function(d){
+    return JSON.stringify({
+      code: d.code, codeText: d.codeText, days: d.days,
+      usedBy: '', usedAt: 0, batch: d.batch, createdAt: d.createdAt
+    });
+  });
+  download('codes-' + newBatch() + '.json', lines.join('\n') + '\n');
+  pending.forEach(function(d){ d.exported = true });
+  save(DATA); render();
+  toast('已导出 ' + pending.length + ' 张，去云开发控制台导入 codes 集合');
+});
+
+document.getElementById('btnExportCsv').addEventListener('click', function(){
+  var head = '卡密,天数,批次,状态,售出时间,买家备注\n';
+  var body = DATA.map(function(d){
+    return [d.codeText, d.days, d.batch, d.state, fmt(d.soldAt), (d.buyer||'').replace(/,/g,'、')].join(',');
+  }).join('\n');
+  download('卡密对账-' + newBatch() + '.csv', '\ufeff' + head + body + '\n');
+});
+
+document.getElementById('btnReset').addEventListener('click', function(){
+  if(!confirm('清空这台电脑上的卡密记录？\n（云端数据库不受影响，但你会丢掉「哪张已售/已兑换」的标记）')) return;
+  localStorage.removeItem(STORE_KEY);
+  DATA = load(); render(); toast('已重置');
+});
+
+function download(name, content){
+  var blob = new Blob([content], {type:'text/plain;charset=utf-8'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove() }, 400);
+}
+
+/* ---------------- 启动 ---------------- */
+document.getElementById('tpl').value = localStorage.getItem('jzb_tpl_v1') || TPL[1];
+var th = localStorage.getItem('jzb_thres_v1');
+if(th !== null) document.getElementById('thres').value = th;
+render();
+</script>
+</body>
+</html>

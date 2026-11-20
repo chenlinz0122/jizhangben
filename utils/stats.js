@@ -441,6 +441,42 @@ function budgetSpent(txs, ym) {
   }
 }
 
+/* 未分类的支出按商户归组，给 AI 补分类用
+ * 只取商户名够长的：商户名太短或为空没法沉淀成规则，补了下次还是未分类 */
+function uncatGroups(txs, limit) {
+  var cap = limit || 60
+  var map = {}
+  var noMerchant = 0
+  for (var i = 0; i < txs.length; i++) {
+    var t = txs[i]
+    if (t.type !== 'expense' || t.category !== '未分类') continue
+    var key = String(t.merchant || '').trim()
+    if (key.length < 2) { noMerchant++; continue }
+    if (!map[key]) map[key] = { key: key, count: 0, amount: 0, desc: '' }
+    map[key].count++
+    map[key].amount += Number(t.amount || 0)
+    if (!map[key].desc && t.desc) map[key].desc = String(t.desc).slice(0, 24)
+  }
+
+  var keys = Object.keys(map).sort(function (a, b) { return map[b].count - map[a].count })
+  var picked = keys.slice(0, cap)
+  return {
+    items: picked.map(function (k, idx) {
+      return {
+        i: idx + 1,
+        m: map[k].key,
+        d: map[k].desc,
+        key: map[k].key,
+        count: map[k].count,
+        amountText: format.money(map[k].amount)
+      }
+    }),
+    total: keys.length,
+    overflow: keys.length > picked.length,
+    noMerchant: noMerchant
+  }
+}
+
 module.exports = {
   summary: summary,
   trend: trend,
@@ -450,5 +486,6 @@ module.exports = {
   topMerchants: topMerchants,
   yearSummary: yearSummary,
   budgetSpent: budgetSpent,
+  uncatGroups: uncatGroups,
   audit: audit
 }

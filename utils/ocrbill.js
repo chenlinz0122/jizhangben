@@ -338,7 +338,7 @@ function parseDetail(rows, nowInfo, userRules, allText, source) {
     type = 'income'
   } else if (/关闭|失效/.test(state)) {
     return { items: [], skipped: 1, source: source, error: '这一笔是「' + state + '」，没有成交，就不记账了' }
-  } else if (/转入|转出|转账给|提现|还款|赎回|申购/.test(merchant + ' ' + desc + ' ' + state)) {
+  } else if (/转入|转出|转账给|提现|还款|赎回|申购|零钱充值|充值到零钱|网银充值|银行卡充值|来自银行卡|来自储蓄卡/.test(merchant + ' ' + desc + ' ' + state)) {
     /* 注意：不能拿「零钱通/余额宝」当转账依据——那只是付款方式，
      * 「支付方式 零钱通」是拿零钱通付款，属于正常支出。
      * 也只看商户/说明/状态这三处，不喂整页文字（页面上的「收单机构」等字样会把分类带偏） */
@@ -579,7 +579,7 @@ function parseItems(items, userRules, opts) {
     var markRefund = /已全额退款|已退款|退款成功|已退/.test(block)
     if (!markRefund && /退款|退货/.test(block)) {
       type = 'refund'
-    } else if (/转入|转出|转给|提现|还款|赎回|申购|基金|理财通|零钱通/.test(block)) {
+    } else if (/转入|转出|转给|提现|还款|赎回|申购|基金|理财通|零钱通|收益发放|收益入账|理财收益|余额宝收益|零钱充值|充值到零钱|网银充值|银行卡充值|来自银行卡|来自储蓄卡/.test(block)) {
       type = 'transfer'
     } else if (/收益|利息|红包|收款|入账|来自/.test(block)) {
       type = 'income'
@@ -603,6 +603,13 @@ function parseItems(items, userRules, opts) {
     seen[idKey] = (seen[idKey] || 0) + 1
     var id = 'h' + idKey + (seen[idKey] > 1 ? '#' + seen[idKey] : '')
 
+    /* 收益发放 / 理财收益：支付宝把「余额宝-收益发放」的商户写成基金公司名（汇添富富通A），
+     * transferCat 靠商户名认不出「理财」，这里直接钉死，避免落到「账户转移」 */
+    var isInvestYield = /收益发放|收益入账|理财收益|余额宝收益/.test(block)
+    var cat = type === 'refund'
+      ? '退款'
+      : (isInvestYield ? '理财' : (type === 'transfer' ? category.transferCat(merchant, '') : cls.cat))
+
     out.push({
       id: id,
       time: ts,
@@ -612,9 +619,7 @@ function parseItems(items, userRules, opts) {
       type: type,
       merchant: merchant,
       desc: '',
-      category: type === 'refund'
-        ? '退款'
-        : (type === 'transfer' ? category.transferCat(merchant, '') : cls.cat),
+      category: cat,
       account: '',
       status: '',
       source: source,

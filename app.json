@@ -1,12 +1,16 @@
 {
   "pages": [
+    "pages/home/home",
     "pages/index/index",
     "pages/list/list",
     "pages/report/report",
     "pages/cat/cat",
     "pages/import/import",
     "pages/shot/shot",
-    "pages/add/add"
+    "pages/add/add",
+    "pages/vip/vip",
+    "pages/login/login",
+    "pages/feedback/feedback"
   ],
   "window": {
     "backgroundTextStyle": "dark",
@@ -21,6 +25,10 @@
     "backgroundColor": "#ffffff",
     "borderStyle": "white",
     "list": [
+      {
+        "pagePath": "pages/home/home",
+        "text": "首页"
+      },
       {
         "pagePath": "pages/index/index",
         "text": "总览"

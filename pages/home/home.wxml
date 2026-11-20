@@ -1,0 +1,108 @@
+<!-- pages/home/home - 首页 -->
+<view class="wrap">
+
+  <!-- 顶部绿卡：问候 + 本月数字 -->
+  <view class="hero theme-{{themeKey}}">
+    <view class="toprow" bindtap="tapAvatar">
+      <image wx:if="{{avatar}}" class="av" src="{{avatar}}" mode="aspectFill" />
+      <view wx:else class="av av-ph">👤</view>
+      <view class="who">
+        <text class="hi">{{greeting}}{{isLogin ? '，' + nick : ''}}</text>
+        <text class="sub">{{isLogin ? vipText : '点这里登录，给首页起个名'}}</text>
+      </view>
+      <view class="vipchip {{isVip ? 'on' : ''}}" catchtap="goVip">{{isVip ? '会员' : '开通会员'}}</view>
+    </view>
+
+    <view class="mcard">
+      <text class="mlab">本月支出 · {{monthText}}</text>
+      <text class="mnum">¥{{s.expenseText}}</text>
+      <view class="mrow">
+        <text class="mcell">入账 ¥{{s.incomeText}}</text>
+        <text class="mdot">·</text>
+        <text class="mcell">结余 {{s.netSign}}¥{{s.netText}}</text>
+        <text class="mdot">·</text>
+        <text class="mcell">{{s.count}} 笔</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 四个常用入口 -->
+  <view class="quick">
+    <view class="qcell" bindtap="goAdd">
+      <view class="qico q-add">✍️</view>
+      <text class="qname">记一笔</text>
+      <text class="qsub">手动记账</text>
+    </view>
+    <view class="qcell" bindtap="goShot">
+      <view class="qico q-shot">📷</view>
+      <text class="qname">截图识别</text>
+      <text class="qsub">店员小票也行</text>
+    </view>
+    <view class="qcell" bindtap="goImport">
+      <view class="qico q-imp">📥</view>
+      <text class="qname">账单导入</text>
+      <text class="qsub">微信 / 支付宝</text>
+    </view>
+    <view class="qcell" bindtap="goReport">
+      <view class="qico q-rep">📊</view>
+      <text class="qname">报表</text>
+      <text class="qsub">{{isVip ? '全部已开' : '部分免费'}}</text>
+    </view>
+  </view>
+
+  <!-- 未分类提醒 -->
+  <view class="notice" wx:if="{{uncatCount > 0}}" bindtap="goUncat">
+    <text class="n-t">还有 {{uncatCount}} 笔没分类</text>
+    <text class="n-l">{{isVip ? '点这里让 AI 补一下 ›' : '点这里去手动补 ›'}}</text>
+  </view>
+
+  <!-- 最近流水 -->
+  <view class="card">
+    <view class="between">
+      <text class="title inline">最近流水 · 本月</text>
+      <text class="morelink" bindtap="goList">全部 ›</text>
+    </view>
+
+    <!-- 空账本：别只写一行「还没记账」，给两条能立刻走的路 -->
+    <view class="emptybox" wx:if="{{!hasData}}">
+      <text class="eb-ico">📒</text>
+      <text class="eb-t">这个月还没有一笔账</text>
+      <text class="eb-s">手记一笔 30 秒；或者把微信 / 支付宝账单直接传上来，一次进一整个月。</text>
+      <view class="eb-btns">
+        <view class="eb-btn main" bindtap="goAdd">记第一笔</view>
+        <view class="eb-btn" bindtap="goImport">导入账单</view>
+      </view>
+    </view>
+
+    <view class="row" wx:for="{{recent}}" wx:key="id" bindtap="goList">
+      <view class="ric" style="background:{{item.tint}}"><text class="ric-em">{{item.icon}}</text></view>
+      <view class="rmid">
+        <text class="rname">{{item.merchant}}</text>
+        <text class="rmeta">{{item.category}} · {{item.timeText}}</text>
+      </view>
+      <text class="ramt {{item.type === 'income' || item.type === 'refund' ? 'inc' : ''}}">{{item.sign}}¥{{item.amountText}}</text>
+    </view>
+  </view>
+
+  <!-- 免费版会员引导 -->
+  <view class="promo" wx:if="{{!isVip}}" bindtap="goVip">
+    <view class="p-left">
+      <text class="p-title">解锁更多分析</text>
+      <text class="p-desc">每日趋势 · 6 个月对比 · 年度汇总 · 商户排行 · 预算 · AI 补分类</text>
+    </view>
+    <text class="p-go">去看看 ›</text>
+  </view>
+
+  <text class="foot">账本只存这台手机 · 换设备不会自动同步</text>
+
+  <!-- 配色：三套主题，点一下立即换 -->
+  <view class="themebar">
+    <text class="tb-label">配色</text>
+    <view class="tb-dot {{themeKey === item.key ? 'on' : ''}}" wx:for="{{themes}}" wx:key="key"
+          data-key="{{item.key}}" bindtap="pickTheme" style="background:{{item.color}}">
+      <text class="tb-name">{{item.name}}</text>
+    </view>
+  </view>
+
+  <view class="foot-link" bindtap="openFeedback">有问题 / 想要新功能？点这里反馈 ›</view>
+</view>

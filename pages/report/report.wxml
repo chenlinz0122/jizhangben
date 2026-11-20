@@ -1,4 +1,6 @@
 <view class="page">
+  <!-- 从总览跳过来时给一个返回（switchTab 没有原生返回箭头） -->
+  <view class="rback" wx:if="{{backTab}}" bindtap="goBack">‹ 返回{{backLabel}}</view>
   <!-- 顶部大数字卡：支出 / 入账 两个页签 -->
   <view class="hero {{tab === 'income' ? 'hi' : ''}}">
     <view class="hrow">
@@ -33,7 +35,7 @@
     </view>
   </view>
 
-  <view class="empty" wx:if="{{!hasData}}">这个月还没有数据，先去「截图识别」或「导入」页记几笔</view>
+  <view class="empty" wx:if="{{!hasData}}">这个月还没有数据，先记一笔再说</view>
 
   <!-- 构成：环形图 + 分类（可展开） -->
   <view class="card" wx:if="{{cats.length > 0}}">
@@ -67,8 +69,31 @@
     </view>
   </view>
 
+  <!-- 免费版到这儿就断了：把锁住的东西列清楚，别让人以为报表坏了 -->
+  <view class="upsell" wx:if="{{locked}}">
+    <view class="up-head">
+      <text class="up-title">想解锁更多？</text>
+      <text class="up-badge">会员</text>
+    </view>
+    <text class="up-desc">开通后解锁：每日支出趋势 · 近 6 个月对比 · 年度汇总 · 商户排行 · 每日花销日历 · 月度预算 · AI 补分类</text>
+    <view class="up-btn" bindtap="goVip">输入卡密开通</view>
+    <text class="up-hint">有卡密直接点上面输；没有就先去拿一张</text>
+  </view>
+
+  <!-- 被锁的卡片不做成「消失」，而是灰化占位：让人知道这里本来有东西 -->
+  <view class="tease" wx:if="{{locked}}">
+    <view class="tag-card" wx:for="{{teasers}}" wx:key="name" bindtap="goVip">
+      <view class="tc-head">
+        <text class="tc-name">{{item.name}}</text>
+        <text class="tc-lock">🔒</text>
+      </view>
+      <view class="tc-bar" wx:for="{{item.bars}}" wx:for-item="w" wx:for-index="wi" wx:key="*this" style="width:{{w}}"></view>
+      <text class="tc-hint">{{item.hint}}</text>
+    </view>
+  </view>
+
   <!-- 每日对比（可放大缩小） -->
-  <view class="card" wx:if="{{hasData}}">
+  <view class="card" wx:if="{{hasData && !locked}}">
     <view class="between">
       <text class="title inline">{{tab === 'income' ? '每日入账' : '每日支出'}}</text>
       <view class="zoomwrap">
@@ -115,7 +140,7 @@
   </view>
 
   <!-- 月度对比（近 6 个月，可左右滑动） -->
-  <view class="card {{tab === 'income' ? 'hi' : ''}}" wx:if="{{hasData}}">
+  <view class="card {{tab === 'income' ? 'hi' : ''}}" wx:if="{{hasData && !locked}}">
     <view class="between">
       <text class="title inline">月度对比 · 近 6 个月</text>
       <text class="muted2">左右滑动 · 点柱子看明细</text>
@@ -135,7 +160,7 @@
   </view>
 
   <!-- 年度汇总（自然年累计） -->
-  <view class="card" wx:if="{{year && year.count > 0}}">
+  <view class="card" wx:if="{{year && year.count > 0 && !locked}}">
     <view class="between">
       <text class="title inline">{{year.year}} 年度汇总</text>
       <view class="yseg">
@@ -178,7 +203,7 @@
   </view>
 
   <!-- 商户排行：支出榜 + 入账榜并排给，当前页签对应的那个在前 -->
-  <view class="card" wx:if="{{rankAny}}">
+  <view class="card" wx:if="{{rankAny && !locked}}">
     <view class="title">商户排行</view>
     <block wx:for="{{rankBoards}}" wx:for-item="board" wx:for-index="bi" wx:key="key">
       <view class="rhead" wx:if="{{board.list.length > 0}}">
@@ -197,7 +222,7 @@
   </view>
 
   <!-- 洞察 -->
-  <view class="card" wx:if="{{hasData && tab === 'expense'}}">
+  <view class="card" wx:if="{{hasData && tab === 'expense' && !locked}}">
     <view class="title">这个月的情况</view>
     <view class="igrid">
       <view class="icell">
@@ -221,7 +246,7 @@
   </view>
 
   <!-- 预算（只对支出有意义） -->
-  <view class="card" wx:if="{{tab === 'expense'}}">
+  <view class="card" wx:if="{{tab === 'expense' && !locked}}">
     <view class="between">
       <text class="title inline">月度预算</text>
       <view class="links">
@@ -263,7 +288,7 @@
   </view>
 
   <!-- 每日花销日历 -->
-  <view class="card" wx:if="{{hasData && tab === 'expense'}}">
+  <view class="card" wx:if="{{hasData && tab === 'expense' && !locked}}">
     <view class="title">每日花销日历</view>
     <view class="calweek">
       <text class="cw">日</text>
@@ -289,6 +314,16 @@
       <view class="sw lv3"></view>
       <view class="sw lv4"></view>
       <text class="lgtext">多</text>
+    </view>
+  </view>
+
+  <view class="card aicat" wx:if="{{uncatCount > 0 && !locked}}">
+    <view class="aicat-row">
+      <view class="aicat-main">
+        <view class="aicat-t">还有 {{uncatCount}} 笔没分类</view>
+        <view class="aicat-s">词库没认出来的，让 AI 按商户名判一下；结果先给你过目，确认了才写进去</view>
+      </view>
+      <view class="aicat-btn" bindtap="aiFill">AI 补分类</view>
     </view>
   </view>
 

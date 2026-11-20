@@ -37,6 +37,17 @@ Page({
     wx.setNavigationBarTitle({ title: c ? c + ' · ' + y : '分类明细' })
   },
 
+  /* 页面内返回：原生导航栏本来就有箭头，但换手机/深色模式偶尔不好找，
+   * 所以自己再给一个；万一没有上一页（比如从分享卡片直接打开），回报表页。 */
+  goBack: function () {
+    var pages = getCurrentPages()
+    if (pages && pages.length > 1) {
+      wx.navigateBack()
+    } else {
+      wx.switchTab({ url: '/pages/report/report' })
+    }
+  },
+
   /* 放在 onShow 里建：从这一页出去改了流水再回来，数字要是新的 */
   onShow: function () {
     if (this.data.cat) this.build()

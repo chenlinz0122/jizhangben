@@ -2,6 +2,7 @@ var format = require('../../utils/format')
 var store = require('../../utils/store')
 var stats = require('../../utils/stats')
 var category = require('../../utils/category')
+var vip = require('../../utils/vip')
 
 /* 按类型排个名：支出看花得最多，入账看进得最多 */
 function topBy(txs, ym, kind, n) {
@@ -82,6 +83,8 @@ Page({
     daily: { list: [], tipText: '', tipLeft: 50, show: false, x1: '', x2: '', x3: '', x4: '' },
     /* 每日柱的缩放档位：1× 整月铺满，2×/3× 柱子加宽 + 左右滑动 */
     dayZoom: 1,
+    backTab: '',
+    backLabel: '',
     dColW: 0,
     dInW: 0,
     months: [],
@@ -95,7 +98,19 @@ Page({
     yearTab: 'expense',
 
     cells: [],
-    selDayText: ''
+    selDayText: '',
+    uncatCount: 0,
+
+    /* 会员锁：报表页整体是会员功能，未开通只显示一张锁屏卡 */
+    locked: false,
+
+    /* 免费版：这些卡片以灰化占位出现，比直接不渲染更让人知道锁了什么 */
+    teasers: [
+      { name: '每日支出趋势', hint: '会员可见 · 点这里开通', bars: ['70%', '45%', '88%', '60%', '76%'] },
+      { name: '近 6 个月对比', hint: '会员可见 · 点这里开通', bars: ['52%', '68%', '40%', '82%', '58%', '74%'] },
+      { name: '商户排行', hint: '会员可见 · 点这里开通', bars: ['90%', '66%', '48%'] },
+      { name: '年度汇总', hint: '会员可见 · 点这里开通', bars: ['84%', '60%', '70%', '46%'] }
+    ]
   },
 
   onLoad: function () {
@@ -103,7 +118,46 @@ Page({
   },
 
   onShow: function () {
+    var app = getApp()
+    /* 只有点名「由本页显示返回」的标记才在这儿消费；
+     * 「回流水页」的标记留给流水页自己读，否则报表顺手把它吃掉，流水页就没有返回按钮了。 */
+    if (app.globalData.backFor === '/pages/report/report') {
+      this.setData({ backTab: app.globalData.backTab, backLabel: app.globalData.backLabel || '返回' })
+      app.globalData.backFor = ''
+      app.globalData.backTab = ''
+      app.globalData.backLabel = ''
+    } else {
+      this.setData({ backTab: '', backLabel: '' })
+    }
+    this.syncVip()
+  },
+
+  /* 报表的免费部分：本月数字卡 + 支出构成 + 数据工具；其余区块都是会员功能，
+   * 所以数据照算（免费也要出数字和构成），只是 wxml 里把后面的卡片不渲染 */
+  syncVip: function () {
+    var self = this
+    var locked = !vip.isVip()
+    this.setData({ locked: locked })
     this.refresh()
+    if (this._vipChecked) return
+    this._vipChecked = true
+    vip.refresh(function () {
+      var stillLocked = !vip.isVip()
+      if (stillLocked === locked) return   /* 状态没变，不重复计算 */
+      self.setData({ locked: stillLocked })
+      if (!stillLocked) self.refresh()
+    })
+  },
+
+  goVip: function () {
+    wx.navigateTo({ url: '/pages/vip/vip' })
+  },
+
+  /* 页面内返回（报表 ← 总览 是 switchTab，原生没有返回箭头） */
+  goBack: function () {
+    var target = this.data.backTab
+    this.setData({ backTab: '', backLabel: '' })
+    if (target) wx.switchTab({ url: target })
   },
 
   refresh: function () {
@@ -117,6 +171,11 @@ Page({
     var cmp = stats.compareCats(txs, ym)
     var cal = stats.calendar(txs, ym)
     var ys = stats.yearSummary(txs, ym.split('-')[0])
+    /* 全库还有多少笔没分好类（不分月份，AI 补分类是补全库） */
+    var uncatCount = 0
+    for (var ui = 0; ui < txs.length; ui++) {
+      if (txs[ui].type === 'expense' && txs[ui].category === '未分类') uncatCount++
+    }
     /* 年度分类：支出 / 入账两个榜，默认只露前 3 类，展开看全年全部类目 */
     if (ys) {
       var yIncome = this.data.yearTab === 'income'
@@ -307,6 +366,7 @@ Page({
       rankAny: topExp.length > 0 || topInc.length > 0,
 
       year: ys,
+      uncatCount: uncatCount,
 
       cells: cal.cells.map(function (c, idx) {
         c.k = c.blank ? 'b' + idx : 'd' + c.d
@@ -499,6 +559,9 @@ Page({
     app.globalData.filterDay = ''
     app.globalData.filterKind = ''
     app.globalData.filterUncat = false
+    app.globalData.backFor = '/pages/list/list'
+    app.globalData.backTab = '/pages/report/report'
+    app.globalData.backLabel = '报表'
     wx.switchTab({ url: '/pages/list/list' })
   },
 
@@ -540,6 +603,9 @@ Page({
     app.globalData.filterKind = this.data.tab
     app.globalData.filterYm = this.data.ym
     app.globalData.filterDay = ''
+    app.globalData.backFor = '/pages/list/list'
+    app.globalData.backTab = '/pages/report/report'
+    app.globalData.backLabel = '报表'
     wx.switchTab({ url: '/pages/list/list' })
   },
 
@@ -567,6 +633,9 @@ Page({
     app.globalData.filterCat = ''
     app.globalData.filterKind = this.data.tab === 'income' ? 'income' : 'expense'
     app.globalData.filterUncat = false
+    app.globalData.backFor = '/pages/list/list'
+    app.globalData.backTab = '/pages/report/report'
+    app.globalData.backLabel = '报表'
     wx.switchTab({ url: '/pages/list/list' })
   },
 
@@ -579,11 +648,15 @@ Page({
     app.globalData.filterCat = ''
     app.globalData.filterKind = 'expense'
     app.globalData.filterYm = this.data.ym
+    app.globalData.backFor = '/pages/list/list'
+    app.globalData.backTab = '/pages/report/report'
+    app.globalData.backLabel = '报表'
     wx.switchTab({ url: '/pages/list/list' })
   },
 
   setBudget: function () {
     var self = this
+    if (!vip.guard('月度预算')) return
     var cur = this.data.budget
     wx.showModal({
       title: cur > 0 ? '改月度预算' : '设月度预算',
@@ -738,6 +811,117 @@ Page({
             })
           },
           fail: function () { wx.showToast({ title: '读不到这个文件', icon: 'none' }) }
+        })
+      }
+    })
+  },
+
+  /* AI 补分类：只处理词库没命中的「未分类」，按商户去重后一批批问
+   * 结果先弹出来给用户确认，确认了才写库；写过的商户沉淀成规则，下次导入直接命中，不再调 AI */
+  aiFill: function () {
+    var self = this
+    if (!vip.guard('AI 补分类')) return
+    if (!wx.cloud) {
+      wx.showToast({ title: '当前基础库不支持云开发', icon: 'none' })
+      return
+    }
+
+    var txs = store.all()
+    var g = stats.uncatGroups(txs, 60)
+    if (!g.items.length) {
+      var why = g.noMerchant > 0
+        ? '未分类的 ' + g.noMerchant + ' 笔都没有商户名，AI 也没法按商户归类，只能手动改'
+        : '未分类的都已经处理过了'
+      wx.showModal({ title: '没有能补的', content: why, showCancel: false })
+      return
+    }
+
+    var payload = g.items.map(function (it) {
+      return { i: it.i, m: it.m, d: it.d, t: 'expense' }
+    })
+    /* 类目清单直接把「未分类」递给模型，它就会照着答「未分类」，等于白问，先剔掉 */
+    function pick(list) {
+      return list.filter(function (c) { return c && c !== '未分类' })
+    }
+
+    wx.showLoading({ title: 'AI 分类中…', mask: true })
+    wx.cloud.callFunction({
+      name: 'aiCat',
+      data: {
+        items: payload,
+        cats: { expense: pick(category.CATS.expense), income: pick(category.CATS.income) }
+      },
+      success: function (res) {
+        wx.hideLoading()
+        var r = res && res.result
+        if (!r || !r.ok) {
+          wx.showModal({
+            title: 'AI 这次没出来',
+            content: ((r && r.error) || '调用失败') + '\n\n不影响记账，过会儿再点一次就行；急的话去「流水」页手动改分类。',
+            showCancel: false
+          })
+          return
+        }
+        self.showAiPreview(g, r)
+      },
+      fail: function (e) {
+        wx.hideLoading()
+        var msg = String((e && e.errMsg) || '调用失败')
+        if (/FUNCTION_NOT_FOUND|function not found|-501000|-404/i.test(msg)) {
+          msg = '云函数 aiCat 还没部署：在微信开发者工具里右键 cloudfunctions/aiCat，选「上传并部署：云端安装依赖」'
+        }
+        wx.showModal({ title: '调用云函数失败', content: msg, showCancel: false })
+      }
+    })
+  },
+
+  /* 把 AI 的结论摊开给用户看，确认后才落库 */
+  showAiPreview: function (g, r) {
+    var self = this
+    var byI = {}
+    g.items.forEach(function (it) { byI[it.i] = it })
+
+    var list = []
+    var map = {}
+    /* 客户端再校验一次：云函数被判错/被改过都可能返回不存在的类目，
+     * 写进库会让报表类目合计和支出总额对不上。只认支出清单里真实存在的名字 */
+    var allow = category.CATS.expense.filter(function (c) { return c && c !== '未分类' })
+    r.results.forEach(function (x) {
+      var it = byI[x.i]
+      if (!it) return
+      if (allow.indexOf(String(x.c || '').trim()) < 0) return
+      list.push(it)
+      map[it.key] = x.c
+      it.cat = x.c
+    })
+    if (!list.length) {
+      wx.showToast({ title: 'AI 没给出可用分类', icon: 'none' })
+      return
+    }
+
+    var lines = []
+    var show = Math.min(list.length, 8)
+    for (var i = 0; i < show; i++) {
+      lines.push(list[i].m + ' → ' + list[i].cat + (list[i].count > 1 ? '（' + list[i].count + ' 笔）' : ''))
+    }
+    if (list.length > show) lines.push('…还有 ' + (list.length - show) + ' 个商户')
+
+    var note = []
+    if (g.overflow) note.push('另有 ' + (g.total - g.items.length) + ' 个商户这次没轮到，可以再点一次')
+    if (r.dropped) note.push(r.dropped + ' 个模型没判出来，会继续留作未分类')
+
+    wx.showModal({
+      title: '确认写入 ' + list.length + ' 个商户？',
+      content: lines.join('\n') + (note.length ? '\n\n' + note.join('；') : ''),
+      confirmText: '写入',
+      success: function (res) {
+        if (!res.confirm) return
+        var out = store.applyCategories(map)
+        self.refresh()
+        wx.showModal({
+          title: '补了 ' + out.changed + ' 笔',
+          content: '同时沉淀了 ' + out.learned + ' 条商户规则，以后这同一批商户导入时会自动分好类，不用再调 AI。\n判错的去「流水」页点那笔改一下，手改会覆盖这里的结论。',
+          showCancel: false
         })
       }
     })

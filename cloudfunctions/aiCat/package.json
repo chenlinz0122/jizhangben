@@ -1,0 +1,9 @@
+{
+  "name": "aiCat",
+  "version": "1.0.0",
+  "description": "AI 补分类，只返回校验过的类目",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "~2.6.3"
+  }
+}

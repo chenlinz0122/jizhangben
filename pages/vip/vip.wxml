@@ -1,0 +1,83 @@
+<!-- pages/vip/vip - 会员 · 卡密开通 -->
+<view class="page">
+
+  <!-- 头图：状态 + 一句卖点 -->
+  <view class="hero {{isVip ? 'on' : ''}}">
+    <view class="hrow">
+      <text class="hbadge">{{isVip ? 'VIP 会员' : '免费版'}}</text>
+      <text class="hdays" wx:if="{{isVip}}">还剩 {{daysLeft}} 天</text>
+    </view>
+    <text class="htitle">{{isVip ? '会员已开通' : '把每一笔都看清楚'}}</text>
+    <text class="hsub">{{isVip ? statusText : '识别 · 导入 · AI 补分类 · 报表进阶 · 预算，一次全开'}}</text>
+  </view>
+
+  <!-- 档位：只列价格，页面里不做支付 -->
+  <view class="card">
+    <view class="between">
+      <text class="title inline">选个档位</text>
+      <text class="muted2">拿卡密时说一句要哪档</text>
+    </view>
+    <view class="tiers">
+      <view class="tier {{tierIdx === idx ? 'on' : ''}}" wx:for="{{tiers}}" wx:key="days"
+            wx:for-index="idx" data-idx="{{idx}}" bindtap="pickTier">
+        <text class="t-name">{{item.name}}</text>
+        <text class="t-price">¥{{item.price}}</text>
+        <text class="t-days">{{item.days}} 天</text>
+        <text class="t-tag" wx:if="{{item.tag}}">{{item.tag}}</text>
+      </view>
+    </view>
+    <text class="tier-note">{{tiers[tierIdx].note}}</text>
+  </view>
+
+  <!-- 对比表：参考别家会员页，一列会员一列免费 -->
+  <view class="card">
+    <text class="title">会员 vs 免费</text>
+    <view class="cmp-head">
+      <text class="c-feature">功能</text>
+      <text class="c-vip">会员</text>
+      <text class="c-free">免费</text>
+    </view>
+    <view class="cmp-row {{idx % 2 === 1 ? 'alt' : ''}}" wx:for="{{compare}}" wx:key="name" wx:for-index="idx">
+      <text class="c-feature">{{item.name}}</text>
+      <text class="c-vip {{item.vip === '—' ? 'off' : ''}}">{{item.vip}}</text>
+      <text class="c-free {{item.free === '—' ? 'off' : ''}}">{{item.free}}</text>
+    </view>
+    <text class="cmp-foot">同一张卡密只兑一次，兑完绑当前微信；到期不自动续，不会扣钱。</text>
+  </view>
+
+  <!-- 兑换卡 -->
+  <view class="card">
+    <text class="title">输入卡密开通</text>
+    <input class="code-input" value="{{code}}" maxlength="20" placeholder="XXXX-XXXX-XXXX-XXXX"
+           bindinput="onInput" confirm-type="done" bindconfirm="submit" />
+    <text class="err" wx:if="{{msg}}">{{msg}}</text>
+    <view class="btn {{busy ? 'disabled' : ''}}" bindtap="submit">{{busy ? '核销中…' : (isVip ? '续期 / 再兑一张' : '开通会员')}}</view>
+    <text class="hint">兑完立刻生效；已是会员的话，天数往后叠加</text>
+  </view>
+
+  <!-- 权益细节 -->
+  <view class="card">
+    <text class="title">会员包含</text>
+    <view class="benefit" wx:for="{{benefits}}" wx:key="name">
+      <view class="bf-dot"></view>
+      <view class="bf-body">
+        <text class="bf-name">{{item.name}}</text>
+        <text class="bf-desc">{{item.desc}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 购买渠道：只放联系方式，页面内不做任何支付 -->
+  <view class="card">
+    <text class="title">怎么拿到卡密</text>
+    <text class="buy-text">{{contact}}</text>
+    <view class="btn plain" bindtap="copyContact">复制联系方式</view>
+  </view>
+
+  <!-- 意见反馈 -->
+  <view class="card">
+    <text class="title">意见反馈</text>
+    <text class="buy-text">用着不顺手、哪里算错了、想加什么功能，都可以写给我。可以带一张截图。</text>
+    <view class="btn plain" bindtap="openFeedback">写反馈 / 提个问题</view>
+  </view>
+</view>

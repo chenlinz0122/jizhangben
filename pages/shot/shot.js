@@ -1,6 +1,7 @@
 var store = require('../../utils/store')
 var ocrbill = require('../../utils/ocrbill')
 var format = require('../../utils/format')
+var vip = require('../../utils/vip')
 
 Page({
   data: {
@@ -23,6 +24,7 @@ Page({
   chooseShot: function () {
     var self = this
     if (this.data.busy) return
+    if (!vip.guard('截图识别')) return
     if (!wx.cloud) {
       this.setData({ error: '当前微信版本用不了云开发，改用「复制粘贴」导入' })
       return

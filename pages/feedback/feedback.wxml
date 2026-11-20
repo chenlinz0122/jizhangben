@@ -1,0 +1,41 @@
+<view class="page">
+  <view class="card">
+    <text class="title">你想说点什么</text>
+
+    <view class="chips">
+      <view class="chip {{type === item.key ? 'on' : ''}}" wx:for="{{types}}" wx:key="key"
+            data-key="{{item.key}}" bindtap="pickType">{{item.name}}</view>
+    </view>
+
+    <textarea class="ta" value="{{content}}" maxlength="500"
+              placeholder="用起来哪里别扭、少了什么功能、哪里算错了……写具体一点我好改"
+              bindinput="onContent" auto-height />
+    <text class="counter">{{len}}/500</text>
+  </view>
+
+  <view class="card">
+    <text class="title">截图（可选，最多 1 张）</text>
+    <view class="shot-row">
+      <view class="shot" wx:if="{{imagePath}}" bindtap="previewShot">
+        <image src="{{imagePath}}" mode="aspectFill" />
+        <view class="shot-del" catchtap="removeShot">×</view>
+      </view>
+      <view class="shot add" wx:else bindtap="pickShot">
+        <text class="plus">＋</text>
+        <text class="add-txt">上传截图</text>
+      </view>
+    </view>
+    <text class="hint">截图存在云存储里，只有我能看到</text>
+  </view>
+
+  <view class="card">
+    <text class="title">怎么联系你（可选）</text>
+    <input class="line-input" value="{{contact}}" maxlength="50"
+           placeholder="微信号 / 邮箱，方便我回复你" bindinput="onContact" />
+    <text class="hint">不填也能提交，只是我可能没法回复</text>
+  </view>
+
+  <view class="btn {{busy ? 'disabled' : ''}}" bindtap="submit">{{busy ? '提交中…' : '提交'}}</view>
+  <text class="err" wx:if="{{msg}}">{{msg}}</text>
+  <text class="foot">反馈会带上你的 openid（不涉及手机号和昵称），用来防重复提交和回复你</text>
+</view>

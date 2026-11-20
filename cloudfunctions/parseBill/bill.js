@@ -63,29 +63,34 @@ function classifyRow(io, typ, merchant, product, remark) {
   var isIn = /收入/.test(ioText)
   var isOut = /支出/.test(ioText)
 
-  /* 1. 理财收益：原文多记「不计收支」，但钱确实变多了 → 收入 */
-  if (/收益发放|收益入账|分红|利息/.test(words) && !/申购|赎回|转入|转出/.test(words)) {
+  /* 1. 理财收益：口径是「理财账户自己涨了」，不是外部进账 → 不计收支 / 理财。
+   *    「收益发放 / 收益入账」这类字眼一律走理财；「分红 / 利息」仍按真实进账算收入。 */
+  if (/收益发放|收益入账|理财收益|余额宝收益/.test(words) && !/申购|赎回|转入|转出/.test(words)) {
+    return { kind: 'move', moveKind: '理财' }
+  }
+  if (/分红|利息/.test(words) && !/申购|赎回|转入|转出/.test(words)) {
     return { kind: 'income', moveKind: '' }
   }
 
-  /* 2. 信用卡转进（溢缴款转回、转进零钱）——钱真的进来了，算收入；还款是另一回事 */
+  /* 2. 信用卡转进（溢缴款转回、转进零钱）——本质还是自己账户之间搬钱，不计收支；
+   *    还款是另一条路（MOVE_OUT），也别在这里抢掉 */
   if (/信用卡|花呗|白条/.test(words) && /转进|转入|退回|溢缴|转回/.test(words) && !/还款/.test(words)) {
-    return { kind: 'income', moveKind: '' }
+    return { kind: 'move', moveKind: '账户转移' }
   }
 
   /* 2.5 银行卡转进微信/支付宝（账单里叫「零钱充值」「网银充值」「转入零钱通-来自XX银行」）
-   *     银行流水没有进账本，这笔是账本里唯一能看见「钱从卡里来了」的痕迹
-   *     → 按用户口径算入账；「提现到银行卡」「转出到银行」是反方向，不在这里 */
+   *     银行卡流水本身不进账本，这笔只是「钱从卡搬到钱包」，两边都是用户自己的账户
+   *     → 不计收支 / 账户转移；反方向的「提现到银行卡」同理 */
   if ((/零钱充值|充值到零钱|网银充值|银行卡转入|来自银行卡|来自储蓄卡/.test(words) ||
        /转入.{0,12}来自.{0,12}(银行|储蓄卡)/.test(words)) && !/提现|转出到银行卡/.test(words)) {
-    return { kind: 'income', moveKind: '' }
+    return { kind: 'move', moveKind: '账户转移' }
   }
 
   /* 2.6 反方向：微信/支付宝 → 银行卡（零钱提现、零钱通转出到银行、余额宝转出到银行卡）
-   *     他的银行卡流水不进账本，卡就是「外部世界」：钱出了钱包就是花掉 → 支出 */
+   *     钱提回自己卡里，没有离开用户 → 同样不计收支 */
   if (!/信用卡|花呗|白条|还款/.test(words) &&
       /零钱提现|提现到银行卡|转出到银行卡|转出.{0,10}到.{0,12}(银行|储蓄卡)/.test(words)) {
-    return { kind: 'expense', moveKind: '' }
+    return { kind: 'move', moveKind: '账户转移' }
   }
 
   var mk = moveKindOf(words)

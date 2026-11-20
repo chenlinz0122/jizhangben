@@ -145,13 +145,18 @@ function detectSource(headerCells) {
   return '其他'
 }
 
-function resolveType(io, wtype, status) {
+function resolveType(io, wtype, status, merchant, desc) {
   var sStatus = String(status || '')
   if (/退款/.test(sStatus)) return 'refund'
   if (/关闭|失败|撤销|取消/.test(sStatus) && !/已退款/.test(sStatus)) return null
 
   var sIO = String(io || '').replace(/\s/g, '')
   var sW = String(wtype || '')
+  /* 关键词三处都看：银行搬运的字眼经常不在「收/支」列里，而在交易对方/商品说明里 */
+  var sAll = sIO + '|' + String(wtype || '') + '|' + String(merchant || '') + '|' + String(desc || '')
+  /* 银行卡和钱包之间搬钱：微信账单里这类经常标成「收入/支出」（零钱充值、提现到银行卡），
+   * 但钱没离开用户，一律按不计收支处理 */
+  if (/零钱充值|充值到零钱|网银充值|银行卡充值|零钱提现|提现到银行卡|转出到银行卡|来自银行卡|来自储蓄卡|转入.{0,12}(银行|储蓄卡)|转出.{0,12}(银行|储蓄卡)/.test(sAll)) return 'transfer'
   if (/不计/.test(sIO)) return 'transfer'
   if (/支出/.test(sIO)) return 'expense'
   if (/收入/.test(sIO)) return 'income'
@@ -224,14 +229,14 @@ function parse(text, userRules) {
     var type = null
     if (col.amount >= 0) {
       amount = Math.abs(toNum(get(cells, col.amount)))
-      type = resolveType(get(cells, col.io), get(cells, col.wtype), get(cells, col.status))
+      type = resolveType(get(cells, col.io), get(cells, col.wtype), get(cells, col.status), get(cells, col.merchant), get(cells, col.desc))
     } else {
       var inAmt = Math.abs(toNum(get(cells, col.inAmount)))
       var outAmt = Math.abs(toNum(get(cells, col.outAmount)))
       /* 双列也不能只按列猜方向：状态里写着「已退款」、收/支写着「不计收支」的，
        * 一律以状态为准，否则退款那行会被当成一笔新收入记进来；
        * 状态是关闭/失败的直接丢掉（st 为 null → amount 留 0 被跳过）。 */
-      var st = resolveType(get(cells, col.io), get(cells, col.wtype), get(cells, col.status))
+      var st = resolveType(get(cells, col.io), get(cells, col.wtype), get(cells, col.status), get(cells, col.merchant), get(cells, col.desc))
       if (st === null) {
         amount = 0
       } else if (st === 'refund' || st === 'transfer') {
@@ -256,7 +261,7 @@ function parse(text, userRules) {
     var cls = category.classify(merchant, (desc + ' ' + wt).trim(), pcat, userRules, type)
     var cat = cls.cat
     if (type === 'refund') cat = '退款'
-    if (type === 'transfer') cat = '转账'
+    if (type === 'transfer') cat = category.transferCat(merchant, (desc + ' ' + wt).trim())
 
     /* 有交易单号的就是账单型，统一用 b 前缀（store 的 mergeInto/数据体检都只认 b），
      * 之前用 n 前缀会导致这类记录不计入 bill、也不会触发截图记录 h→b 的升级。 */

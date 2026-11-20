@@ -1,10 +1,10 @@
 ﻿/* 分类体系 + 归类引擎
  *
- * 口径只有一套，对齐「微信记账本」官方分类（支出 19 / 入账 9 / 不计收支 3）：
+ * 口径只有一套，对齐「微信记账本」官方分类（支出 19 / 入账 9 / 不计收支 5）：
  *   支出：餐饮 交通 服饰 购物 服务 教育 娱乐 运动 生活缴费 旅行 宠物 医疗
  *         保险 公益 发红包 转账 亲属卡 其他人情 其他支出 退还
  *   入账：生意 工资 奖金 其他人情 收红包 收转账 商家转账 退款 其他收入
- *   不计收支：理财 / 借还款 / 账户转移
+ *   不计收支：理财 / 借还款 / 账户转移（含转入银行卡、银行卡转出）
  *
  * 结构上保证方向不会串：支出只从支出表里出，入账只从入账表里出，
  * 所以不需要「事后把落错方向的类目改回来」这种补丁。
@@ -19,14 +19,18 @@ var CATS = {
   expense: [
     '餐饮', '交通', '服饰', '购物', '服务', '教育', '娱乐', '运动', '生活缴费',
     '旅行', '宠物', '医疗', '保险', '公益', '发红包', '转账', '亲属卡',
-    '其他人情', '其他支出', '退还', '转入银行卡', UNCAT
+    '其他人情', '其他支出', '退还', UNCAT
   ],
   income: [
     '生意', '工资', '奖金', '其他人情', '收红包', '收转账', '商家转账',
-    '退款', '其他收入', '银行卡转出', UNCAT
+    '退款', '其他收入', UNCAT
   ],
-  transfer: ['理财', '借还款', '账户转移']
+  /* 不计收支：银行卡/信用卡和钱包之间搬钱也算在内（钱没离开用户，只是换了个口袋） */
+  transfer: ['理财', '借还款', '账户转移', '转入银行卡', '银行卡转出']
 }
+
+/* 只要落在这些类目里，这笔就一律按「不计收支」处理（老数据纠正类型时也用它） */
+var MOVE_CATS = ['理财', '借还款', '账户转移', '转入银行卡', '银行卡转出']
 
 var COLOR = {
   /* 支出 · 柔和但有色彩 */
@@ -139,6 +143,34 @@ function has(list, cat) {
   return !!cat && list.indexOf(cat) >= 0
 }
 
+/* 综合平台索引：{ name, fallback, subs:[{kw,cat}] }
+ * 「美团」这种名字只能定位到「在哪个 App 买的」，买了什么得靠下面的场景词 */
+var _platIndex = null
+function platformIndex() {
+  if (_platIndex) return _platIndex
+  var raw = R.PLATFORM_SUB || []
+  _platIndex = raw.map(function (p) {
+    return {
+      name: normalize(p.name),
+      fallback: p.fallback,
+      subs: indexOfRules(p.subs || [])
+    }
+  })
+  return _platIndex
+}
+
+/* 商户名里带哪个平台（取名字最长的，避免「美团」抢掉「美团买菜」这种） */
+function platformOf(m) {
+  var list = platformIndex()
+  var best = null
+  for (var i = 0; i < list.length; i++) {
+    if (!list[i].name) continue
+    if (m.indexOf(list[i].name) < 0) continue
+    if (!best || list[i].name.length > best.name.length) best = list[i]
+  }
+  return best
+}
+
 /**
  * 归类
  * @param {string} merchant 交易对方
@@ -152,6 +184,9 @@ function classify(merchant, desc, platformCat, userRules, kind) {
   var d = normalize(desc)
   var dir = (kind === 'income' || kind === 'refund') ? 'income' : 'expense'
   var pool = CATS[dir]
+
+  /* 不计收支的流水不进收支词库，直接走「理财 / 借还款 / 账户转移」三分 */
+  if (kind === 'transfer') return { cat: transferCat(merchant, desc), by: 'kind' }
 
   /* 退款自己就是一个类目，不再往下猜 */
   if (kind === 'refund') return { cat: '退款', by: 'kind' }
@@ -172,8 +207,23 @@ function classify(merchant, desc, platformCat, userRules, kind) {
     for (var e = 0; e < ukws0.length; e++) {
       if (normalize(ukws0[e]) === m) {
         var exactCat = userRules[ukws0[e]]
-        if (has(pool, exactCat)) return { cat: exactCat, by: 'user' }
+        /* 带上命中的原始 key：账单详情要靠它拼「之前学过「XX」」，
+         * 早先这里漏了 kw，页面就会拼出「之前学过「undefined」」。 */
+        if (has(pool, exactCat)) return { cat: exactCat, by: 'user', kw: ukws0[e] }
       }
+    }
+  }
+
+  /* 1.5) 综合平台的「二级筛选」：美团/淘宝/京东这种大平台，名字只说明在哪儿买的，
+   *      点外卖、买机票、订酒店、买菜、买药、骑单车都叫「美团」。
+   *      所以先拿商品说明里的场景词往下筛一层，筛到了才用；筛不到再交给平台分类/平台默认。
+   *      这条排在平台分类前面：支付宝会把「美团买菜」也标成「餐饮美食」，
+   *      而说明里的「买菜」比它的桶更准。 */
+  var plat = platformOf(m)
+  if (plat && plat.subs.length) {
+    var subHit = pickLongest(m + '|' + d, plat.subs)
+    if (subHit && has(pool, subHit.cat)) {
+      return { cat: subHit.cat, by: 'platform-sub', kw: subHit.kw, plat: plat.name }
     }
   }
 
@@ -183,7 +233,7 @@ function classify(merchant, desc, platformCat, userRules, kind) {
    *    这几个桶不采信，先让关键词判，关键词也没有再拿它兜底。 */
   var weakPlatform = isWeakPlatform(platformCat)
   if (platformCat && !weakPlatform && R.PLATFORM_MAP[platformCat] && has(pool, R.PLATFORM_MAP[platformCat])) {
-    return { cat: R.PLATFORM_MAP[platformCat], by: 'platform' }
+    return { cat: R.PLATFORM_MAP[platformCat], by: 'platform', kw: platformCat }
   }
 
   /* 3) 用户规则里的其他写法（商户名略有差异时靠子串命中） */
@@ -193,28 +243,34 @@ function classify(merchant, desc, platformCat, userRules, kind) {
      * 匹配前必须同样归一化，否则「Apple Store」这类商户名永远命中不了自己。 */
     var ulist = ukws.map(function (k) { return { kw: normalize(k), cat: userRules[k] } })
     var uhit = pickLongest(m + '|' + d, ulist)
-    if (uhit && has(pool, uhit.cat)) return { cat: uhit.cat, by: 'user' }
+    if (uhit && has(pool, uhit.cat)) return { cat: uhit.cat, by: 'user', kw: uhit.kw }
   }
 
   /* 4) 商户名命中内置词库。商户名优先于商品说明：
    *    「淘宝」下单、说明里写着「美团外卖优惠券」，按商户算才对。 */
   var mText = m + '|' + stripCo(m)
   var hitM = pickLongest(mText, dir === 'income' ? incIndex() : expIndex())
-  if (hitM) return { cat: hitM.cat, by: 'builtin' }
+  if (hitM) return { cat: hitM.cat, by: 'builtin', kw: hitM.kw }
 
   /* 5) 商户名认不出来再看商品说明 / 备注 */
   var hitD = pickLongest(d, dir === 'income' ? incIndex() : expIndex())
-  if (hitD) return { cat: hitD.cat, by: 'builtin' }
+  if (hitD) return { cat: hitD.cat, by: 'builtin', kw: hitD.kw }
 
-  /* 6) 上面都没认出来，才用那个不靠谱的平台分类兜底 */
-  if (weakPlatform && R.PLATFORM_MAP[platformCat] && has(pool, R.PLATFORM_MAP[platformCat])) {
-    return { cat: R.PLATFORM_MAP[platformCat], by: 'platform' }
+  /* 6) 综合平台实在筛不出场景（说明里什么都没有），才用它自己的默认类目：
+   *    美团默认餐饮、淘宝默认购物。这总比留「未分类」强，也比支付宝那个垃圾桶准。 */
+  if (plat && has(pool, plat.fallback)) {
+    return { cat: plat.fallback, by: 'platform-name', plat: plat.name }
   }
 
-  /* 7) 只给了公司法定全称时（支付宝详情页的「收款方全称」），按里面的业务词猜 */
+  /* 7) 上面都没认出来，才用那个不靠谱的平台分类兜底 */
+  if (weakPlatform && R.PLATFORM_MAP[platformCat] && has(pool, R.PLATFORM_MAP[platformCat])) {
+    return { cat: R.PLATFORM_MAP[platformCat], by: 'platform', kw: platformCat }
+  }
+
+  /* 8) 只给了公司法定全称时（支付宝详情页的「收款方全称」），按里面的业务词猜 */
   if (dir === 'expense') {
     var coHit = pickLongest(mText, coIndex())
-    if (coHit && has(pool, coHit.cat)) return { cat: coHit.cat, by: 'biz' }
+    if (coHit && has(pool, coHit.cat)) return { cat: coHit.cat, by: 'biz', kw: coHit.kw }
   }
 
   return { cat: UNCAT, by: 'none' }
@@ -250,6 +306,8 @@ function transferCat(merchant, desc) {
  */
 function migrate(t) {
   var cat = String(t.category || '')
+  /* 银行卡进出的两个旧类目，现在统一并进「账户转移」（老数据读出来时顺手改类型） */
+  if (cat === '转入银行卡' || cat === '银行卡转出') return '账户转移'
   if (t.type === 'transfer' || t.ty === 'transfer') {
     if (cat === '理财') return '理财'
     if (cat === '借还款') return '借还款'
@@ -272,6 +330,7 @@ module.exports = {
   classify: classify,
   isLooseMerchant: isLooseMerchant,
   catsOf: catsOf,
+  isMoveCat: function (name) { return MOVE_CATS.indexOf(String(name || '')) >= 0 },
   transferCat: transferCat,
   migrate: migrate,
   normalize: normalize,

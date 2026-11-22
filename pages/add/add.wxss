@@ -24,7 +24,7 @@
 
 .segi.on {
   background: #e3f0ec;
-  color: #17806b;
+  color: var(--brand, #17806b);
   font-weight: 600;
 }
 
@@ -66,7 +66,7 @@
 }
 
 .chip.on {
-  background: #17806b;
+  background: var(--brand, #17806b);
   color: #ffffff;
 }
 
@@ -116,7 +116,7 @@
 
 .sug {
   font-size: 24rpx;
-  color: #17806b;
+  color: var(--brand, #17806b);
   background: #e3f0ec;
   border-radius: 24rpx;
   padding: 10rpx 22rpx;

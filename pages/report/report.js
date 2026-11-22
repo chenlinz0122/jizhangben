@@ -32,8 +32,11 @@ function topBy(txs, ym, kind, n) {
   return top
 }
 
+var theme = require('../../utils/theme')
+
 Page({
   data: {
+    themeKey: 'green',
     ym: '',
     monthText: '',
     canNext: false,
@@ -127,6 +130,7 @@ Page({
   },
 
   onShow: function () {
+    this.setData({ themeKey: theme.get().key })
     var app = getApp()
     /* 只有点名「由本页显示返回」的标记才在这儿消费；
      * 「回流水页」的标记留给流水页自己读，否则报表顺手把它吃掉，流水页就没有返回按钮了。 */

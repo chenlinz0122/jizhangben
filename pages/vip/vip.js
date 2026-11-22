@@ -1,8 +1,11 @@
 var vip = require('../../utils/vip')
 var config = require('../../utils/config')
 
+var theme = require('../../utils/theme')
+
 Page({
   data: {
+    themeKey: 'green',
     code: '',
     busy: false,
     isVip: false,
@@ -65,6 +68,7 @@ Page({
   },
 
   onShow: function () {
+    this.setData({ themeKey: theme.get().key })
     this.syncLocal()
     this.loadInvite()
   },

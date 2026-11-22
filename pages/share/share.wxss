@@ -7,7 +7,7 @@
 
 .hero {
   padding: 40rpx 32rpx 56rpx;
-  background: linear-gradient(160deg, #2f6f5e 0%, #1f5145 100%);
+  background: var(--hero-bg, linear-gradient(160deg, #2f6f5e 0%, #1f5145 100%));
 }
 
 .h1 {
@@ -72,7 +72,7 @@
   font-size: 40rpx;
   font-weight: 700;
   letter-spacing: 4rpx;
-  color: #2f6f5e;
+  color: var(--brand, #2f6f5e);
 }
 
 .row2 {
@@ -93,11 +93,11 @@
 .btn.main {
   margin-right: 16rpx;
   color: #ffffff;
-  background: #2f6f5e;
+  background: var(--brand, #2f6f5e);
 }
 
 .btn.plain {
-  color: #2f6f5e;
+  color: var(--brand, #2f6f5e);
   background: #eef4f1;
 }
 
@@ -127,7 +127,7 @@
   padding: 12rpx 26rpx;
   font-size: 25rpx;
   color: #ffffff;
-  background: #2f6f5e;
+  background: var(--brand, #2f6f5e);
   border-radius: 999rpx;
 }
 
@@ -201,7 +201,7 @@
 /* 成员行：头像位放名字第一个字 */
 .edit {
   font-size: 23rpx;
-  color: #2f6f5e;
+  color: var(--brand, #2f6f5e);
   padding: 6rpx 4rpx;
 }
 
@@ -229,7 +229,7 @@
 
 .mava.own {
   color: #ffffff;
-  background: #2f6f5e;
+  background: var(--brand, #2f6f5e);
 }
 
 .mnames {
@@ -264,7 +264,7 @@
 }
 
 .mtag.me {
-  color: #2f6f5e;
+  color: var(--brand, #2f6f5e);
   background: #e9f2ee;
 }
 
@@ -301,11 +301,11 @@
 
 .page.dark .mava.own {
   color: #ffffff;
-  background: #2f6f5e;
+  background: var(--brand, #2f6f5e);
 }
 
 .page.dark .mtag.me {
-  color: #8fd0bd;
+  color: rgba(255, 255, 255, 0.72);
   background: #22302b;
 }
 
@@ -315,7 +315,7 @@
 }
 
 .page.dark .edit {
-  color: #8fd0bd;
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .page.dark .mnick {

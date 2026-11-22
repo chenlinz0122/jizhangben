@@ -6,8 +6,11 @@ var vip = require('../../utils/vip')
 var shared = require('../../utils/shared')
 var prefs = require('../../utils/prefs')
 
+var theme = require('../../utils/theme')
+
 Page({
   data: {
+    themeKey: 'green',
     ym: '',
     monthText: '',
     canNext: false,
@@ -36,6 +39,7 @@ Page({
   },
 
   onShow: function () {
+    this.setData({ themeKey: theme.get().key })
     var app = getApp()
     if (app.globalData.filterUncat) {
       app.globalData.filterUncat = false

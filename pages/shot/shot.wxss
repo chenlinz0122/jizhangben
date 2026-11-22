@@ -17,7 +17,7 @@
 .sn {
   width: 104rpx;
   flex: none;
-  color: #17806b;
+  color: var(--brand, #17806b);
   font-weight: 600;
 }
 
@@ -42,7 +42,7 @@
 
 .barin {
   height: 100%;
-  background: #17806b;
+  background: var(--brand, #17806b);
   transition: width 0.2s ease-out;
 }
 
@@ -82,7 +82,7 @@
   display: block;
   font-size: 38rpx;
   font-weight: 600;
-  color: #17806b;
+  color: var(--brand, #17806b);
 }
 
 .sl {

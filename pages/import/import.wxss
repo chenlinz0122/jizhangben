@@ -17,7 +17,7 @@
 .sn {
   width: 104rpx;
   flex: none;
-  color: #17806b;
+  color: var(--brand, #17806b);
   font-weight: 600;
 }
 
@@ -32,7 +32,7 @@
 
 .demo {
   font-size: 24rpx;
-  color: #17806b;
+  color: var(--brand, #17806b);
 }
 
 .btnnote {
@@ -86,7 +86,7 @@
   display: block;
   font-size: 38rpx;
   font-weight: 600;
-  color: #17806b;
+  color: var(--brand, #17806b);
 }
 
 .sl {

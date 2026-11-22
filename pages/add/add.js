@@ -19,8 +19,14 @@ function knownMerchants() {
   return Object.keys(map).sort(function (a, b) { return map[b] - map[a] })
 }
 
+var theme = require('../../utils/theme')
+
 Page({
+  onShow: function () {
+    this.setData({ themeKey: theme.get().key })
+  },
   data: {
+    themeKey: 'green',
     type: 'expense',
     cats: withIcons(category.catsOf('expense')),
     cat: '餐饮',

@@ -7,8 +7,11 @@ var store = require('../../utils/store')
 
 var WEEK = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
+var theme = require('../../utils/theme')
+
 Page({
   data: {
+    themeKey: 'green',
     cat: '',
     year: '',
     kind: 'expense',
@@ -50,6 +53,7 @@ Page({
 
   /* 放在 onShow 里建：从这一页出去改了流水再回来，数字要是新的 */
   onShow: function () {
+    this.setData({ themeKey: theme.get().key })
     if (this.data.cat) this.build()
   },
 

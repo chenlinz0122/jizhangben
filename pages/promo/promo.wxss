@@ -7,7 +7,7 @@
 
 .hero {
   padding: 40rpx 32rpx 56rpx;
-  background: linear-gradient(160deg, #2f6f5e 0%, #1f5145 100%);
+  background: var(--hero-bg, linear-gradient(160deg, #2f6f5e 0%, #1f5145 100%));
 }
 
 .h1 {
@@ -67,7 +67,7 @@
 .tv {
   font-size: 30rpx;
   font-weight: 700;
-  color: #2f6f5e;
+  color: var(--brand, #2f6f5e);
 }
 
 .tb {
@@ -79,7 +79,7 @@
 .tname {
   padding: 8rpx 20rpx;
   font-size: 24rpx;
-  color: #2f6f5e;
+  color: var(--brand, #2f6f5e);
   background: #ffffff;
   border-radius: 999rpx;
 }
@@ -138,7 +138,7 @@
 
 .pl.on {
   color: #ffffff;
-  background: #2f6f5e;
+  background: var(--brand, #2f6f5e);
 }
 
 .shot {
@@ -184,7 +184,7 @@
   line-height: 88rpx;
   font-size: 30rpx;
   color: #ffffff;
-  background: #2f6f5e;
+  background: var(--brand, #2f6f5e);
   border-radius: 999rpx;
 }
 
@@ -240,6 +240,6 @@
 }
 
 .page.dark .pl.on {
-  background: #2f6f5e;
+  background: var(--brand, #2f6f5e);
   color: #ffffff;
 }

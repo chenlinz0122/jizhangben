@@ -21,7 +21,7 @@
 
 /* ---------- 顶部合计 ---------- */
 .hero {
-  background: linear-gradient(160deg, #1a8f76 0%, #12695a 100%);
+  background: var(--hero-bg, linear-gradient(160deg, #1a8f76 0%, #12695a 100%));
   padding: 68rpx 32rpx 34rpx;
   border-radius: 0 0 32rpx 32rpx;
   box-shadow: 0 16rpx 36rpx rgba(18, 105, 90, 0.18);

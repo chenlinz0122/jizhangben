@@ -8,11 +8,11 @@
 
 /* ---------- 顶部绿卡 ---------- */
 .hero {
-  background: linear-gradient(160deg, #1a8f76 0%, #12695a 100%);
+  background: var(--hero-bg, linear-gradient(160deg, #1a8f76 0%, #12695a 100%));
   color: #ffffff;
   padding: 28rpx 32rpx 44rpx;
   border-radius: 0 0 40rpx 40rpx;
-  box-shadow: 0 16rpx 36rpx rgba(18, 105, 90, 0.2);
+  box-shadow: var(--hero-shadow, 0 16rpx 36rpx rgba(18, 105, 90, 0.2));
 }
 
 .toprow {
@@ -75,7 +75,7 @@
 
 .vipchip.on {
   background: rgba(255, 255, 255, 0.95);
-  color: #12695a;
+  color: var(--brand-ink, #12695a);
   border-color: transparent;
   font-weight: 600;
 }
@@ -214,7 +214,7 @@
 
 .morelink {
   font-size: 23rpx;
-  color: #17806b;
+  color: var(--brand, #17806b);
 }
 
 .empty {
@@ -265,13 +265,13 @@
   text-align: center;
   border-radius: 999rpx;
   font-size: 26rpx;
-  color: #17806b;
+  color: var(--brand, #17806b);
   background: #eef6f3;
   margin: 0 8rpx;
 }
 
 .eb-btn.main {
-  background: #17806b;
+  background: var(--brand, #17806b);
   color: #fff;
   font-weight: 600;
 }
@@ -311,16 +311,7 @@
   color: #fff;
 }
 
-/* ---------- 主题覆盖（只改主色与头部） ---------- */
-.theme-ink {
-  background: linear-gradient(160deg, #33638f 0%, #22486c 100%);
-  box-shadow: 0 16rpx 36rpx rgba(34, 72, 108, 0.22);
-}
-
-.theme-amber {
-  background: linear-gradient(160deg, #c17a38 0%, #9a5822 100%);
-  box-shadow: 0 16rpx 36rpx rgba(154, 88, 34, 0.22);
-}
+/* ---------- 主题：变量统一在 app.wxss 的 .theme-xxx 里定义 ---------- */
 
 .row {
   display: flex;
@@ -378,7 +369,7 @@
 }
 
 .ramt.inc {
-  color: #17806b;
+  color: var(--brand, #17806b);
 }
 
 /* ---------- 会员引导条 ---------- */
@@ -441,16 +432,8 @@
   background: #12161a;
 }
 
-.wrap.dark .hero.theme-green {
-  background: linear-gradient(160deg, #145247 0%, #0c3730 100%);
-}
-
-.wrap.dark .hero.theme-ink {
-  background: linear-gradient(160deg, #223f5e 0%, #182b42 100%);
-}
-
-.wrap.dark .hero.theme-amber {
-  background: linear-gradient(160deg, #7a4520 0%, #4d2b14 100%);
+.wrap.dark .hero {
+  background: var(--hero-bg-dark, linear-gradient(160deg, #145247 0%, #0c3730 100%));
 }
 
 .wrap.dark .mcard {

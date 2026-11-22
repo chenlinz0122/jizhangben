@@ -1,4 +1,4 @@
-<view class="wrap">
+<view class="theme-{{themeKey}} wrap">
   <view class="hero">
     <view class="statusbar"></view>
     <view class="month">

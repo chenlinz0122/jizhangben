@@ -3,8 +3,11 @@ var store = require('../../utils/store')
 var stats = require('../../utils/stats')
 var category = require('../../utils/category')
 
+var theme = require('../../utils/theme')
+
 Page({
   data: {
+    themeKey: 'green',
     ym: '',
     maxYm: '',
     monthText: '',
@@ -20,6 +23,7 @@ Page({
   },
 
   onShow: function () {
+    this.setData({ themeKey: theme.get().key })
     this.refresh()
   },
 

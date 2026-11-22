@@ -1,4 +1,4 @@
-<view class="page {{dark ? 'dark' : ''}}">
+<view class="theme-{{themeKey}} page {{dark ? 'dark' : ''}}">
   <!-- 从总览跳过来时给一个返回（switchTab 没有原生返回箭头） -->
   <view class="rback" wx:if="{{backTab}}" bindtap="goBack">‹ 返回{{backLabel}}</view>
   <!-- 顶部大数字卡：支出 / 入账 两个页签 -->

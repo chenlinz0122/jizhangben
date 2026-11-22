@@ -1,4 +1,4 @@
-<view class="page">
+<view class="theme-{{themeKey}} page">
   <view class="card">
     <view class="title">怎么拿到账单</view>
     <view class="step"><text class="sn">最省事</text><text>在账单列表页截一张长图，用「截图识别」，不用导出、不用复制</text></view>

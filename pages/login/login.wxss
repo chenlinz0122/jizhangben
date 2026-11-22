@@ -21,7 +21,7 @@
   text-align: center;
   font-size: 64rpx;
   border-radius: 36rpx;
-  background: linear-gradient(150deg, #1a8f76 0%, #12695a 100%);
+  background: var(--hero-bg, linear-gradient(150deg, #1a8f76 0%, #12695a 100%));
   box-shadow: 0 16rpx 32rpx rgba(18, 105, 90, 0.24);
 }
 
@@ -178,8 +178,8 @@
 }
 
 .checkbox.checked {
-  background: #17806b;
-  border-color: #17806b;
+  background: var(--brand, #17806b);
+  border-color: var(--brand, #17806b);
 }
 
 .check-icon {
@@ -195,7 +195,7 @@
 
 .privacy-link {
   font-size: 23rpx;
-  color: #17806b;
+  color: var(--brand, #17806b);
 }
 
 .privacy-error {
@@ -211,7 +211,7 @@
   line-height: 92rpx;
   text-align: center;
   border-radius: 46rpx;
-  background: linear-gradient(135deg, #1a8f76, #12695a);
+  background: var(--hero-bg, linear-gradient(135deg, #1a8f76, #12695a));
   color: #ffffff;
   font-size: 30rpx;
   font-weight: 600;
@@ -333,6 +333,6 @@
 }
 
 .modal-btn-primary {
-  color: #17806b;
+  color: var(--brand, #17806b);
   font-weight: 600;
 }

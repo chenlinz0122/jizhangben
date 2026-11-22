@@ -20,7 +20,7 @@
 
 .chip.on {
   background: #e8f5f0;
-  color: #17806b;
+  color: var(--brand, #17806b);
   font-weight: 600;
 }
 

@@ -6,7 +6,7 @@
 }
 
 .hero {
-  background: linear-gradient(160deg, #1a8f76 0%, #12695a 100%);
+  background: var(--hero-bg, linear-gradient(160deg, #1a8f76 0%, #12695a 100%));
   color: #ffffff;
   padding: 0 40rpx 52rpx;
   border-radius: 0 0 40rpx 40rpx;
@@ -146,7 +146,7 @@
   height: 40rpx;
   border-radius: 20rpx;
   background: #e3f0ec;
-  color: #17806b;
+  color: var(--brand, #17806b);
   font-size: 22rpx;
   text-align: center;
   line-height: 40rpx;

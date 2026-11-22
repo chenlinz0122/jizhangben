@@ -1,7 +1,13 @@
 /* 意见反馈：不依赖登录态，云函数用 openid 认人（用于限频和回复） */
 
+var theme = require('../../utils/theme')
+
 Page({
+  onShow: function () {
+    this.setData({ themeKey: theme.get().key })
+  },
   data: {
+    themeKey: 'green',
     types: [
       { key: 'bug', name: '算错了 / 有 bug' },
       { key: 'idea', name: '功能建议' },

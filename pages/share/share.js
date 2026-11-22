@@ -31,8 +31,11 @@ function withInitial(list) {
   return out
 }
 
+var theme = require('../../utils/theme')
+
 Page({
   data: {
+    themeKey: 'green',
     joined: false,
     name: '',
     code: '',
@@ -67,6 +70,7 @@ Page({
   },
 
   onShow: function () {
+    this.setData({ themeKey: theme.get().key })
     if (this.data.joined) this.load()
   },
 

@@ -1,5 +1,5 @@
 <!-- pages/login/login - 登录 / 完善资料 -->
-<view class="login-page">
+<view class="theme-{{themeKey}} login-page">
 
   <!-- Logo 区 -->
   <view class="logo-area">

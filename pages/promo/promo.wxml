@@ -1,5 +1,5 @@
 <!-- pages/promo/promo - 推广得会员（发帖 / 评论换会员，人工审核） -->
-<view class="page {{dark ? 'dark' : ''}}">
+<view class="theme-{{themeKey}} page {{dark ? 'dark' : ''}}">
   <view class="hero">
     <text class="h1">推广得会员</text>
     <text class="h2">在抖音 / 小红书 / B站 / 公众号 推荐记账Book，按浏览量换会员</text>

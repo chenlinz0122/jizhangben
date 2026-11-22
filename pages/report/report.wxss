@@ -24,7 +24,7 @@
 }
 
 .hero {
-  background: linear-gradient(160deg, #1a8f76 0%, #12695a 100%);
+  background: var(--hero-bg, linear-gradient(160deg, #1a8f76 0%, #12695a 100%));
   padding: 70rpx 32rpx 34rpx;
   border-radius: 0 0 32rpx 32rpx;
   box-shadow: 0 16rpx 36rpx rgba(18, 105, 90, 0.18);
@@ -76,7 +76,7 @@
 
 .sg.on {
   background: #ffffff;
-  color: #17806b;
+  color: var(--brand, #17806b);
   font-weight: 600;
 }
 
@@ -171,7 +171,7 @@
 .more {
   text-align: center;
   font-size: 22rpx;
-  color: #17806b;
+  color: var(--brand, #17806b);
   padding: 10rpx 0 4rpx;
 }
 
@@ -189,7 +189,7 @@
   text-align: center;
   font-size: 28rpx;
   line-height: 1;
-  color: #17806b;
+  color: var(--brand, #17806b);
   padding: 8rpx 0;
 }
 
@@ -342,7 +342,7 @@
 }
 
 .mval.on {
-  color: #17806b;
+  color: var(--brand, #17806b);
   font-weight: 600;
 }
 
@@ -368,7 +368,7 @@
 }
 
 .mbar.expense.on {
-  background: #17806b;
+  background: var(--brand, #17806b);
 }
 
 .mbar.income.on {
@@ -390,7 +390,7 @@
 }
 
 .mlab.on {
-  color: #17806b;
+  color: var(--brand, #17806b);
   font-weight: 600;
 }
 
@@ -441,7 +441,7 @@
 }
 
 .mrank.top {
-  color: #17806b;
+  color: var(--brand, #17806b);
 }
 
 .mcol2 {
@@ -590,7 +590,7 @@
 
 .link {
   font-size: 24rpx;
-  color: #17806b;
+  color: var(--brand, #17806b);
 }
 
 .links {
@@ -606,7 +606,7 @@
 
 .bpct {
   font-weight: 600;
-  color: #17806b;
+  color: var(--brand, #17806b);
 }
 
 .bpct.over {
@@ -687,7 +687,7 @@
 .cbbud {
   font-size: 24rpx;
   font-weight: 500;
-  color: #17806b;
+  color: var(--brand, #17806b);
 }
 
 .cbbud.off {
@@ -759,7 +759,7 @@
 }
 
 .cell.lv4 {
-  background: #17806b;
+  background: var(--brand, #17806b);
 }
 
 .cd {
@@ -792,7 +792,7 @@
 .sw.lv1 { background: #e9efec; }
 .sw.lv2 { background: #c4d9cd; }
 .sw.lv3 { background: #8fbfa8; }
-.sw.lv4 { background: #17806b; }
+.sw.lv4 { background: var(--brand, #17806b); }
 
 .lgtext {
   font-size: 20rpx;
@@ -845,7 +845,7 @@
   font-size: 24rpx;
   font-weight: 600;
   color: #ffffff;
-  background: linear-gradient(135deg, #1a8f76, #12695a);
+  background: var(--hero-bg, linear-gradient(135deg, #1a8f76, #12695a));
   box-shadow: 0 6rpx 16rpx rgba(23, 128, 107, 0.24);
 }
 
@@ -919,7 +919,7 @@
 
 .ysg.on {
   background: #ffffff;
-  color: #17806b;
+  color: var(--brand, #17806b);
   font-weight: 600;
   box-shadow: 0 4rpx 10rpx rgba(23, 128, 107, 0.12);
 }
@@ -1054,7 +1054,7 @@
   margin-left: 12rpx;
   padding: 2rpx 12rpx;
   border-radius: 8rpx;
-  background: linear-gradient(135deg, #1a8f76, #12695a);
+  background: var(--hero-bg, linear-gradient(135deg, #1a8f76, #12695a));
   color: #ffffff;
   font-size: 20rpx;
   letter-spacing: 2rpx;
@@ -1075,7 +1075,7 @@
   line-height: 84rpx;
   text-align: center;
   border-radius: 44rpx;
-  background: linear-gradient(135deg, #1a8f76, #12695a);
+  background: var(--hero-bg, linear-gradient(135deg, #1a8f76, #12695a));
   color: #ffffff;
   font-size: 29rpx;
   font-weight: 600;

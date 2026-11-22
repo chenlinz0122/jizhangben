@@ -1,5 +1,5 @@
 <!-- pages/share/share - 共同账本 -->
-<view class="page {{dark ? 'dark' : ''}}">
+<view class="theme-{{themeKey}} page {{dark ? 'dark' : ''}}">
   <view class="hero">
     <text class="h1">共同账本</text>
     <text class="h2">一个账本最多 10 个人：谁记的都能看到，也能只看自己记的</text>

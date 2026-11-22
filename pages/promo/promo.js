@@ -2,8 +2,14 @@
 var config = require('../../utils/config')
 var darkmode = require('../../utils/darkmode')
 
+var theme = require('../../utils/theme')
+
 Page({
+  onShow: function () {
+    this.setData({ themeKey: theme.get().key })
+  },
   data: {
+    themeKey: 'green',
     platforms: ['抖音', '小红书', 'B站', '公众号'],
     pIdx: 0,
     views: '',

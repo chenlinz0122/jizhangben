@@ -1,3 +1,38 @@
+/* ---------- 配色主题 ----------
+ * 变量挂在页面根节点的 .theme-xxx 上（各页 wxml 根节点写 class="... theme-{{themeKey}}"），
+ * 页面里的主色用 var(--brand) / var(--hero-bg) 取，换一套主题全站跟着变。
+ * 没挂 theme 类的地方会自动回落到 var(--brand, 原来的绿色)，不会坏。
+ */
+.theme-green {
+  --brand: #17806b;
+  --brand-ink: #0f5f50;
+  --brand-soft: #e7f5ef;
+  --brand-line: #cfe0da;
+  --hero-bg: linear-gradient(160deg, #1a8f76 0%, #12695a 100%);
+  --hero-bg-dark: linear-gradient(160deg, #145247 0%, #0c3730 100%);
+  --hero-shadow: 0 16rpx 36rpx rgba(18, 105, 90, 0.2);
+}
+
+.theme-ink {
+  --brand: #2f5d8a;
+  --brand-ink: #1f4468;
+  --brand-soft: #e8eff7;
+  --brand-line: #cfdcea;
+  --hero-bg: linear-gradient(160deg, #33638f 0%, #22486c 100%);
+  --hero-bg-dark: linear-gradient(160deg, #223f5e 0%, #182b42 100%);
+  --hero-shadow: 0 16rpx 36rpx rgba(34, 72, 108, 0.22);
+}
+
+.theme-amber {
+  --brand: #b96a2b;
+  --brand-ink: #8f4d18;
+  --brand-soft: #fbeee2;
+  --brand-line: #ecdccb;
+  --hero-bg: linear-gradient(160deg, #c17a38 0%, #9a5822 100%);
+  --hero-bg-dark: linear-gradient(160deg, #7a4520 0%, #4d2b14 100%);
+  --hero-shadow: 0 16rpx 36rpx rgba(154, 88, 34, 0.22);
+}
+
 page {
   background: #f3f5f6;
   color: #1c1f23;
@@ -42,20 +77,20 @@ page {
 }
 
 .btn {
-  background: linear-gradient(135deg, #1a8f76 0%, #17806b 100%);
+  background: var(--hero-bg, linear-gradient(135deg, #1a8f76 0%, #17806b 100%));
   color: #ffffff;
   border-radius: 20rpx;
   text-align: center;
   padding: 26rpx;
   font-size: 30rpx;
   font-weight: 500;
-  box-shadow: 0 10rpx 24rpx rgba(23, 128, 107, 0.22);
+  box-shadow: var(--hero-shadow, 0 10rpx 24rpx rgba(23, 128, 107, 0.22));
 }
 
 .btn.plain {
   background: #ffffff;
-  color: #17806b;
-  border: 2rpx solid #cfe0da;
+  color: var(--brand, #17806b);
+  border: 2rpx solid var(--brand-line, #cfe0da);
   box-shadow: none;
 }
 

@@ -16,8 +16,14 @@ var DEMO = [
   '2026-11-12 15:33:07\t\t不知名小店\t现金消费\t支出\t12.00\t现金\t交易成功\t20261112008\t\t'
 ].join('\n')
 
+var theme = require('../../utils/theme')
+
 Page({
+  onShow: function () {
+    this.setData({ themeKey: theme.get().key })
+  },
   data: {
+    themeKey: 'green',
     text: '',
     preview: null,
     result: null,

@@ -7,8 +7,14 @@
 var account = require('../../utils/account')
 var vip = require('../../utils/vip')
 
+var theme = require('../../utils/theme')
+
 Page({
+  onShow: function () {
+    this.setData({ themeKey: theme.get().key })
+  },
   data: {
+    themeKey: 'green',
     avatar: '',
     nick: '',
     agreed: false,

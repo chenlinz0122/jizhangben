@@ -22,7 +22,7 @@
 
 .nav {
   font-size: 40rpx;
-  color: #17806b;
+  color: var(--brand, #17806b);
   width: 48rpx;
   text-align: center;
 }
@@ -91,13 +91,13 @@
 
 .chip.on {
   background: #e3f0ec;
-  color: #17806b;
+  color: var(--brand, #17806b);
   font-weight: 500;
 }
 
 /* 返回按钮：跨 tab 跳转没有原生返回箭头，得自己给一个 */
 .chip.back {
-  background: #17806b;
+  background: var(--brand, #17806b);
   color: #ffffff;
   font-weight: 600;
 }
@@ -389,12 +389,12 @@
   padding: 22rpx 0;
   border-radius: 16rpx;
   font-size: 26rpx;
-  color: #17806b;
+  color: var(--brand, #17806b);
   background: #e3f0ec;
 }
 
 .act.on {
-  background: #17806b;
+  background: var(--brand, #17806b);
   color: #ffffff;
 }
 
@@ -418,10 +418,10 @@
 }
 
 .shcat.on {
-  color: #17806b;
+  color: var(--brand, #17806b);
   font-weight: 600;
 }
 
 .shcheck {
-  color: #17806b;
+  color: var(--brand, #17806b);
 }

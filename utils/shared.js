@@ -255,7 +255,7 @@ function pullAndMerge(bookId, cb) {
 /* 一次完整同步：先推后拉，回调里给「新增几条」 */
 function sync(cb) {
   var b = current()
-  if (!b || !b.bookId) { cb && cb({ ok: false, msg: '还没加入共同账本' }); return }
+  if (!b || !b.bookId) { cb && cb({ ok: false, msg: '还没加入共同账本：先在「共同账本」页创建一本，或输入 6 位邀请码加入' }); return }
   pushPending(b.bookId, function (p) {
     pullAndMerge(b.bookId, function (r) {
       if (!r || !r.ok) { cb && cb(r || { ok: false }); return }

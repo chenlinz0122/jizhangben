@@ -106,7 +106,7 @@
     <text class="p-go">去看看 ›</text>
   </view>
 
-  <text class="foot">账本只存这台手机 · 换设备不会自动同步</text>
+  <text class="foot">账本存在这台手机 · 开通共同账本后才会和成员同步</text>
 
   <!-- 配色：三套主题，点一下立即换 -->
   <view class="themebar">

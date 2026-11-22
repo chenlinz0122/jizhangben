@@ -22,7 +22,7 @@
       <text>收支结余 {{s.netSign}}¥{{s.netText}}</text>
       <block wx:if="{{s.refundText !== '0.00'}}">
         <text class="hdot">·</text>
-        <text class="hswitch" bindtap="toggleRefund">退款 ¥{{s.refundText}} {{s.refundOut ? '未计入' : '计入入账'}} · 点这里改</text>
+        <text class="hswitch" bindtap="toggleRefund">退款 ¥{{s.refundText}} {{s.refundOut ? '已抵消' : '计入入账'}} · 点这里改</text>
       </block>
       <block wx:if="{{s.investText !== '0.00'}}">
         <text class="hdot">·</text>
@@ -269,7 +269,7 @@
     </block>
 
     <text class="hint" wx:else>设一个月度预算，超了这里会变红提醒你。随时能改。</text>
-    <text class="hint" wx:if="{{budgetRefundText !== '0.00'}}">预算按扣除退款后的金额算：本月退款 ¥{{budgetRefundText}} 已经从已花里减掉了（收支统计里退款{{s.refundOut ? '不计入' : '计入'}}，两套口径互不影响）。</text>
+    <text class="hint" wx:if="{{budgetRefundText !== '0.00'}}">预算按扣除退款后的金额算：本月退款 ¥{{budgetRefundText}} 已经从已花里减掉了（收支统计里退款{{s.refundOut ? '同样抵消掉' : '算作入账'}}，两套口径算出来一样）。</text>
 
     <!-- 分类预算清单：类目一次列全，点一行填额度 -->
     <view class="cblist" wx:if="{{catBudgetOpen}}">

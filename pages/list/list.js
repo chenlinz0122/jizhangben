@@ -129,7 +129,8 @@ Page({
 
       tCount++
       if (t.type === 'expense') tExp += t.amount
-      /* 收入合计：退款默认不计入（开关在「⋯ 管理」里） */
+      /* 口径默认「抵消」：退款那笔不算收入，也从支出里扣回去（开关在「⋯ 管理」里） */
+      else if (t.type === 'refund' && prefs.refundExcluded()) tExp -= t.amount
       if (t.type === 'income' || (t.type === 'refund' && !prefs.refundExcluded())) tInc += t.amount
 
       if (!cur || cur.day !== t.day) {
@@ -165,9 +166,9 @@ Page({
         byLabel: byNick ? shared.labelOf(byNick) : ''
       }
       cur.items.push(row)
-      /* 小计只算支出的原价：退款不冲减，否则「今天退了上个月买的东西」会让当天小计变成负数，
-       * 也跟报表「共支出=原价」、分类金额的口径对不上。退款在行内以 +¥ 显示、计入入账。 */
+      /* 小计跟月度口径一致：退款那笔从当天支出里扣掉（退款日 ≠ 消费日，扣成负数就显示 0） */
       if (t.type === 'expense') cur.spend += t.amount
+      else if (t.type === 'refund' && prefs.refundExcluded()) cur.spend -= t.amount
     }
 
     groups.forEach(function (g) {
@@ -180,7 +181,7 @@ Page({
       searching: searching,
       groups: groups,
       s: {
-        expenseText: format.money(tExp),
+        expenseText: format.money(Math.max(tExp, 0)),
         incomeText: format.money(tInc),
         count: tCount
       }
@@ -446,8 +447,8 @@ Page({
       ? '会员（已开通 · 至 ' + vip.dateText(vip.expireAt()) + '）'
       : '会员 · 输入卡密开通'
     var refundItem = prefs.refundExcluded()
-      ? '退款：不计入收支（点一下改成计入）'
-      : '退款：计入收支（点一下改成不计入）'
+      ? '退款：抵消支出（点一下改成计入）'
+      : '退款：计入入账（点一下改成抵消）'
     wx.showActionSheet({
       itemList: [vipItem, refundItem, '删除 ' + format.monthLabel(ym) + ' 的全部流水', '清空全部数据（含分类规则）'],
       success: function (res) {
@@ -459,13 +460,14 @@ Page({
     })
   },
 
-  /* 退款算不算收支：一键切，切完本页立刻按新口径重算；
-   * 首页、总览、报表读同一个开关，切回去看也是新数字。预算不受影响，仍按退款抵扣。 */
+  /* 退款怎么算：一键切，切完本页立刻按新口径重算；
+   * 首页、总览、报表读同一个开关，切回去看也是新数字。
+   * 默认「抵消」：退款不进收入、同时把支出扣回去；另一种是退款算入账、支出按原价。 */
   toggleRefund: function () {
     var next = prefs.setRefundExcluded(!prefs.refundExcluded())
     this.refresh()
     wx.showToast({
-      title: next ? '退款已不计入收支' : '退款已计入收支',
+      title: next ? '退款已抵消，支出同步减少' : '退款已计入入账',
       icon: 'none'
     })
   },

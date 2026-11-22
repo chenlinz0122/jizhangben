@@ -223,8 +223,14 @@ Page({
       /* 分类预算的「已花」要扣掉这个类目的退款，不能拿原价去比额度 */
       var netAmt = Math.max(Math.round((bs.byCat[c.name] || 0) * 100) / 100, 0)
       var backAmt = Math.max(Math.round((c.amount - netAmt) * 100) / 100, 0)
+      /* 默认「抵消」口径下，分类金额也按扣完退款后的净额展示，跟顶部「共支出」对得上 */
+      var showAmt = s.refundOut ? netAmt : c.amount
+      var showPct = (s.refundOut && s.expense > 0)
+        ? Math.round((showAmt / s.expense) * 1000) / 10
+        : c.pct
       return {
-        name: c.name, amountText: c.amountText, pct: c.pct, count: c.count,
+        _amt: showAmt,
+        name: c.name, amountText: format.money(showAmt), pct: showPct, count: c.count,
         color: c.color, icon: category.iconOf(c.name), tint: category.tintOf(c.name), deltaText: deltaText, deltaDir: deltaDir,
         budget: bud,
         budgetText: bud > 0 ? format.money(bud) : '',
@@ -233,6 +239,9 @@ Page({
         budgetPct: bud > 0 ? Math.min(100, Math.round((netAmt / bud) * 100)) : 0,
         budgetOver: bud > 0 && netAmt > bud
       }
+    }).filter(function (c) {
+      /* 抵消口径下被退款退干净的类目不再占一行 */
+      return !(s.refundOut && c._amt <= 0)
     })
 
     var incCats = s.byIncome.map(function (c) {
@@ -388,10 +397,14 @@ Page({
       }),
       selDayText: ''
     }, function () {
-      self.drawPie(kind === 'income' ? 'piein' : 'pie', self._cats, {
+      var cid = kind === 'income' ? 'piein' : 'pie'
+      var opt = {
         text: '¥' + (kind === 'income' ? self.data.s.incomeText : self.data.s.expenseText),
         label: kind === 'income' ? '本月入账' : '本月支出'
-      })
+      }
+      self.drawPie(cid, self._cats, opt)
+      /* 页面从别处切进来时 canvas 可能还没挂上，稍后再补绘一次 */
+      setTimeout(function () { self.drawPie(cid, self._cats, opt) }, 500)
     })
   },
 
@@ -414,6 +427,9 @@ Page({
         if (t.type === 'income' || (!prefs.refundExcluded() && t.type === 'refund')) raw[dd - 1] += t.amount
       } else if (t.type === 'expense') {
         raw[dd - 1] += t.amount
+      } else if (t.type === 'refund' && prefs.refundExcluded()) {
+        /* 抵消口径：退款抵在当天支出上（负数下面会被夹成 0） */
+        raw[dd - 1] -= t.amount
       }
     }
 
@@ -472,7 +488,6 @@ Page({
         return
       }
       var canvas = res[0].node
-      var ctx = canvas.getContext('2d')
       var w = res[0].width
       var h = res[0].height
 
@@ -481,6 +496,8 @@ Page({
 
       canvas.width = w * dpr
       canvas.height = h * dpr
+      /* 先改 canvas 宽高再取 context：设 width 会重置画布状态 */
+      var ctx = canvas.getContext('2d')
       ctx.scale(dpr, dpr)
       ctx.clearRect(0, 0, w, h)
 
@@ -668,11 +685,11 @@ Page({
     wx.switchTab({ url: '/pages/list/list' })
   },
 
-  /* 退款怎么算：点顶部那行「退款 ¥x 未计入 · 点这里改」直接切 */
+  /* 退款怎么算：点顶部那行「退款 ¥x 已抵消 · 点这里改」直接切 */
   toggleRefund: function () {
     var next = prefs.setRefundExcluded(!prefs.refundExcluded())
     this.refresh()
-    wx.showToast({ title: next ? '退款已不计入收支' : '退款已计入收支', icon: 'none' })
+    wx.showToast({ title: next ? '退款已抵消，支出同步减少' : '退款已计入入账', icon: 'none' })
   },
 
   setBudget: function () {

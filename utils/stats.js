@@ -52,7 +52,7 @@ function summary(txs, ym) {
       bump(expMap, t.category, t.amount)
     } else if (t.type === 'refund') {
       refund += t.amount
-      /* 不计入收支时，退款不进收入构成；金额仍留在 refund 字段，想单独看还有 */
+      /* 抵消口径下退款不进收入构成；金额仍留在 refund 字段，报表顶部单独显示 */
       if (!outRefund) bump(incMap, '退款', t.amount)
     } else {
       transfer += t.amount
@@ -60,11 +60,15 @@ function summary(txs, ym) {
     }
   }
 
-  /* 口径（默认「退款不计入收支」）
-   *   不计入：进账 = 收入，支出 = 花的原价，结余 = 收入 - 支出（退款只显示）
-   *   计入  ：进账 = 收入 + 退款，支出 = 花的原价 - 退款，结余 = 进账 - 支出 */
+  /* 口径（默认「退款抵消」）
+   *   抵消（默认）：退款那笔既不进收入、也不进支出，等于这笔钱没花也没赚 ——
+   *                 支出 = 花的原价 - 退款，进账 = 收入，结余 = 进账 - 支出
+   *   计入        ：退款算进账、支出按原价；结余数值与抵消相同，只是展示方式不同
+   *                  （两种口径结余一致：收入 + 退款 - 原价 = 收入 - (原价 - 退款)） */
+  var expenseNet = Math.max(expense - refund, 0)
+  var expenseTotal = outRefund ? expenseNet : expense
   var incomeTotal = outRefund ? income : income + refund
-  var netExpense = outRefund ? expense : Math.max(expense - refund, 0)
+  var net = incomeTotal - expenseTotal
   var expList = toList(expMap)
   var incList = toList(incMap)
   var trList = toList(trMap)
@@ -86,13 +90,13 @@ function summary(txs, ym) {
     incomeTotal: incomeTotal,
     expenseGross: expense,
     refund: refund,
-    expense: expense,
-    expenseNet: netExpense,
+    expense: expenseTotal,
+    expenseNet: expenseNet,
     transfer: transfer,
     invest: invest,
     loan: loan,
     acct: acct,
-    net: incomeTotal - expense,
+    net: net,
     byCat: expList,
     byIncome: incList,
     byTransfer: trList,
@@ -125,7 +129,7 @@ function daysInMonth(ym) {
   return new Date(parseInt(p[0], 10), parseInt(p[1], 10), 0).getDate()
 }
 
-/* 本月每天的支出与入账热力（退款默认不计入入账，也不冲减当天支出） */
+/* 本月每天的支出与入账热力（默认口径下退款抵在当天支出上，不计入入账） */
 function calendar(txs, ym) {
   var outRefund = prefs.refundExcluded()
   var p = ym.split('-')
@@ -146,8 +150,11 @@ function calendar(txs, ym) {
     var cell = arr[dd - 1]
     if (!cell) continue
     if (t.type === 'expense') cell.amount += t.amount
-    else if (t.type === 'refund') { if (!outRefund) cell.income += t.amount }
-    else if (t.type === 'income') cell.income += t.amount
+    else if (t.type === 'refund') {
+      /* 抵消：退款冲减当天的支出；计入：算当天的入账 */
+      if (outRefund) cell.amount -= t.amount
+      else cell.income += t.amount
+    } else if (t.type === 'income') cell.income += t.amount
   }
 
   var max = 0
@@ -201,7 +208,8 @@ function insights(txs, ym) {
     if (!maxTx || t.amount > maxTx.amount) maxTx = t
   }
 
-  var net = expense   /* 退款已算进账，这里就是原价支出 */
+  /* 洞察看的是「实际花了多少」，退款回来了就不算花，两种口径都按净额算 */
+  var net = Math.max(expense - refund, 0)
 
   return {
     net: net,
@@ -350,8 +358,9 @@ function yearSummary(txs, year) {
     }
   }
 
+  var expenseTotal = outRefund ? Math.max(expense - refund, 0) : expense
   var incomeTotal = outRefund ? income : income + refund
-  var net = incomeTotal - expense
+  var net = incomeTotal - expenseTotal
   var topAll = rankList(toList(expMap, expense))
   var topAllIn = rankList(toList(incMap, incomeTotal))
   var top = topAll.slice(0, 3)
@@ -359,10 +368,11 @@ function yearSummary(txs, year) {
   return {
     year: year,
     count: count,
-    expense: expense,
+    expense: expenseTotal,
+    expenseGross: expense,
     incomeTotal: incomeTotal,
     net: net,
-    expenseText: format.money(expense),
+    expenseText: format.money(expenseTotal),
     incomeText: format.money(incomeTotal),
     netText: format.money(Math.abs(net)),
     netSign: net < 0 ? '-' : '',

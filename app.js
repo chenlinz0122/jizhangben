@@ -35,13 +35,14 @@ App({
         this.globalData.cloudReady = false
       }
 
-      /* 第一次装到新环境时，让云端把 codes / members / feedbacks 建好并灌入卡密。
-         本地打一个记号，之后不再重复调用（服务端自己也是幂等的） */
+      /* 第一次装到新环境时，让云端把 codes / members / feedbacks / invites 建好并灌入卡密。
+         本地打一个记号，之后不再重复调用（服务端自己也是幂等的）。
+         v1 → v2：永久卡那批码是后来加的，换一次记号让老用户也补灌一遍（逐条查重，不会重复） */
       try {
-        if (!wx.getStorageSync('cloud_inited_v1')) {
+        if (!wx.getStorageSync('cloud_inited_v2')) {
           wx.cloud.callFunction({ name: 'vip', data: { action: 'initdb' } })
             .then(function (res) {
-              if (res && res.result && res.result.ok) wx.setStorageSync('cloud_inited_v1', 1)
+              if (res && res.result && res.result.ok) wx.setStorageSync('cloud_inited_v2', 1)
             })
             .catch(function () {})
         }

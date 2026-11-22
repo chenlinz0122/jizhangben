@@ -13,10 +13,22 @@ var theme = require('../../utils/theme')
 var darkmode = require('../../utils/darkmode')
 var shared = require('../../utils/shared')
 var prefs = require('../../utils/prefs')
+var refundpair = require('../../utils/refundpair')
 
-/* 退款和付款配对用的键：同商户名 + 同金额（按分比较） */
-function refundKey(t) {
-  return String(t.merchant || '').trim().toLowerCase() + '|' + Math.round((t.amount || 0) * 100)
+/* '2026-11' → '2026-10'，'2026-01' → '2025-12' */
+function monthBefore(ym) {
+  var y = parseInt(ym.slice(0, 4), 10)
+  var m = parseInt(ym.slice(5, 7), 10)
+  if (m === 1) { y -= 1; m = 12 } else { m -= 1 }
+  return y + '-' + (m < 10 ? '0' + m : '' + m)
+}
+
+/* '2026-11' → '2026-12'，'2026-12' → '2027-01' */
+function monthAfter(ym) {
+  var y = parseInt(ym.slice(0, 4), 10)
+  var m = parseInt(ym.slice(5, 7), 10)
+  if (m === 12) { y += 1; m = 1 } else { m += 1 }
+  return y + '-' + (m < 10 ? '0' + m : '' + m)
 }
 
 function greetText() {
@@ -176,24 +188,29 @@ Page({
 
     var recent = []
     var refundOut = prefs.refundExcluded()
-    /* 抵消口径下，退款和它对应的那笔付款配成对，两条都不进最近流水 */
-    var refundPool = {}
+    /* 抵消口径下，退款和它对应的付款成对处理：全额退款两条都不进最近流水，
+       部分退款只显示一行净额（规则跟流水页同一个 utils/refundpair.js）。
+       配对范围同样是「本月记录 + 上月支出 + 下月退款」，跨月退款才有付款可配、
+       付款那一页也能跟着变成净额。 */
+    var pr = null
     if (refundOut) {
-      for (var r = 0; r < txs.length; r++) {
-        var rt = txs[r]
-        if (rt.ym !== ym || rt.type !== 'refund') continue
-        var rk = refundKey(rt)
-        refundPool[rk] = (refundPool[rk] || 0) + 1
+      var prevYm = monthBefore(ym)
+      var nextYm = monthAfter(ym)
+      var pairInput = []
+      for (var p = 0; p < txs.length; p++) {
+        var px = txs[p]
+        if (px.ym === ym) pairInput.push(px)
+        else if (px.ym === prevYm && px.type === 'expense') pairInput.push(px)
+        else if (px.ym === nextYm && px.type === 'refund') pairInput.push(px)
       }
+      pr = refundpair.pair(pairInput)
     }
     for (var i = 0; i < txs.length && recent.length < 5; i++) {
       var t = txs[i]
       if (t.ym !== ym) continue
-      if (t.type === 'refund' && refundOut) continue
-      if (refundOut && t.type === 'expense') {
-        var ek = refundKey(t)
-        if (refundPool[ek] > 0) { refundPool[ek]--; continue }
-      }
+      if (pr && pr.hideId[t.id]) continue
+      var netAmt = t.amount
+      if (pr && t.type === 'expense' && pr.leftOf[t.id] !== undefined) netAmt = pr.leftOf[t.id]
       recent.push({
         id: t.id,
         merchant: t.merchant || '未填写商户',
@@ -201,7 +218,7 @@ Page({
         color: category.colorOf(t.category),
         icon: category.iconOf(t.category),
         tint: category.tintOf(t.category),
-        amountText: format.money(t.amount),
+        amountText: format.money(netAmt),
         timeText: format.shortTime(t.time),
         type: t.type,
         sign: (t.type === 'income' || t.type === 'refund') ? '+' : (t.type === 'transfer' ? '' : '-')

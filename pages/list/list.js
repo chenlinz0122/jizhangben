@@ -5,12 +5,24 @@ var category = require('../../utils/category')
 var vip = require('../../utils/vip')
 var shared = require('../../utils/shared')
 var prefs = require('../../utils/prefs')
+var refundpair = require('../../utils/refundpair')
 
 var theme = require('../../utils/theme')
 
-/* 退款和付款配对用的键：同商户名 + 同金额（按分比较，避免浮点误差） */
-function pairKey(t) {
-  return String(t.merchant || '').trim().toLowerCase() + '|' + Math.round((t.amount || 0) * 100)
+/* '2026-11' → '2026-10'，'2026-01' → '2025-12' */
+function monthBefore(ym) {
+  var y = parseInt(ym.slice(0, 4), 10)
+  var m = parseInt(ym.slice(5, 7), 10)
+  if (m === 1) { y -= 1; m = 12 } else { m -= 1 }
+  return y + '-' + (m < 10 ? '0' + m : '' + m)
+}
+
+/* '2026-11' → '2026-12'，'2026-12' → '2027-01' */
+function monthAfter(ym) {
+  var y = parseInt(ym.slice(0, 4), 10)
+  var m = parseInt(ym.slice(5, 7), 10)
+  if (m === 12) { y += 1; m = 1 } else { m += 1 }
+  return y + '-' + (m < 10 ? '0' + m : '' + m)
 }
 
 Page({
@@ -131,34 +143,40 @@ Page({
       filtered.push(t)
     }
 
-    /* 第二遍：抵消口径下，「同一商户 + 同一金额」的退款和它对应的那笔付款配成一对，
-       两条都不显示、都不占笔数——这笔钱当没发生过。
-       配不上对的退款（部分退款 / 改了商户名）仍然从当月支出里扣掉。 */
-    var skipId = {}
-    var unmatchedRefund = 0
-    var unmatchedByDay = {}
-    var pairs = 0
-    if (refundOut) {
-      var expKey = {}
-      for (var a = 0; a < filtered.length; a++) {
-        var ex = filtered[a]
-        if (ex.type !== 'expense') continue
-        var ek = pairKey(ex)
-        if (!expKey[ek]) expKey[ek] = []
-        expKey[ek].push(ex)
-      }
-      for (var b = 0; b < filtered.length; b++) {
-        var rf = filtered[b]
-        if (rf.type !== 'refund') continue
-        skipId[rf.id] = true
-        var bucket = expKey[pairKey(rf)]
-        if (bucket && bucket.length) {
-          skipId[bucket.shift().id] = true
-          pairs++
-        } else {
-          unmatchedRefund += rf.amount
-          unmatchedByDay[rf.day] = (unmatchedByDay[rf.day] || 0) + rf.amount
-        }
+    /* 第二遍：抵消口径下把退款和它对应的那笔付款配对（规则见 utils/refundpair.js）
+       —— 全额退款：退款行 + 付款行一起从列表里消失；
+          部分退款：退款行消失，付款行金额改成扣完退款后的净额，并标一句「已退 ¥x」。
+       两条永远成对处理，不会再出现「只删掉其中一条」的半截状态。
+
+       配对范围 = 这一屏的记录 + 上个月的支出 + 下个月的退款。
+       上月支出是为了「上月付款、这个月退款」能成对；下月退款是为了让上个月那一页
+       也能看见「这笔付款已经被退掉了」，不然用户在两个月份之间来回翻，还是会看到单边。
+       只借支出/退款里缺的那一半，不整本账全塞进来，免得历史退款反过来把本月支出吃光。 */
+    var prevYm = monthBefore(ym)
+    var nextYm = monthAfter(ym)
+    var pairInput = filtered.slice()
+    for (var ps = 0; ps < txs.length; ps++) {
+      var pt = txs[ps]
+      var borrowExp = (pt.ym === prevYm && pt.type === 'expense')
+      var borrowRef = (pt.ym === nextYm && pt.type === 'refund')
+      if (!borrowExp && !borrowRef) continue
+      if (this.data.sharedOn && this.data.scope === 'mine' && !shared.isMine(pt)) continue
+      pairInput.push(pt)
+    }
+    var pr = refundOut
+      ? refundpair.pair(pairInput)
+      : { hideId: {}, leftOf: {}, refundedOf: {}, pairs: [], unmatchedAmount: 0 }
+    var skipId = pr.hideId
+
+    /* 配上的付款如果不在这一屏（跨月、被分类筛选挡掉），这屏看不到那笔付款，
+       金额只能从本屏支出合计里扣，并在提示里说清楚 */
+    var inView = {}
+    for (var iv = 0; iv < filtered.length; iv++) inView[filtered[iv].id] = true
+    var crossAmount = 0
+    for (var cq = 0; cq < pr.pairs.length; cq++) {
+      var cpr = pr.pairs[cq]
+      if (!inView[cpr.expense.id]) {
+        crossAmount = Math.round((crossAmount + cpr.amount) * 100) / 100
       }
     }
 
@@ -173,7 +191,11 @@ Page({
       if (skipId[tx.id]) continue
 
       tCount++
-      if (tx.type === 'expense') tExp += tx.amount
+      var netAmt = tx.amount
+      if (tx.type === 'expense') {
+        netAmt = (pr.leftOf[tx.id] === undefined) ? tx.amount : pr.leftOf[tx.id]
+        tExp += netAmt
+      }
       if (tx.type === 'income' || (tx.type === 'refund' && !refundOut)) tInc += tx.amount
 
       if (!cur || cur.day !== tx.day) {
@@ -193,7 +215,8 @@ Page({
         id: tx.id,
         merchant: tx.merchant || '（没有商户名）',
         category: tx.category,
-        amountText: format.money(tx.amount),
+        amountText: format.money(netAmt),
+        refundedText: pr.refundedOf[tx.id] ? format.money(pr.refundedOf[tx.id]) : '',
         timeText: format.pad(new Date(tx.time).getHours()) + ':' + format.pad(new Date(tx.time).getMinutes()),
         type: tx.type,
         sign: (tx.type === 'income' || tx.type === 'refund') ? '+' : (tx.type === 'transfer' ? '' : '-'),
@@ -209,25 +232,39 @@ Page({
         byLabel: byNick ? shared.labelOf(byNick) : ''
       }
       cur.items.push(row)
-      if (tx.type === 'expense') cur.spend += tx.amount
+      if (tx.type === 'expense') cur.spend += netAmt
     }
 
-    /* 没配上对的退款仍要从本月合计里扣掉，并在它所在那天冲减小计 */
-    tExp -= unmatchedRefund
+    /* 合并后合计仍要准确：付款不在这屏的退款，以及极端情况下整本账都找不到支出的退款，
+       都从本屏支出里扣掉 */
+    tExp -= (crossAmount + pr.unmatchedAmount)
 
     var note = ''
     if (!searching && refundOut) {
-      if (pairs > 0 && unmatchedRefund > 0) {
-        note = '退款已抵进支出：' + pairs + ' 组退款连付款一起剔除，另有 ¥' + format.money(unmatchedRefund) + ' 从支出里扣'
-      } else if (pairs > 0) {
-        note = '退款和它对应的付款已一起剔除，共 ' + pairs + ' 组'
-      } else if (unmatchedRefund > 0) {
-        note = '退款 ¥' + format.money(unmatchedRefund) + ' 已抵进支出，列表里不再单列'
+      var fullCnt = 0
+      var partCnt = 0
+      for (var q = 0; q < filtered.length; q++) {
+        var et = filtered[q]
+        if (et.type !== 'expense' || !pr.refundedOf[et.id]) continue
+        if (pr.refundedOf[et.id] >= et.amount - 0.01) fullCnt++
+        else partCnt++
+      }
+      if (fullCnt > 0 && partCnt > 0) {
+        note = '退款已配对：' + fullCnt + ' 组全额退款连付款一起剔除，' + partCnt + ' 笔部分退款并进付款按净额显示'
+      } else if (fullCnt > 0) {
+        note = fullCnt + ' 组全额退款已连对应的付款一起剔除'
+      } else if (partCnt > 0) {
+        note = partCnt + ' 笔退款已并进对应的付款，按净额显示'
+      }
+      if (crossAmount > 0.005) {
+        note += (note ? '；' : '') + '另有 ¥' + format.money(crossAmount) + ' 退款对应的是别的月份的付款，那一笔已同步冲减，本屏只扣金额'
+      }
+      if (pr.unmatchedAmount > 0.005) {
+        note += (note ? '；' : '') + '另有 ¥' + format.money(pr.unmatchedAmount) + ' 退款整本账都没找到付款，已从支出里扣'
       }
     }
 
     groups.forEach(function (g) {
-      if (unmatchedByDay[g.day]) g.spend -= unmatchedByDay[g.day]
       g.spendText = format.money(Math.max(g.spend, 0))
     })
 

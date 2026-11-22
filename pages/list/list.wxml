@@ -50,6 +50,7 @@
             <text class="bytag" wx:if="{{item.byLabel}}">{{item.byLabel}} 标记的</text>
           </view>
           <text class="isub">{{item.category}} · {{item.timeText}}<text class="notedot" wx:if="{{item.note}}"> · 有备注</text></text>
+          <text class="irefund" wx:if="{{item.refundedText}}">已退 ¥{{item.refundedText}}</text>
           <text class="idesc" wx:if="{{item.desc}}">{{item.desc}}</text>
         </view>
         <text class="iamt {{item.type === 'income' || item.type === 'refund' ? 'inc' : (item.type === 'transfer' ? 'muted' : 'exp')}}">{{item.sign}}{{item.amountText}}</text>

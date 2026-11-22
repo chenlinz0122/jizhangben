@@ -211,6 +211,14 @@
   margin-top: 6rpx;
 }
 
+/* 部分退款：告诉用户这笔原本多少、退了多少，现在显示的是净额 */
+.irefund {
+  display: block;
+  font-size: 21rpx;
+  color: #1f7a4d;
+  margin-top: 4rpx;
+}
+
 /* 行内的商品说明：账单里的「美团-机票」这种关键信息 */
 .idesc {
   display: block;

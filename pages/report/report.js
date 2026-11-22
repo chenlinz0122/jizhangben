@@ -5,6 +5,15 @@ var category = require('../../utils/category')
 var vip = require('../../utils/vip')
 var prefs = require('../../utils/prefs')
 var darkmode = require('../../utils/darkmode')
+var refundpair = require('../../utils/refundpair')
+
+function monthShift(ym, delta) {
+  var y = parseInt(ym.slice(0, 4), 10)
+  var m = parseInt(ym.slice(5, 7), 10) + delta
+  while (m < 1) { m += 12; y -= 1 }
+  while (m > 12) { m -= 12; y += 1 }
+  return y + '-' + (m < 10 ? '0' + m : '' + m)
+}
 
 /* 按类型排个名：支出看花得最多，入账看进得最多 */
 function topBy(txs, ym, kind, n) {
@@ -203,6 +212,28 @@ Page({
 
     /* 支出分类带环比 + 分类预算 */
     var cb = store.catBudgets()
+    /* 分类净额：跟流水页用同一套「退款—付款」配对来算，
+       这样从报表点进某个分类，看到的合计和这里一模一样 */
+    var catNet = {}
+    var prNet = null
+    if (s.refundOut) {
+      var pairIn = []
+      var pmYm = monthShift(ym, -1)
+      var nmYm = monthShift(ym, 1)
+      for (var pi = 0; pi < txs.length; pi++) {
+        var pt2 = txs[pi]
+        if (pt2.ym === ym) pairIn.push(pt2)
+        else if (pt2.ym === pmYm && pt2.type === 'expense') pairIn.push(pt2)
+        else if (pt2.ym === nmYm && pt2.type === 'refund') pairIn.push(pt2)
+      }
+      prNet = refundpair.pair(pairIn)
+      for (var ci = 0; ci < txs.length; ci++) {
+        var ct = txs[ci]
+        if (ct.ym !== ym || ct.type !== 'expense') continue
+        var lv = (prNet.leftOf[ct.id] === undefined) ? ct.amount : prNet.leftOf[ct.id]
+        catNet[ct.category] = Math.round(((catNet[ct.category] || 0) + lv) * 100) / 100
+      }
+    }
     var expCats = s.byCat.map(function (c) {
       var prev = cmp.amountOf(c.name)
       var deltaText = ''
@@ -221,7 +252,9 @@ Page({
       }
       var bud = cb[c.name] || 0
       /* 分类预算的「已花」要扣掉这个类目的退款，不能拿原价去比额度 */
-      var netAmt = Math.max(Math.round((bs.byCat[c.name] || 0) * 100) / 100, 0)
+      var netAmt = prNet
+        ? Math.max(Math.round((catNet[c.name] || 0) * 100) / 100, 0)
+        : Math.max(Math.round((bs.byCat[c.name] || 0) * 100) / 100, 0)
       var backAmt = Math.max(Math.round((c.amount - netAmt) * 100) / 100, 0)
       /* 默认「抵消」口径下，分类金额也按扣完退款后的净额展示，跟顶部「共支出」对得上 */
       var showAmt = s.refundOut ? netAmt : c.amount

@@ -146,20 +146,19 @@ Page({
     /* 第二遍：抵消口径下把退款和它对应的那笔付款配对（规则见 utils/refundpair.js）
        —— 全额退款：退款行 + 付款行一起从列表里消失；
           部分退款：退款行消失，付款行金额改成扣完退款后的净额，并标一句「已退 ¥x」。
-       两条永远成对处理，不会再出现「只删掉其中一条」的半截状态。
+       退款行在任何视图下都不显示（从报表点进来、按分类筛选也一样）。
 
-       配对范围 = 这一屏的记录 + 上个月的支出 + 下个月的退款。
-       上月支出是为了「上月付款、这个月退款」能成对；下月退款是为了让上个月那一页
-       也能看见「这笔付款已经被退掉了」，不然用户在两个月份之间来回翻，还是会看到单边。
-       只借支出/退款里缺的那一半，不整本账全塞进来，免得历史退款反过来把本月支出吃光。 */
+       配对的取材不看当前这屏的筛选：一律用「这个月的全部流水 + 上个月支出 + 下个月退款」。
+       否则从报表点某个分类进来时，退款对应的付款被筛选挡掉，配对失败就会漏出退款行。 */
     var prevYm = monthBefore(ym)
     var nextYm = monthAfter(ym)
-    var pairInput = filtered.slice()
+    var pairInput = []
     for (var ps = 0; ps < txs.length; ps++) {
       var pt = txs[ps]
+      var inMonth = (pt.ym === ym)
       var borrowExp = (pt.ym === prevYm && pt.type === 'expense')
       var borrowRef = (pt.ym === nextYm && pt.type === 'refund')
-      if (!borrowExp && !borrowRef) continue
+      if (!inMonth && !borrowExp && !borrowRef) continue
       if (this.data.sharedOn && this.data.scope === 'mine' && !shared.isMine(pt)) continue
       pairInput.push(pt)
     }
@@ -169,20 +168,17 @@ Page({
     var skipId = pr.hideId
 
     /* 配上的付款如果不在这一屏（跨月、被分类筛选挡掉），这屏看不到那笔付款，
-       金额只能从本屏支出合计里扣。跨月本来就是常态，不再单独提示。 */
+       金额只能从本屏支出合计里扣。只算「退款本身在这屏里」的那些配对：
+       从报表点某个分类进来时，本屏一条退款都没有，就不该跟着扣别屏的钱。 */
     var inView = {}
     for (var iv = 0; iv < filtered.length; iv++) inView[filtered[iv].id] = true
     var crossAmount = 0
     for (var cq = 0; cq < pr.pairs.length; cq++) {
       var cpr = pr.pairs[cq]
-      if (!inView[cpr.expense.id]) {
+      if (inView[cpr.refund.id] && !inView[cpr.expense.id]) {
         crossAmount = Math.round((crossAmount + cpr.amount) * 100) / 100
       }
     }
-
-    /* 没配上付款的退款：不硬配，就让它自己留在列表里，行内标一句「未配到付款」 */
-    var unmatchedId = {}
-    for (var um = 0; um < pr.unmatched.length; um++) unmatchedId[pr.unmatched[um].id] = true
 
     var groups = []
     var cur = null
@@ -215,9 +211,8 @@ Page({
 
       /* 谁记的：别人的记录带名字（有备注就显示备注）；自己的不挂，进账本页之前一律不挂 */
       var byNick = (this.data.sharedOn && tx.by && tx.byMe === false) ? String(tx.by) : ''
-      var isUnmatchedRefund = !!unmatchedId[tx.id]
       var sign = '+'
-      if (tx.type === 'transfer' || isUnmatchedRefund) sign = ''
+      if (tx.type === 'transfer') sign = ''
       else if (tx.type === 'expense') sign = '-'
       var row = {
         id: tx.id,
@@ -232,7 +227,6 @@ Page({
         icon: category.iconOf(tx.category),
         tint: category.tintOf(tx.category),
         isUncat: tx.category === '未分类',
-        isUnmatchedRefund: isUnmatchedRefund,
         /* 行内也把说明带出来：账单里的「美团-机票」这种关键信息，藏在详情里等于没有 */
         desc: tx.desc || '',
         note: tx.note || '',
@@ -249,7 +243,11 @@ Page({
     tExp -= (crossAmount + pr.unmatchedAmount)
 
     var note = ''
-    if (!searching && refundOut) {
+    /* 只有「整月视图」才给这句配对汇总；从报表点分类/搜关键词进来时，配对整个月发生，
+       写在筛选结果上面会让人以为被筛掉的也在这一屏 */
+    var plainView = !searching && !this.data.filterCat && !this.data.filterDay &&
+      !this.data.filterKind && !this.data.onlyUncat
+    if (plainView && refundOut) {
       var fullCnt = 0
       var partCnt = 0
       for (var q = 0; q < filtered.length; q++) {

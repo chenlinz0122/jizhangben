@@ -153,8 +153,9 @@ function pair(txs) {
       pairs.length = pairsBefore
       unmatched.push(r)
       unmatchedAmount = round2(unmatchedAmount + round2(r.amount))
-      /* 这一条不再隐藏：让它留在列表里，用户能看到「这笔退款没配上」 */
-      delete hideId[r.id]
+      /* 列表上一律不显示退款行（宁可留着一笔不配，也不让它单独露头）；
+         金额仍从当月支出合计里扣，顶部用一句汇总说明 */
+      hideId[r.id] = true
     }
   }
 

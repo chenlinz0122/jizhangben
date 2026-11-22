@@ -64,7 +64,7 @@ function tx(id, type, merchant, amount, day) {
   ]
   var r = rp.pair(list)
   ok(r.hideId.e4 === undefined, '退款早于付款：付款不动')
-  ok(r.hideId.r4 === undefined, '退款早于付款：退款留着')
+  ok(r.hideId.r4 === true, '退款早于付款：退款也不显示')
   ok(r.unmatchedAmount === 30, '退款早于付款：记为未配对 30')
 })()
 
@@ -109,7 +109,7 @@ function tx(id, type, merchant, amount, day) {
   ok(r.hideId.e7 === undefined, '名字金额都不同：付款不动')
   ok(r.leftOf.e7 === 320, '名字金额都不同：付款保持原价 320')
   ok(r.refundedOf.e7 === undefined, '名字金额都不同：付款不应被记已退')
-  ok(r.hideId.r7 === undefined, '名字金额都不同：退款留着自己显示')
+  ok(r.hideId.r7 === true, '名字金额都不同：退款不显示')
   ok(r.unmatchedAmount === 12.5, '名字金额都不同：记为未配对 12.5')
   ok(r.pairs.length === 0, '名字金额都不同：不应产生任何配对')
 })()
@@ -148,7 +148,7 @@ function tx(id, type, merchant, amount, day) {
 ;(function () {
   var list = [tx('r10', 'refund', '某商家', 88, '2026-11-11')]
   var r = rp.pair(list)
-  ok(r.hideId.r10 === undefined, '孤立退款：留在列表里')
+  ok(r.hideId.r10 === true, '孤立退款：一样不显示')
   ok(r.unmatchedAmount === 88, '孤立退款：未配对金额 88')
 })()
 
@@ -162,7 +162,7 @@ function tx(id, type, merchant, amount, day) {
   ok(r.leftOf.e11 === 60, '只配一半：付款恢复原价 60')
   ok(r.refundedOf.e11 === undefined, '只配一半：付款不应被记已退')
   ok(r.hideId.e11 === undefined, '只配一半：付款不隐藏')
-  ok(r.hideId.r11 === undefined, '只配一半：退款留在列表里')
+  ok(r.hideId.r11 === true, '只配一半：退款不显示')
   ok(r.pairs.length === 0, '只配一半：不应留下半截配对')
   ok(r.unmatchedAmount === 100, '只配一半：整笔记未配对 100')
 })()

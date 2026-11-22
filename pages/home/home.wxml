@@ -14,12 +14,12 @@
     </view>
 
     <view class="mcard">
-      <text class="mlab">本月支出 · {{monthText}}</text>
-      <text class="mnum">¥{{s.expenseText}}</text>
+      <text class="mlab">本月结余 · {{monthText}}</text>
+      <text class="mnum">{{s.netSign}}¥{{s.netText}}</text>
       <view class="mrow">
-        <text class="mcell">入账 ¥{{s.incomeText}}</text>
+        <text class="mcell">支出 ¥{{s.expenseText}}</text>
         <text class="mdot">·</text>
-        <text class="mcell">结余 {{s.netSign}}¥{{s.netText}}</text>
+        <text class="mcell">入账 ¥{{s.incomeText}}</text>
         <text class="mdot">·</text>
         <text class="mcell">{{s.count}} 笔</text>
       </view>

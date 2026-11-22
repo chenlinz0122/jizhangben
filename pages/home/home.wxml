@@ -1,121 +1,95 @@
-<!-- pages/home/home - 首页 -->
-<view class="theme-{{themeKey}} wrap {{dark ? 'dark' : ''}}">
+<view class="home-page theme-{{themeKey}} {{dark ? 'dark' : ''}}">
+  <view class="home-heading">
+    <view class="heading-copy">
+      <text class="eyebrow">把日子记清楚</text>
+      <text class="greeting">{{greeting}}{{isLogin ? '，' + nick : ''}}</text>
+    </view>
+    <button class="profile-button" bindtap="goMine" aria-label="前往我的">
+      <image wx:if="{{avatar}}" class="profile-image" src="{{avatar}}" mode="aspectFill" />
+      <view wx:else class="ui-icon icon-user"></view>
+    </button>
+  </view>
 
-  <!-- 顶部绿卡：问候 + 本月数字 -->
-  <view class="hero theme-{{themeKey}}">
-    <view class="toprow" bindtap="tapAvatar">
-      <image wx:if="{{avatar}}" class="av" src="{{avatar}}" mode="aspectFill" />
-      <view wx:else class="av av-ph">👤</view>
-      <view class="who">
-        <text class="hi">{{greeting}}{{isLogin ? '，' + nick : ''}}</text>
-        <text class="sub">{{isLogin ? vipText : '点这里登录，给首页起个名'}}</text>
+  <view class="balance-card">
+    <view class="balance-top">
+      <view class="month-picker">
+        <button class="month-arrow" bindtap="prevMonth" aria-label="上个月">‹</button>
+        <picker mode="date" fields="month" value="{{ym}}" end="{{maxYm}}" bindchange="pickMonth">
+          <view class="month-value">{{monthText}}<text class="picker-caret">⌄</text></view>
+        </picker>
+        <button class="month-arrow {{!canNext ? 'off' : ''}}" bindtap="nextMonth" disabled="{{!canNext}}" aria-label="下个月">›</button>
       </view>
-      <view class="vipchip {{isVip ? 'on' : ''}}" catchtap="goVip">{{isVip ? '会员' : '开通会员'}}</view>
+      <button wx:if="{{!isCurrent}}" class="current-button" bindtap="currentMonth">回本月</button>
+      <text wx:else class="month-badge">本月</text>
     </view>
-
-    <view class="mcard">
-      <text class="mlab">本月结余 · {{monthText}}</text>
-      <text class="mnum">{{s.netSign}}¥{{s.netText}}</text>
-      <view class="mrow">
-        <text class="mcell">支出 ¥{{s.expenseText}}</text>
-        <text class="mdot">·</text>
-        <text class="mcell">入账 ¥{{s.incomeText}}</text>
-        <text class="mdot">·</text>
-        <text class="mcell">{{s.count}} 笔</text>
-      </view>
-      <view class="mref" bindtap="toggleRefund">
-        <text class="mref-t">退款 ¥{{s.refundText}} · {{s.refundOut ? '已抵消' : '计入入账'}}</text>
-        <text class="mref-a">点这里改 ›</text>
-      </view>
+    <text class="balance-label">{{scopeLabel ? scopeLabel + ' · ' : ''}}收支结余</text>
+    <view class="balance-value"><text class="currency">{{s.netSign}}¥</text><text>{{s.netText}}</text></view>
+    <view class="balance-grid">
+      <view class="balance-metric"><text class="metric-label">入账</text><text class="metric-number">¥{{s.incomeText}}</text></view>
+      <view class="balance-metric"><text class="metric-label">{{s.refundOut ? '净支出' : '支出'}}</text><text class="metric-number">¥{{s.expenseText}}</text></view>
+      <view class="balance-metric count-metric"><text class="metric-label">记录</text><text class="metric-number">{{s.count}}<text class="unit"> 笔</text></text></view>
+    </view>
+    <view class="refund-line" wx:if="{{s.refundText !== '0.00'}}" bindtap="toggleRefund">
+      <text>退款 ¥{{s.refundText}} · {{s.refundOut ? '按到账日抵减' : '计入入账'}}</text><text>切换 ›</text>
     </view>
   </view>
 
-  <!-- 四个常用入口 -->
-  <view class="quick">
-    <view class="qcell" bindtap="goAdd">
-      <view class="qico q-add">✍️</view>
-      <text class="qname">记一笔</text>
-      <text class="qsub">手动记账</text>
-    </view>
-    <view class="qcell" bindtap="goShot">
-      <view class="qico q-shot">📷</view>
-      <text class="qname">截图识别</text>
-      <text class="qsub">店员小票也行</text>
-    </view>
-    <view class="qcell" bindtap="goImport">
-      <view class="qico q-imp">📥</view>
-      <text class="qname">账单导入</text>
-      <text class="qsub">微信 / 支付宝</text>
-    </view>
-    <view class="qcell" bindtap="goReport">
-      <view class="qico q-rep">📊</view>
-      <text class="qname">报表</text>
-      <text class="qsub">{{isVip ? '全部已开' : '部分免费'}}</text>
+  <view class="home-scope" wx:if="{{sharedJoined}}">
+    <text class="scope-title">账本视角</text>
+    <view class="scope-options">
+      <button class="scope-choice {{scope === 'mine' ? 'selected' : ''}}" data-k="mine" bindtap="setScope">自己</button>
+      <button class="scope-choice {{scope === 'both' ? 'selected' : ''}}" data-k="both" bindtap="setScope">全部成员</button>
+      <button class="scope-choice {{scope === 'peer' ? 'selected' : ''}}" data-k="peer" bindtap="setScope">其他成员</button>
     </view>
   </view>
 
-  <!-- 未分类提醒 -->
-  <view class="notice" wx:if="{{uncatCount > 0}}" bindtap="goUncat">
-    <text class="n-t">还有 {{uncatCount}} 笔没分类</text>
-    <text class="n-l">{{isVip ? '点这里让 AI 补一下 ›' : '点这里去手动补 ›'}}</text>
+  <view class="quick-grid">
+    <button class="quick-action primary" bindtap="goAdd"><view class="quick-icon"><view class="ui-icon icon-plus"></view></view><text class="quick-name">记一笔</text><text class="quick-note">随手记录</text></button>
+    <button class="quick-action" bindtap="goShot"><view class="quick-icon"><view class="ui-icon icon-scan"></view></view><text class="quick-name">截图识别</text><text class="quick-note">从图片记账</text></button>
+    <button class="quick-action" bindtap="goImport"><view class="quick-icon"><view class="ui-icon icon-import"></view></view><text class="quick-name">账单导入</text><text class="quick-note">微信 / 支付宝</text></button>
+    <button class="quick-action" bindtap="goReport"><view class="quick-icon"><view class="ui-icon icon-chart"></view></view><text class="quick-name">看报表</text><text class="quick-note">了解钱的去向</text></button>
   </view>
 
-  <!-- 最近流水 -->
-  <view class="card">
-    <view class="between">
-      <text class="title inline">最近流水 · 本月<text class="scopetip" wx:if="{{scopeLabel}}">· {{scopeLabel}}</text></text>
-      <text class="morelink" bindtap="goList">全部 ›</text>
-    </view>
+  <view class="home-card" wx:if="{{isVip}}" bindtap="goBudget">
+    <view class="section-heading"><text class="section-title">月度预算</text><text class="section-link">{{budget > 0 ? '管理' : '去设置'}} ›</text></view>
+    <block wx:if="{{budget > 0}}">
+      <view class="budget-numbers"><text>已用 <text class="budget-value">¥{{budgetSpentText}}</text></text><text class="secondary">/ ¥{{budgetText}}</text></view>
+      <view class="budget-track"><view class="budget-fill {{budgetOver ? 'over' : ''}}" style="width:{{budgetPct}}%"></view></view>
+      <view class="budget-caption"><text class="{{budgetOver ? 'warning' : ''}}">{{budgetOver ? '超出' : '剩余'}} ¥{{budgetLeftText}}</text><text>{{scopeLabel || '全部账目'}} · 已扣当月退款</text></view>
+    </block>
+    <text wx:else class="secondary budget-empty">给日常开销定个范围，花钱更有数。</text>
+  </view>
 
-    <!-- 空账本：别只写一行「还没记账」，给两条能立刻走的路 -->
-    <view class="emptybox" wx:if="{{!hasData}}">
-      <text class="eb-ico">📒</text>
-      <text class="eb-t">这个月还没有一笔账</text>
-      <text class="eb-s">手记一笔 30 秒；或者把微信 / 支付宝账单直接传上来，一次进一整个月。</text>
-      <view class="eb-btns">
-        <view class="eb-btn main" bindtap="goAdd">记第一笔</view>
-        <view class="eb-btn" bindtap="goImport">导入账单</view>
-      </view>
-    </view>
+  <view class="uncat-notice" wx:if="{{uncatCount > 0}}" bindtap="goUncat"><view class="notice-dot"></view><text>{{uncatCount}} 笔本人记录待分类</text><text class="section-link">去整理 ›</text></view>
 
-    <view class="row" wx:for="{{recent}}" wx:key="id" bindtap="goList">
-      <view class="ric" style="background:{{item.tint}}"><text class="ric-em">{{item.icon}}</text></view>
-      <view class="rmid">
-        <text class="rname">{{item.merchant}}</text>
-        <text class="rmeta">{{item.category}} · {{item.timeText}}</text>
-      </view>
-      <text class="ramt {{item.type === 'income' || item.type === 'refund' ? 'inc' : ''}}">{{item.sign}}¥{{item.amountText}}</text>
+  <view class="home-card" wx:if="{{cats.length > 0}}">
+    <view class="section-heading"><text class="section-title">{{s.refundOut ? '净支出去向' : '支出去向'}}</text><text class="section-link" bindtap="goReport">完整分析 ›</text></view>
+    <view class="category-row" wx:for="{{cats}}" wx:key="name" data-name="{{item.name}}" bindtap="goCategory">
+      <view class="category-label"><view class="category-dot" style="background:{{item.color}}"></view><text>{{item.name}}</text></view>
+      <view class="category-meter"><view style="width:{{item.pct}}%;background:{{item.color}}"></view></view>
+      <text class="category-amount">¥{{item.amountText}}</text>
     </view>
   </view>
 
-  <!-- 共同账本入口：没加入时是邀请，加入了显示账本名 -->
-  <view class="promo share" bindtap="goShare">
-    <view class="p-left">
-      <text class="p-title">{{sharedJoined ? sharedName : '共同账本'}}</text>
-      <text class="p-desc">{{sharedJoined ? (sharedMembers > 1 ? '账本里 ' + sharedMembers + ' 人 · 点这里同步 / 邀请' : '点这里邀请家人室友，谁记的都能看到') : '几个人记同一本账，谁记的都能看到'}}</text>
+  <view class="home-card recent-card">
+    <view class="section-heading"><text class="section-title">最近流水</text><text class="section-link" bindtap="goList">当月全部 ›</text></view>
+    <view class="home-empty" wx:if="{{!hasData}}">
+      <view class="empty-mark"><view class="ui-icon icon-book"></view></view>
+      <text class="empty-title">{{isCurrent ? '从这一笔开始' : '这个月还没有记录'}}</text>
+      <text class="empty-note">{{isCurrent ? '认真生活，也把每一笔小事记下。' : '可以导入历史账单，或切换月份查看。'}}</text>
+      <button class="empty-action" bindtap="goAdd">记一笔</button>
     </view>
-    <text class="p-go">{{sharedJoined ? '去同步 ›' : '去开通 ›'}}</text>
-  </view>
-
-  <!-- 免费版会员引导 -->
-  <view class="promo" wx:if="{{!isVip}}" bindtap="goVip">
-    <view class="p-left">
-      <text class="p-title">解锁更多分析</text>
-      <text class="p-desc">每日趋势 · 6 个月对比 · 年度汇总 · 商户排行 · 预算 · AI 补分类</text>
-    </view>
-    <text class="p-go">去看看 ›</text>
-  </view>
-
-  <text class="foot">账本存在这台手机 · 开通共同账本后才会和成员同步</text>
-
-  <!-- 配色：三套主题，点一下立即换 -->
-  <view class="themebar">
-    <text class="tb-label">配色</text>
-    <view class="tb-dot {{themeKey === item.key ? 'on' : ''}}" wx:for="{{themes}}" wx:key="key"
-          data-key="{{item.key}}" bindtap="pickTheme" style="background:{{item.color}}">
-      <text class="tb-name">{{item.name}}</text>
+    <text class="refund-empty" wx:elif="{{recent.length === 0}}">本月仅有退款抵减，已计入汇总；当月流水可查看每日抵减额。</text>
+    <view class="recent-row" wx:for="{{recent}}" wx:key="id" data-id="{{item.id}}" bindtap="openRecent">
+      <view class="category-initial" style="color:{{item.color}}">{{item.initial}}</view>
+      <view class="recent-copy"><text class="recent-merchant">{{item.merchant}}</text><text class="recent-meta">{{item.category}} · {{item.timeText}}{{item.byLabel ? ' · ' + item.byLabel : ''}}</text></view>
+      <text class="recent-amount {{item.type === 'income' || item.type === 'refund' ? 'income' : ''}}">{{item.sign}}¥{{item.amountText}}</text>
     </view>
   </view>
 
-  <view class="foot-link" bindtap="openFeedback">有问题 / 想要新功能？点这里反馈 ›</view>
+  <view class="shared-strip" wx:if="{{sharedJoined}}">
+    <view class="shared-copy" bindtap="goShare"><text class="shared-title">{{sharedName}}</text><text class="shared-status">{{sharedStatus || '已加入共同账本'}} · 管理 / 邀请 ›</text></view>
+    <button class="sync-button" catchtap="doSync" disabled="{{sharedSyncing}}" loading="{{sharedSyncing}}">{{sharedScopeRequired ? '确认范围' : '同步'}}</button>
+  </view>
+  <text class="home-footer">账目先存本机 · 备份与设置在「我的」</text>
 </view>

@@ -168,6 +168,17 @@
   padding: 36rpx 0 0;
 }
 
+/* 弹层收起后的说明：这一页只看不动，改动去流水页 */
+.shnote {
+  display: block;
+  margin: 0 40rpx;
+  padding: 24rpx 0 48rpx;
+  font-size: 22rpx;
+  line-height: 1.7;
+  color: #9aa0a6;
+  text-align: center;
+}
+
 /* ---------- 单笔详情弹层 ---------- */
 .mask {
   position: fixed;

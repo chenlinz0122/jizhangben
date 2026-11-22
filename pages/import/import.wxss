@@ -148,6 +148,15 @@
   color: #1f7a4d;
 }
 
+/* 导入结果那行字：新增 / 合并 / 跳过各多少 */
+.dtxt {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 25rpx;
+  line-height: 1.7;
+  color: #1f7a4d;
+}
+
 .foot {
   text-align: center;
   font-size: 22rpx;

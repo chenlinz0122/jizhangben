@@ -1,71 +1,119 @@
-<view class="theme-{{themeKey}} wrap">
-  <view class="hero">
-    <view class="statusbar"></view>
-    <view class="month">
-      <view class="nav" bindtap="prevMonth">‹</view>
-      <picker mode="date" fields="month" value="{{ym}}" end="{{maxYm}}" bindchange="pickMonth">
-        <view class="mtext">{{monthText}}<text class="mcaret">▾</text></view>
-      </picker>
-      <view class="nav {{canNext ? '' : 'off'}}" bindtap="nextMonth">›</view>
-    </view>
-
-    <text class="cap">本月结余</text>
-    <view class="big"><text class="cny">{{s.netSign}}¥</text>{{s.netText}}</view>
-
-    <view class="meta">
-      <view class="metai"><text class="meT">收入</text><text class="meN">¥{{s.incomeText}}</text></view>
-      <view class="metai"><text class="meT">支出</text><text class="meN">¥{{s.expenseText}}</text></view>
-      <view class="metai"><text class="meT">流水</text><text class="meN">{{s.count}} 笔</text></view>
-    </view>
+<view class="mine-page theme-{{themeKey}} {{dark ? 'dark' : ''}}">
+  <view class="mine-heading">
+    <text class="mine-title">我的</text>
+    <text class="mine-subtitle">本机账本 · 安心记录</text>
   </view>
 
-  <view class="notice" wx:if="{{s.uncatCount > 0}}" bindtap="goUncat">
-    <text>有 {{s.uncatCount}} 笔还没分类，点这里去处理</text>
-    <text class="nc-arrow">›</text>
-  </view>
-
-  <view class="guide" wx:if="{{!hasData}}">
-    <view class="gtitle">三步开始</view>
-    <view class="gstep"><text class="gn">1</text><text>在支付宝/微信里导出账单明细</text></view>
-    <view class="gstep"><text class="gn">2</text><text>把内容粘进来，点导入</text></view>
-    <view class="gstep"><text class="gn">3</text><text>看报表，顺手改几个分类</text></view>
-    <view class="btn gbtn" bindtap="goImport">去导入账单</view>
-  </view>
-
-  <view class="card" wx:if="{{cats.length > 0}}">
-    <view class="between title">
-      <text>支出构成</text>
-      <text class="muted" bindtap="goReport">报表 ›</text>
-    </view>
-    <view class="cat" wx:for="{{cats}}" wx:key="name">
-      <view class="between">
-        <text class="cname">{{item.name}}</text>
-        <text class="camt">¥{{item.amountText}} · {{item.pct}}%</text>
+  <view class="mine-card">
+    <button class="mine-button profile-row" bindtap="goProfile" disabled="{{busy}}" hover-class="mine-pressed">
+      <view class="profile-avatar">
+        <image wx:if="{{avatar}}" class="avatar-image" src="{{avatar}}" mode="aspectFill" binderror="avatarError" />
+        <text wx:else>{{initial}}</text>
       </view>
-      <view class="track">
-        <view class="fill" style="width:{{item.pct}}%;background:{{item.color}}"></view>
+      <view class="row-copy">
+        <text class="profile-name">{{nick}}</text>
+        <text class="row-note">{{loggedIn ? '编辑昵称与头像' : '登录可选，不影响记账'}}</text>
+      </view>
+      <view class="ui-icon icon-chevron"></view>
+    </button>
+    <view class="local-summary">
+      <view class="record-summary">
+        <text class="summary-label">本机记录</text>
+        <view><text class="record-count">{{recordCount}}</text><text class="record-unit"> 笔</text></view>
+      </view>
+      <view class="backup-summary">
+        <text class="summary-label">最近生成备份</text>
+        <text class="backup-time">{{backupText}}</text>
+        <text class="summary-note">生成后请另存到小程序之外</text>
       </view>
     </view>
   </view>
 
-  <view class="card">
-    <view class="between title">
-      <text>最近流水</text>
-      <text class="muted" bindtap="goList">全部 ›</text>
+  <button class="mine-button membership-strip" bindtap="goVip" disabled="{{busy}}" hover-class="mine-pressed">
+    <view class="row-copy">
+      <text class="membership-title">记账会员</text>
+      <text class="membership-status">{{vipText}}</text>
     </view>
-    <view class="empty" wx:if="{{recent.length === 0}}">这个月还没有记录</view>
-    <view class="item" wx:for="{{recent}}" wx:key="id">
-      <view class="ic" style="background:{{item.tint}}"><text class="ic-em">{{item.icon}}</text></view>
-      <view class="ileft">
-        <text class="im">{{item.merchant}}</text>
-        <text class="isub">{{item.category}} · {{item.timeText}}</text>
+    <text class="membership-action">{{vipAction}}</text>
+    <view class="ui-icon icon-chevron"></view>
+  </button>
+
+  <view class="section-heading"><text>共同账本</text><text class="section-note">本机状态</text></view>
+  <view class="mine-card shared-card">
+    <view class="shared-top">
+      <view class="icon-tile"><view class="ui-icon icon-book"></view></view>
+      <view class="row-copy">
+        <text class="row-title">{{bookName}}</text>
+        <text class="row-note">{{joined ? '已加入 · ' + membersText : '本机暂无已加入的账本'}}</text>
       </view>
-      <text class="iamt {{item.type === 'income' || item.type === 'refund' ? 'inc' : (item.type === 'transfer' ? 'muted' : 'exp')}}">{{item.sign}}{{item.amountText}}</text>
+    </view>
+    <view wx:if="{{joined}}" class="shared-details">
+      <text wx:if="{{memberNames}}" class="member-names">{{memberNames}}</text>
+      <view class="detail-line"><text class="detail-label">最近同步</text><text class="detail-value">{{lastSyncText}}</text></view>
+      <view class="detail-line"><text class="detail-label">共享范围</text><text class="detail-value">{{shareScopeText}}</text></view>
+      <view class="detail-line"><text class="detail-label">查看口径</text><text class="detail-value">{{viewScopeText}} · 不改变上传范围</text></view>
+      <view wx:if="{{!scopeConfirmed}}" class="scope-warning">共享范围尚未确认，请到「管理与邀请」选择范围后再同步。</view>
+      <text class="shared-hint">以上为本机缓存；此页不会自动上传流水。</text>
+    </view>
+    <text wx:else class="shared-intro">创建或加入一个账本，确认共享范围后，再与家人一起记录。</text>
+    <button class="mine-button shared-manage" bindtap="goShare" disabled="{{busy}}" hover-class="mine-pressed">
+      <text>{{joined ? '管理与邀请' : '创建或加入账本'}}</text>
+      <view class="ui-icon icon-chevron"></view>
+    </button>
+  </view>
+
+  <view class="section-heading"><text>数据管理</text><text class="section-note">备份与恢复免费</text></view>
+  <view class="mine-card menu-card">
+    <button class="mine-button menu-row" bindtap="backup" disabled="{{busy}}" hover-class="mine-pressed">
+      <view class="icon-tile"><view class="ui-icon icon-archive"></view></view>
+      <view class="row-copy"><text class="row-title">生成账本备份</text><text class="row-note">全部本机流水、预算与分类规则</text></view>
+      <view class="ui-icon icon-chevron"></view>
+    </button>
+    <button class="mine-button menu-row" bindtap="restore" disabled="{{busy}}" hover-class="mine-pressed">
+      <view class="icon-tile tile-neutral"><view class="ui-icon icon-restore"></view></view>
+      <view class="row-copy"><text class="row-title">从备份恢复</text><text class="row-note">选择 JSON 文件，确认后合并</text></view>
+      <view class="ui-icon icon-chevron"></view>
+    </button>
+    <button class="mine-button menu-row" bindtap="goDataTools" disabled="{{busy}}" hover-class="mine-pressed">
+      <view class="icon-tile tile-neutral"><view class="ui-icon icon-chart"></view></view>
+      <view class="row-copy"><text class="row-title">更多数据工具</text><text class="row-note">前往报表的数据整理区</text></view>
+      <view class="ui-icon icon-chevron"></view>
+    </button>
+  </view>
+  <text wx:if="{{busy}}" class="busy-note">数据工具正在处理，请完成当前操作后再继续。</text>
+
+  <view class="section-heading"><text>使用偏好</text><text class="section-note">仅对本机生效</text></view>
+  <view class="mine-card menu-card">
+    <view class="theme-heading">
+      <view class="icon-tile"><view class="ui-icon icon-palette"></view></view>
+      <view class="row-copy"><text class="row-title">主题配色</text><text class="row-note">深浅外观跟随系统</text></view>
+    </view>
+    <view class="theme-options">
+      <button wx:for="{{themes}}" wx:key="key" class="mine-button theme-option {{themeKey === item.key ? 'is-selected' : ''}}" data-key="{{item.key}}" bindtap="pickTheme" disabled="{{busy}}" hover-class="mine-pressed" aria-label="{{item.name + (themeKey === item.key ? '，已选' : '，未选')}}">
+        <view class="theme-dot dot-{{item.key}}"><view wx:if="{{themeKey === item.key}}" class="theme-check"></view></view>
+        <text class="theme-name">{{item.name}}</text><text class="theme-state">{{themeKey === item.key ? '已选' : '选择'}}</text>
+      </button>
+    </view>
+    <view class="refund-row">
+      <view class="row-copy"><text class="row-title">退款抵减支出</text><text class="row-note">当前：{{refundOut ? '按到账日抵减支出' : '按到账日计入收入'}}</text></view>
+      <switch checked="{{refundOut}}" disabled="{{busy}}" color="{{themeColor}}" bindchange="toggleRefund" aria-label="退款抵减支出" />
     </view>
   </view>
 
-  <view class="actions">
-    <view class="btn plain" bindtap="goImport">导入账单</view>
-    <view class="btn" bindtap="goAdd">记一笔</view>
+  <view class="section-heading"><text>帮助与说明</text></view>
+  <view class="mine-card menu-card">
+    <button class="mine-button menu-row" bindtap="goPrivacy" disabled="{{busy}}" hover-class="mine-pressed">
+      <view class="icon-tile tile-neutral"><view class="ui-icon icon-shield"></view></view>
+      <view class="row-copy"><text class="row-title">隐私与数据说明</text><text class="row-note">了解本机存储与云端功能</text></view>
+      <view class="ui-icon icon-chevron"></view>
+    </button>
+    <button class="mine-button menu-row" bindtap="goFeedback" disabled="{{busy}}" hover-class="mine-pressed">
+      <view class="icon-tile tile-neutral"><view class="ui-icon icon-chat"></view></view>
+      <view class="row-copy"><text class="row-title">意见反馈</text><text class="row-note">问题、建议，都可以告诉我们</text></view>
+      <view class="ui-icon icon-chevron"></view>
+    </button>
   </view>
+
+  <button wx:if="{{loggedIn}}" class="mine-button logout-button" bindtap="logout" disabled="{{busy}}" hover-class="mine-pressed">退出本机资料</button>
+  <view class="mine-footer">认真记录，慢慢生活<text>本机账目请定期备份并另存</text></view>
 </view>

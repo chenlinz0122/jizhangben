@@ -55,6 +55,7 @@ function statusPayload(member) {
     expireAt: expireAt,
     isVip: isVip,
     daysLeft: core.daysLeft(now, expireAt),
+    permanent: core.isPermanent(expireAt),
     lastCode: (member && member.code) || ''
   }
 }
@@ -75,8 +76,9 @@ async function ensureCollection(name) {
 async function seedCodes() {
   const snap = await db.collection(CODES).count()
   const total = (snap && snap.total) || 0
-  if (total > 0) return { seeded: 0, existing: total }
 
+  /* 不再「库里有码就整段跳过」：内置码池会补新批次（比如永久卡），
+     这里逐条查重，只补缺的，重复跑也不会重复灌 */
   let seeded = 0
   for (let i = 0; i < SEED_CODES.length; i += 10) {
     const chunk = SEED_CODES.slice(i, i + 10)
@@ -90,6 +92,7 @@ async function seedCodes() {
           days: doc.days,
           usedBy: '',
           usedAt: 0,
+          soldTo: doc.soldTo || '',
           batch: doc.batch,
           createdAt: doc.createdAt
         }
@@ -160,7 +163,7 @@ async function redeem(openid, rawCode) {
     }
   }
 
-  const days = Number(doc.days) || 365
+  const days = doc.days === -1 ? -1 : (Number(doc.days) || 365)
   const member = await getMember(openid)
   const expireAt = core.calcExpire(Date.now(), member && member.expireAt, days)
 
@@ -181,7 +184,7 @@ async function redeem(openid, rawCode) {
     throw e
   }
 
-  return ok({ expireAt: expireAt, isVip: true, daysLeft: core.daysLeft(Date.now(), expireAt), days: days, openid: openid })
+  return ok({ expireAt: expireAt, isVip: true, permanent: core.isPermanent(expireAt), daysLeft: core.daysLeft(Date.now(), expireAt), days: days, openid: openid })
 }
 
 /* ---------- 邀请好友：双方各 +7 天 ---------- */
@@ -291,6 +294,15 @@ async function accept(openid, rawCode) {
   })
 }
 
+/* 永久卡还剩几个名额：数 codes 里 days=-1 且没用掉的 */
+async function permStock() {
+  const all = await db.collection(CODES).where({ days: -1 }).count()
+  const used = await db.collection(CODES).where({ days: -1, usedBy: _.neq('') }).count()
+  const total = (all && all.total) || 0
+  const left = Math.max(0, total - ((used && used.total) || 0))
+  return ok({ total: total, left: left })
+}
+
 exports.main = async function (event) {
   const wxContext = cloud.getWXContext()
   const openid = wxContext && wxContext.OPENID
@@ -303,6 +315,7 @@ exports.main = async function (event) {
     if (action === 'redeem') return await redeem(openid, event && event.code)
     if (action === 'invite') return await invite(openid)
     if (action === 'accept') return await accept(openid, event && event.code)
+    if (action === 'permStock') return await permStock()
     if (action === 'initdb') return ok(await bootstrap())
     return bad('BAD_ACTION', '不认识的操作：' + action)
   }

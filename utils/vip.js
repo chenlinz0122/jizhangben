@@ -10,6 +10,9 @@
 var KEY = 'vip_member_v1'
 var PENDING_INVITE = 'pending_invite_v1'
 
+/* 跑不死的「永久」：到期日 >= 2200-01-01 就当永久，和后端 core.PERMANENT_AT 一致 */
+var PERMANENT_AT = Date.UTC(2200, 0, 1)
+
 /* 购买渠道文案与邀请口径统一放 utils/config.js，改那一处就行 */
 var config = require('./config')
 
@@ -53,6 +56,10 @@ function isVip() {
   return expireAt() > nowMs()
 }
 
+function isPermanent() {
+  return expireAt() >= PERMANENT_AT
+}
+
 function daysLeft() {
   var left = expireAt() - nowMs()
   return left > 0 ? Math.ceil(left / (24 * 60 * 60 * 1000)) : 0
@@ -72,6 +79,7 @@ function dateText(ms) {
 /* 给页面直接用的一句话状态 */
 function statusText() {
   if (!isVip()) return '未开通会员'
+  if (isPermanent()) return '永久会员'
   var left = daysLeft()
   return '会员有效至 ' + dateText(expireAt()) + '（还剩 ' + left + ' 天）'
 }
@@ -81,6 +89,7 @@ function apply(result) {
   if (!result || !result.ok) return readCache()
   var patch = {
     expireAt: Number(result.expireAt) || 0,
+    permanent: !!result.permanent,
     checkedAt: nowMs()
   }
   if (result.openid) patch.openid = String(result.openid)
@@ -215,6 +224,24 @@ function autoAcceptInvite(cb) {
   })
 }
 
+/* 永久卡剩余名额（卖完就没了，页面上实时显示） */
+function permStock(cb) {
+  var done = typeof cb === 'function' ? cb : function () {}
+  if (!wx.cloud) {
+    done(null)
+    return
+  }
+  wx.cloud.callFunction({
+    name: 'vip',
+    data: { action: 'permStock' },
+    success: function (r) {
+      var res = (r && r.result) || {}
+      done(res.ok ? res : null)
+    },
+    fail: function () { done(null) }
+  })
+}
+
 /* 功能拦截：未开通就弹窗引导到会员页，返回 true 表示放行 */
 function guard(feature) {
   if (isVip()) return true
@@ -237,6 +264,7 @@ module.exports = {
   PENDING_INVITE: PENDING_INVITE,
   KEY: KEY,
   isVip: isVip,
+  isPermanent: isPermanent,
   expireAt: expireAt,
   daysLeft: daysLeft,
   statusText: statusText,
@@ -244,6 +272,7 @@ module.exports = {
   openid: openid,
   refresh: refresh,
   redeem: redeem,
+  permStock: permStock,
   invite: invite,
   acceptInvite: acceptInvite,
   autoAcceptInvite: autoAcceptInvite,
@@ -253,3 +282,4 @@ module.exports = {
   apply: apply,
   guard: guard
 }
+

@@ -5,7 +5,7 @@
   <view class="hero {{isVip ? 'on' : ''}}">
     <view class="hrow">
       <text class="hbadge">{{isVip ? 'VIP 会员' : '免费版'}}</text>
-      <text class="hdays" wx:if="{{isVip}}">还剩 {{daysLeft}} 天</text>
+      <text class="hdays" wx:if="{{isVip}}">{{permanent ? '永久有效' : '还剩 ' + daysLeft + ' 天'}}</text>
     </view>
     <text class="htitle">{{isVip ? '会员已开通' : '把每一笔都看清楚'}}</text>
     <text class="hsub">{{isVip ? statusText : '识别 · 导入 · AI 补分类 · 报表进阶 · 预算，一次全开'}}</text>
@@ -22,11 +22,12 @@
             wx:for-index="idx" data-idx="{{idx}}" bindtap="pickTier">
         <text class="t-name">{{item.name}}</text>
         <text class="t-price">¥{{item.price}}</text>
-        <text class="t-days">{{item.days}} 天</text>
+        <text class="t-days">{{item.daysText}}</text>
         <text class="t-tag" wx:if="{{item.tag}}">{{item.tag}}</text>
       </view>
     </view>
     <text class="tier-note">{{tiers[tierIdx].note}}</text>
+    <text class="tier-note" wx:if="{{permTotal > 0}}">{{permLeft > 0 ? '永久名额还剩 ' + permLeft + ' 个（共 ' + permTotal + ' 个）' : '永久名额已售完'}}</text>
   </view>
 
   <!-- 邀请好友：双方各得 7 天（不花钱也能用上会员） -->

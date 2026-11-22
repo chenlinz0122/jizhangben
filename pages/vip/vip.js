@@ -6,6 +6,7 @@ Page({
     code: '',
     busy: false,
     isVip: false,
+    permanent: false,
     statusText: '',
     expireText: '',
     daysLeft: 0,
@@ -25,10 +26,13 @@ Page({
     /* 档位只用于说明和「拿码时说要哪档」，页面里不放任何支付 */
     tierIdx: 2,
     tiers: [
-      { name: '月卡', days: 30, price: '6.9', tag: '', note: '先试一个月，每天约 0.23 元。' },
-      { name: '季卡', days: 90, price: '15.9', tag: '省 ¥4.8', note: '按月卡算要 20.7，季卡省 4.8。' },
-      { name: '年卡', days: 365, price: '39', tag: '最划算', note: '每天约 0.11 元，一年一次不用惦记。' }
+      { name: '月卡', days: 30, price: '6.9', tag: '', daysText: '30 天', note: '先试一个月，每天约 0.23 元。' },
+      { name: '季卡', days: 90, price: '15.9', tag: '省 ¥4.8', daysText: '90 天', note: '按月卡算要 20.7，季卡省 4.8。' },
+      { name: '年卡', days: 365, price: '39', tag: '最划算', daysText: '365 天', note: '每天约 0.11 元，一年一次不用惦记。' },
+      { name: '永久', days: -1, price: '99', tag: '限量', daysText: '永久有效', note: '一次买断，不再续费；只放 5 个名额，卖完就没了。' }
     ],
+    permLeft: 0,
+    permTotal: 0,
 
     /* 对比表：左边功能，右边两列。— 表示这版没有 */
     compare: [
@@ -126,6 +130,7 @@ Page({
   syncLocal: function () {
     this.setData({
       isVip: vip.isVip(),
+      permanent: vip.isPermanent(),
       statusText: vip.statusText(),
       expireText: vip.expireAt() ? vip.dateText(vip.expireAt()) : '',
       daysLeft: vip.daysLeft()
@@ -136,6 +141,10 @@ Page({
     var self = this
     vip.refresh(function () {
       self.syncLocal()
+    })
+    vip.permStock(function (st) {
+      if (!st) return
+      self.setData({ permLeft: st.left, permTotal: st.total })
     })
   },
 

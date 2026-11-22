@@ -12,6 +12,11 @@ var GROUPS = 4
 var LEN = GROUP * GROUPS
 var DAY = 24 * 60 * 60 * 1000
 
+/* 永久卡：days 传 -1（或 0）就按「永久」算，到期日钉在 2200-01-01，
+   这样数据库里仍然是可比的数字，页面用 isPermanent() 判断显示「永久」 */
+var PERMANENT_AT = Date.UTC(2200, 0, 1)
+var PERMANENT_DAYS = -1
+
 /* 用户手输可能有空格、小写、全角横线 → 先归一化再校验 */
 function normalize(raw) {
   return String(raw == null ? '' : raw).toUpperCase().replace(/[^0-9A-Z]/g, '')
@@ -49,20 +54,29 @@ function randomCode() {
 }
 
 /* 到期日：还没过期就在原到期日上续，已过期则从今天重新算
- * 这样「提前续费」不会把剩余天数吞掉 */
+ * 这样「提前续费」不会把剩余天数吞掉
+ * days = -1 表示永久卡，直接给到 PERMANENT_AT；已是永久的再兑普通卡不变 */
 function calcExpire(nowMs, currentExpire, days) {
   var now = Number(nowMs) || Date.now()
   var cur = Number(currentExpire) || 0
+  if (cur >= PERMANENT_AT) return PERMANENT_AT
+  var n = Number(days)
+  if (!n || n < 0) return PERMANENT_AT
   var base = cur > now ? cur : now
-  var n = Number(days) || 0
   return base + n * DAY
+}
+
+/* 是否算永久会员 */
+function isPermanent(expireAt) {
+  return (Number(expireAt) || 0) >= PERMANENT_AT
 }
 
 /* 批量造码 → 直接就是能导入云数据库的文档结构
  * usedBy 必须是空字符串（不是缺字段），云函数靠它做「条件更新」防重复兑换 */
 function makeCodes(count, days, batch, nowMs) {
   var n = Math.max(1, Math.min(5000, Number(count) || 1))
-  var d = Math.max(1, Number(days) || 365)
+  var raw = Number(days)
+  var d = (!raw || raw < 0) ? -1 : Math.min(5000, raw)
   var out = []
   var seen = {}
   while (out.length < n) {
@@ -97,5 +111,10 @@ module.exports = {
   randomCode: randomCode,
   calcExpire: calcExpire,
   makeCodes: makeCodes,
-  daysLeft: daysLeft
+  daysLeft: daysLeft,
+  PERMANENT_AT: PERMANENT_AT,
+  PERMANENT_DAYS: PERMANENT_DAYS,
+  isPermanent: isPermanent
 }
+
+

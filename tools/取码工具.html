@@ -234,7 +234,7 @@ function render(){
     html += '<tr>'
       + '<td><code>'+d.codeText+'</code></td>'
       + '<td>'+tag+'</td>'
-      + '<td>'+d.days+'</td>'
+      + '<td>'+(d.days > 0 ? d.days + ' 天' : '永久')+'</td>'
       + '<td class="hint">'+d.batch+'</td>'
       + '<td>'+(d.buyer ? esc(d.buyer) : '<span class="hint">—</span>')+'</td>'
       + '<td>'
@@ -257,7 +257,7 @@ document.getElementById('btnTake').addEventListener('click', function(){
   if(!next){ toast('没码了，先补一批'); return }
   var tpl = document.getElementById('tpl').value
     .replace(/\{CODE\}/g, next.codeText)
-    .replace(/\{DAYS\}/g, next.days);
+    .replace(/\{DAYS\}/g, next.days > 0 ? next.days : '永久');
   copy(tpl);
   next.state = 'sold'; next.soldAt = now();
   save(DATA); render();
@@ -277,7 +277,7 @@ document.getElementById('tbody').addEventListener('click', function(e){
     d.state = 'unused'; d.soldAt = 0;
   } else if(act === 'copy'){
     var tpl = document.getElementById('tpl').value
-      .replace(/\{CODE\}/g, d.codeText).replace(/\{DAYS\}/g, d.days);
+      .replace(/\{CODE\}/g, d.codeText).replace(/\{DAYS\}/g, d.days > 0 ? d.days : '永久');
     copy(tpl); toast('已复制：' + d.codeText);
   }
   save(DATA); render();
@@ -303,7 +303,9 @@ document.getElementById('filterState').addEventListener('change', render);
 
 document.getElementById('btnGen').addEventListener('click', function(){
   var n = Math.max(1, Number(document.getElementById('genCount').value)||20);
-  var days = Math.max(1, Number(document.getElementById('genDays').value)||365);
+  /* 填 0 或留空 = 永久卡（days 记 -1，云函数按永久算） */
+  var raw = Number(document.getElementById('genDays').value);
+  var days = (!raw || raw < 0) ? 0 : raw;
   var batch = newBatch();
   var added = [];
   for(var i=0;i<n;i++){
@@ -365,4 +367,5 @@ render();
 </script>
 </body>
 </html>
+
 

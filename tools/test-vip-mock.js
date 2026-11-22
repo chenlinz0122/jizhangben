@@ -11,7 +11,12 @@ function makeDB() {
     if (!store[name]) store[name] = []
     return store[name]
   }
-  const match = (doc, q) => Object.keys(q).every((k) => doc[k] === q[k])
+  const NEQ = '$neq'
+  const match = (doc, q) => Object.keys(q).every((k) => {
+    const want = q[k]
+    if (want && typeof want === 'object' && NEQ in want) return doc[k] !== want[NEQ]
+    return doc[k] === want
+  })
   const api = {
     createCollection(name) {
       if (store[name]) {
@@ -71,6 +76,7 @@ const fake = {
   DYNAMIC_CURRENT_ENV: 'mock-env',
   init() {},
   database() {
+    db.api.command = { neq: (v) => ({ '$neq': v }) }
     return db.api
   },
   getWXContext() {
@@ -105,10 +111,20 @@ const near = (ts, days) => Math.abs(ts - (Date.now() + days * DAY)) < 60000
   /* 1. 首跑自建：建集合 + 灌 70 张码 */
   const init = await call('A', { action: 'initdb' })
   check('initdb ok', init && init.ok === true, init)
-  check('codes 灌了 70 张', (db.store.codes || []).length === 70, { n: (db.store.codes || []).length })
+  check('codes 灌了 75 张（含 5 张永久）', (db.store.codes || []).length === 75, { n: (db.store.codes || []).length })
   check('invites/invite_logs 已建', Array.isArray(db.store.invites) && Array.isArray(db.store.invite_logs))
 
-  /* 2. 老功能没被改坏：兑一张真码 */
+  /* 2. 永久卡：兑完 permanent=true，再兑普通卡也不会缩短 */
+  const p1 = await call('P', { action: 'redeem', code: '49LB-G7GZ-YGYH-BMAT' })
+  check('永久卡兑成功', p1 && p1.ok === true && p1.permanent === true, p1)
+  const p2 = await call('P', { action: 'redeem', code: 'MFSJ-22RL-AYYW-M72U' })
+  check('永久会员再兑 30 天卡仍是永久', p2 && p2.permanent === true, p2)
+  const p3 = await call('P', { action: 'status' })
+  check('status 回报 permanent', p3.permanent === true && p3.isVip === true, p3)
+  const ps = await call('P', { action: 'permStock' })
+  check('永久名额 5 个、用掉 1 剩 4', ps.ok === true && ps.total === 5 && ps.left === 4, ps)
+
+  /* 3. 老功能没被改坏：兑一张真码 */
   const r1 = await call('X', { action: 'redeem', code: 'ZBH8-5BKZ-DECS-474V' })
   check('兑码成功', r1 && r1.ok === true && r1.isVip === true, r1)
   check('365 天到期日正确', near(r1.expireAt, 365), { expireAt: r1.expireAt })
@@ -165,3 +181,5 @@ const near = (ts, days) => Math.abs(ts - (Date.now() + days * DAY)) < 60000
     process.exit(1)
   }
 })()
+
+

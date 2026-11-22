@@ -1,5 +1,6 @@
 var format = require('./format')
 var category = require('./category')
+var prefs = require('./prefs')
 
 function emptyCatMap() {
   return {}
@@ -27,6 +28,7 @@ function toList(map, total) {
  * 某个月的汇总
  */
 function summary(txs, ym) {
+  var outRefund = prefs.refundExcluded()
   var income = 0
   var expense = 0
   var refund = 0
@@ -50,17 +52,19 @@ function summary(txs, ym) {
       bump(expMap, t.category, t.amount)
     } else if (t.type === 'refund') {
       refund += t.amount
-      bump(incMap, '退款', t.amount)
+      /* 不计入收支时，退款不进收入构成；金额仍留在 refund 字段，想单独看还有 */
+      if (!outRefund) bump(incMap, '退款', t.amount)
     } else {
       transfer += t.amount
       bump(trMap, t.category || '转账', t.amount)
     }
   }
 
-  /* 口径：退款算进账，支出按原样统计、不再被退款抵扣
-   *   进账 = 收入 + 退款   支出 = 花的原价   结余 = 进账 - 支出 */
-  var incomeTotal = income + refund
-  var netExpense = Math.max(expense - refund, 0)
+  /* 口径（默认「退款不计入收支」）
+   *   不计入：进账 = 收入，支出 = 花的原价，结余 = 收入 - 支出（退款只显示）
+   *   计入  ：进账 = 收入 + 退款，支出 = 花的原价 - 退款，结余 = 进账 - 支出 */
+  var incomeTotal = outRefund ? income : income + refund
+  var netExpense = outRefund ? expense : Math.max(expense - refund, 0)
   var expList = toList(expMap)
   var incList = toList(incMap)
   var trList = toList(trMap)
@@ -92,7 +96,8 @@ function summary(txs, ym) {
     byCat: expList,
     byIncome: incList,
     byTransfer: trList,
-    uncatCount: uncatCount
+    uncatCount: uncatCount,
+    refundOut: outRefund
   }
 }
 
@@ -120,8 +125,9 @@ function daysInMonth(ym) {
   return new Date(parseInt(p[0], 10), parseInt(p[1], 10), 0).getDate()
 }
 
-/* 本月每天的支出与入账热力（退款计入入账，不冲减当天支出） */
+/* 本月每天的支出与入账热力（退款默认不计入入账，也不冲减当天支出） */
 function calendar(txs, ym) {
+  var outRefund = prefs.refundExcluded()
   var p = ym.split('-')
   var y = parseInt(p[0], 10)
   var m = parseInt(p[1], 10)
@@ -140,7 +146,7 @@ function calendar(txs, ym) {
     var cell = arr[dd - 1]
     if (!cell) continue
     if (t.type === 'expense') cell.amount += t.amount
-    else if (t.type === 'refund') cell.income += t.amount
+    else if (t.type === 'refund') { if (!outRefund) cell.income += t.amount }
     else if (t.type === 'income') cell.income += t.amount
   }
 
@@ -320,6 +326,7 @@ function rankList(list) {
 
 /* 年度汇总：当前自然年的支出 / 入账 / 结余 + 支出、入账两个排行 */
 function yearSummary(txs, year) {
+  var outRefund = prefs.refundExcluded()
   var expense = 0
   var income = 0
   var refund = 0
@@ -339,11 +346,11 @@ function yearSummary(txs, year) {
       bump(incMap, t.category, t.amount)
     } else if (t.type === 'refund') {
       refund += t.amount
-      bump(incMap, '退款', t.amount)
+      if (!outRefund) bump(incMap, '退款', t.amount)
     }
   }
 
-  var incomeTotal = income + refund
+  var incomeTotal = outRefund ? income : income + refund
   var net = incomeTotal - expense
   var topAll = rankList(toList(expMap, expense))
   var topAllIn = rankList(toList(incMap, incomeTotal))

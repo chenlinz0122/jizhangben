@@ -3,6 +3,7 @@ var store = require('../../utils/store')
 var stats = require('../../utils/stats')
 var category = require('../../utils/category')
 var vip = require('../../utils/vip')
+var prefs = require('../../utils/prefs')
 var darkmode = require('../../utils/darkmode')
 
 /* 按类型排个名：支出看花得最多，入账看进得最多 */
@@ -12,7 +13,7 @@ function topBy(txs, ym, kind, n) {
     var t = txs[i]
     if (t.ym !== ym) continue
     var hit = kind === 'income'
-      ? (t.type === 'income' || t.type === 'refund')
+      ? (t.type === 'income' || (!prefs.refundExcluded() && t.type === 'refund'))
       : (t.type === 'expense')
     if (!hit) continue
     var key = String(t.merchant || '未知').trim()
@@ -330,6 +331,7 @@ Page({
         netSign: s.net < 0 ? '-' : '',
         count: s.count,
         refundText: format.money(s.refund),
+        refundOut: !!s.refundOut,
         transferText: format.money(s.transfer),
         investText: format.money(s.invest),
         loanText: format.money(s.loan),
@@ -405,7 +407,7 @@ Page({
       var dd = parseInt(String(t.day).split('-')[2], 10)
       if (dd < 1 || dd > dim) continue
       if (kind === 'income') {
-        if (t.type === 'income' || t.type === 'refund') raw[dd - 1] += t.amount
+        if (t.type === 'income' || (!prefs.refundExcluded() && t.type === 'refund')) raw[dd - 1] += t.amount
       } else if (t.type === 'expense') {
         raw[dd - 1] += t.amount
       }
@@ -660,6 +662,13 @@ Page({
     app.globalData.backTab = '/pages/report/report'
     app.globalData.backLabel = '报表'
     wx.switchTab({ url: '/pages/list/list' })
+  },
+
+  /* 退款怎么算：点顶部那行「退款 ¥x 未计入 · 点这里改」直接切 */
+  toggleRefund: function () {
+    var next = prefs.setRefundExcluded(!prefs.refundExcluded())
+    this.refresh()
+    wx.showToast({ title: next ? '退款已不计入收支' : '退款已计入收支', icon: 'none' })
   },
 
   setBudget: function () {

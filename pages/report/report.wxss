@@ -114,6 +114,14 @@
   margin: 0 10rpx;
 }
 
+/* hero 里那行「退款…点这里改」：做成能点的样子，别让人以为只是说明文字 */
+.hswitch {
+  padding: 2rpx 10rpx;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 8rpx;
+}
+
 .empty {
   margin: 40rpx 24rpx;
   padding: 60rpx 30rpx;

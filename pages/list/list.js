@@ -4,6 +4,7 @@ var stats = require('../../utils/stats')
 var category = require('../../utils/category')
 var vip = require('../../utils/vip')
 var shared = require('../../utils/shared')
+var prefs = require('../../utils/prefs')
 
 Page({
   data: {
@@ -124,7 +125,8 @@ Page({
 
       tCount++
       if (t.type === 'expense') tExp += t.amount
-      if (t.type === 'income' || t.type === 'refund') tInc += t.amount
+      /* 收入合计：退款默认不计入（开关在「⋯ 管理」里） */
+      if (t.type === 'income' || (t.type === 'refund' && !prefs.refundExcluded())) tInc += t.amount
 
       if (!cur || cur.day !== t.day) {
         var parts = t.day.split('-')
@@ -432,20 +434,35 @@ Page({
     })
   },
 
-  /* 工具栏「⋯」：删本月 / 清空全部 */
+  /* 工具栏「⋯」：会员 / 退款口径 / 删本月 / 清空全部 */
   moreActions: function () {
     var self = this
     var ym = this.data.ym
     var vipItem = vip.isVip()
       ? '会员（已开通 · 至 ' + vip.dateText(vip.expireAt()) + '）'
       : '会员 · 输入卡密开通'
+    var refundItem = prefs.refundExcluded()
+      ? '退款：不计入收支（点一下改成计入）'
+      : '退款：计入收支（点一下改成不计入）'
     wx.showActionSheet({
-      itemList: [vipItem, '删除 ' + format.monthLabel(ym) + ' 的全部流水', '清空全部数据（含分类规则）'],
+      itemList: [vipItem, refundItem, '删除 ' + format.monthLabel(ym) + ' 的全部流水', '清空全部数据（含分类规则）'],
       success: function (res) {
         if (res.tapIndex === 0) self.goVip()
-        else if (res.tapIndex === 1) self.clearMonth()
-        else if (res.tapIndex === 2) self.clearEverything()
+        else if (res.tapIndex === 1) self.toggleRefund()
+        else if (res.tapIndex === 2) self.clearMonth()
+        else if (res.tapIndex === 3) self.clearEverything()
       }
+    })
+  },
+
+  /* 退款算不算收支：一键切，切完本页立刻按新口径重算；
+   * 首页、总览、报表读同一个开关，切回去看也是新数字。预算不受影响，仍按退款抵扣。 */
+  toggleRefund: function () {
+    var next = prefs.setRefundExcluded(!prefs.refundExcluded())
+    this.refresh()
+    wx.showToast({
+      title: next ? '退款已不计入收支' : '退款已计入收支',
+      icon: 'none'
     })
   },
 

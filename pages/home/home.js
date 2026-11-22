@@ -14,6 +14,11 @@ var darkmode = require('../../utils/darkmode')
 var shared = require('../../utils/shared')
 var prefs = require('../../utils/prefs')
 
+/* 退款和付款配对用的键：同商户名 + 同金额（按分比较） */
+function refundKey(t) {
+  return String(t.merchant || '').trim().toLowerCase() + '|' + Math.round((t.amount || 0) * 100)
+}
+
 function greetText() {
   var h = new Date().getHours()
   if (h < 6) return '还没睡？'
@@ -171,11 +176,24 @@ Page({
 
     var recent = []
     var refundOut = prefs.refundExcluded()
+    /* 抵消口径下，退款和它对应的那笔付款配成对，两条都不进最近流水 */
+    var refundPool = {}
+    if (refundOut) {
+      for (var r = 0; r < txs.length; r++) {
+        var rt = txs[r]
+        if (rt.ym !== ym || rt.type !== 'refund') continue
+        var rk = refundKey(rt)
+        refundPool[rk] = (refundPool[rk] || 0) + 1
+      }
+    }
     for (var i = 0; i < txs.length && recent.length < 5; i++) {
       var t = txs[i]
       if (t.ym !== ym) continue
-      /* 抵消口径下退款已经抵进支出里，最近流水也不再单列这一笔 */
       if (t.type === 'refund' && refundOut) continue
+      if (refundOut && t.type === 'expense') {
+        var ek = refundKey(t)
+        if (refundPool[ek] > 0) { refundPool[ek]--; continue }
+      }
       recent.push({
         id: t.id,
         merchant: t.merchant || '未填写商户',

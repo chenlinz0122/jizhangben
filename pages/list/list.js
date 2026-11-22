@@ -8,6 +8,11 @@ var prefs = require('../../utils/prefs')
 
 var theme = require('../../utils/theme')
 
+/* 退款和付款配对用的键：同商户名 + 同金额（按分比较，避免浮点误差） */
+function pairKey(t) {
+  return String(t.merchant || '').trim().toLowerCase() + '|' + Math.round((t.amount || 0) * 100)
+}
+
 Page({
   data: {
     themeKey: 'green',
@@ -105,14 +110,10 @@ Page({
     var kw = (this.data.kw || '').trim().toLowerCase()
     var searching = !!kw
     var txs = store.all()
+    var refundOut = prefs.refundExcluded()
 
-    var groups = []
-    var cur = null
-    var tExp = 0
-    var tInc = 0
-    var tRefund = 0
-    var tCount = 0
-
+    /* 第一遍：把当前筛选条件下的记录先收成一个数组 */
+    var filtered = []
     for (var i = 0; i < txs.length; i++) {
       var t = txs[i]
       /* 共同账本：切「只看我」时，别人记的直接跳过（自己记的记录没有 by 字段） */
@@ -127,25 +128,58 @@ Page({
       if (this.data.filterCat && t.category !== this.data.filterCat) continue
       if (this.data.filterKind === 'expense' && t.type !== 'expense') continue
       if (this.data.filterKind === 'income' && !(t.type === 'income' || t.type === 'refund')) continue
+      filtered.push(t)
+    }
 
-      /* 默认「抵消」口径：退款已经抵进支出里，列表里不再单列这一笔
-         （只把它的金额算进合计并从当天小计里扣掉，不占一行、不计笔数） */
-      if (t.type === 'refund' && prefs.refundExcluded()) {
-        tRefund += t.amount
-        for (var g = 0; g < groups.length; g++) {
-          if (groups[g].day === t.day) { groups[g].spend -= t.amount; break }
-        }
-        continue
+    /* 第二遍：抵消口径下，「同一商户 + 同一金额」的退款和它对应的那笔付款配成一对，
+       两条都不显示、都不占笔数——这笔钱当没发生过。
+       配不上对的退款（部分退款 / 改了商户名）仍然从当月支出里扣掉。 */
+    var skipId = {}
+    var unmatchedRefund = 0
+    var unmatchedByDay = {}
+    var pairs = 0
+    if (refundOut) {
+      var expKey = {}
+      for (var a = 0; a < filtered.length; a++) {
+        var ex = filtered[a]
+        if (ex.type !== 'expense') continue
+        var ek = pairKey(ex)
+        if (!expKey[ek]) expKey[ek] = []
+        expKey[ek].push(ex)
       }
+      for (var b = 0; b < filtered.length; b++) {
+        var rf = filtered[b]
+        if (rf.type !== 'refund') continue
+        skipId[rf.id] = true
+        var bucket = expKey[pairKey(rf)]
+        if (bucket && bucket.length) {
+          skipId[bucket.shift().id] = true
+          pairs++
+        } else {
+          unmatchedRefund += rf.amount
+          unmatchedByDay[rf.day] = (unmatchedByDay[rf.day] || 0) + rf.amount
+        }
+      }
+    }
+
+    var groups = []
+    var cur = null
+    var tExp = 0
+    var tInc = 0
+    var tCount = 0
+
+    for (var m = 0; m < filtered.length; m++) {
+      var tx = filtered[m]
+      if (skipId[tx.id]) continue
 
       tCount++
-      if (t.type === 'expense') tExp += t.amount
-      if (t.type === 'income' || (t.type === 'refund' && !prefs.refundExcluded())) tInc += t.amount
+      if (tx.type === 'expense') tExp += tx.amount
+      if (tx.type === 'income' || (tx.type === 'refund' && !refundOut)) tInc += tx.amount
 
-      if (!cur || cur.day !== t.day) {
-        var parts = t.day.split('-')
+      if (!cur || cur.day !== tx.day) {
+        var parts = tx.day.split('-')
         cur = {
-          day: t.day,
+          day: tx.day,
           label: parseInt(parts[1], 10) + '月' + parseInt(parts[2], 10) + '日',
           items: [],
           spend: 0
@@ -154,34 +188,46 @@ Page({
       }
 
       /* 谁记的：别人的记录带名字（有备注就显示备注）；自己的不挂，进账本页之前一律不挂 */
-      var byNick = (this.data.sharedOn && t.by && t.byMe === false) ? String(t.by) : ''
+      var byNick = (this.data.sharedOn && tx.by && tx.byMe === false) ? String(tx.by) : ''
       var row = {
-        id: t.id,
-        merchant: t.merchant || '（没有商户名）',
-        category: t.category,
-        amountText: format.money(t.amount),
-        timeText: format.pad(new Date(t.time).getHours()) + ':' + format.pad(new Date(t.time).getMinutes()),
-        type: t.type,
-        sign: (t.type === 'income' || t.type === 'refund') ? '+' : (t.type === 'transfer' ? '' : '-'),
-        color: category.colorOf(t.category),
-        icon: category.iconOf(t.category),
-        tint: category.tintOf(t.category),
-        isUncat: t.category === '未分类',
+        id: tx.id,
+        merchant: tx.merchant || '（没有商户名）',
+        category: tx.category,
+        amountText: format.money(tx.amount),
+        timeText: format.pad(new Date(tx.time).getHours()) + ':' + format.pad(new Date(tx.time).getMinutes()),
+        type: tx.type,
+        sign: (tx.type === 'income' || tx.type === 'refund') ? '+' : (tx.type === 'transfer' ? '' : '-'),
+        color: category.colorOf(tx.category),
+        icon: category.iconOf(tx.category),
+        tint: category.tintOf(tx.category),
+        isUncat: tx.category === '未分类',
         /* 行内也把说明带出来：账单里的「美团-机票」这种关键信息，藏在详情里等于没有 */
-        desc: t.desc || '',
-        note: t.note || '',
+        desc: tx.desc || '',
+        note: tx.note || '',
         /* 别人记的账挂个名字标签，显示成「小李 标记的」；自己记的不挂 */
         by: byNick,
         byLabel: byNick ? shared.labelOf(byNick) : ''
       }
       cur.items.push(row)
-      if (t.type === 'expense') cur.spend += t.amount
+      if (tx.type === 'expense') cur.spend += tx.amount
     }
 
-    /* 被剔除的退款仍要从本月合计里扣掉，不然顶部支出会变回原价 */
-    tExp -= tRefund
+    /* 没配上对的退款仍要从本月合计里扣掉，并在它所在那天冲减小计 */
+    tExp -= unmatchedRefund
+
+    var note = ''
+    if (!searching && refundOut) {
+      if (pairs > 0 && unmatchedRefund > 0) {
+        note = '退款已抵进支出：' + pairs + ' 组退款连付款一起剔除，另有 ¥' + format.money(unmatchedRefund) + ' 从支出里扣'
+      } else if (pairs > 0) {
+        note = '退款和它对应的付款已一起剔除，共 ' + pairs + ' 组'
+      } else if (unmatchedRefund > 0) {
+        note = '退款 ¥' + format.money(unmatchedRefund) + ' 已抵进支出，列表里不再单列'
+      }
+    }
 
     groups.forEach(function (g) {
+      if (unmatchedByDay[g.day]) g.spend -= unmatchedByDay[g.day]
       g.spendText = format.money(Math.max(g.spend, 0))
     })
 
@@ -190,10 +236,7 @@ Page({
       canNext: ym < format.ymOf(Date.now()),
       searching: searching,
       groups: groups,
-      /* 抵消口径下退款不再单列成一行，这里说明一句，免得以为退款记录丢了 */
-      refundNote: (!searching && tRefund > 0)
-        ? '退款 ¥' + format.money(tRefund) + ' 已抵进支出，列表里不再单列'
-        : '',
+      refundNote: note,
       s: {
         expenseText: format.money(Math.max(tExp, 0)),
         incomeText: format.money(tInc),

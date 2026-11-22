@@ -45,6 +45,16 @@
   color: #8b9198;
 }
 
+/* 退款被抵扣掉的那句说明 */
+.refnote {
+  display: block;
+  text-align: center;
+  margin-top: 8rpx;
+  font-size: 21rpx;
+  color: #9aa0a6;
+  opacity: 0.9;
+}
+
 .chips {
   display: flex;
   gap: 16rpx;

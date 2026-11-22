@@ -23,6 +23,10 @@
         <text class="mdot">·</text>
         <text class="mcell">{{s.count}} 笔</text>
       </view>
+      <view class="mref" bindtap="toggleRefund">
+        <text class="mref-t">退款 ¥{{s.refundText}} · {{s.refundOut ? '已抵消' : '计入入账'}}</text>
+        <text class="mref-a">点这里改 ›</text>
+      </view>
     </view>
   </view>
 

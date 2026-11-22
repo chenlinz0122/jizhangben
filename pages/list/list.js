@@ -110,6 +110,7 @@ Page({
     var cur = null
     var tExp = 0
     var tInc = 0
+    var tRefund = 0
     var tCount = 0
 
     for (var i = 0; i < txs.length; i++) {
@@ -127,10 +128,18 @@ Page({
       if (this.data.filterKind === 'expense' && t.type !== 'expense') continue
       if (this.data.filterKind === 'income' && !(t.type === 'income' || t.type === 'refund')) continue
 
+      /* 默认「抵消」口径：退款已经抵进支出里，列表里不再单列这一笔
+         （只把它的金额算进合计并从当天小计里扣掉，不占一行、不计笔数） */
+      if (t.type === 'refund' && prefs.refundExcluded()) {
+        tRefund += t.amount
+        for (var g = 0; g < groups.length; g++) {
+          if (groups[g].day === t.day) { groups[g].spend -= t.amount; break }
+        }
+        continue
+      }
+
       tCount++
       if (t.type === 'expense') tExp += t.amount
-      /* 口径默认「抵消」：退款那笔不算收入，也从支出里扣回去（开关在「⋯ 管理」里） */
-      else if (t.type === 'refund' && prefs.refundExcluded()) tExp -= t.amount
       if (t.type === 'income' || (t.type === 'refund' && !prefs.refundExcluded())) tInc += t.amount
 
       if (!cur || cur.day !== t.day) {
@@ -166,10 +175,11 @@ Page({
         byLabel: byNick ? shared.labelOf(byNick) : ''
       }
       cur.items.push(row)
-      /* 小计跟月度口径一致：退款那笔从当天支出里扣掉（退款日 ≠ 消费日，扣成负数就显示 0） */
       if (t.type === 'expense') cur.spend += t.amount
-      else if (t.type === 'refund' && prefs.refundExcluded()) cur.spend -= t.amount
     }
+
+    /* 被剔除的退款仍要从本月合计里扣掉，不然顶部支出会变回原价 */
+    tExp -= tRefund
 
     groups.forEach(function (g) {
       g.spendText = format.money(Math.max(g.spend, 0))
@@ -180,6 +190,10 @@ Page({
       canNext: ym < format.ymOf(Date.now()),
       searching: searching,
       groups: groups,
+      /* 抵消口径下退款不再单列成一行，这里说明一句，免得以为退款记录丢了 */
+      refundNote: (!searching && tRefund > 0)
+        ? '退款 ¥' + format.money(tRefund) + ' 已抵进支出，列表里不再单列'
+        : '',
       s: {
         expenseText: format.money(Math.max(tExp, 0)),
         incomeText: format.money(tInc),

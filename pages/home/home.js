@@ -12,6 +12,7 @@ var account = require('../../utils/account')
 var theme = require('../../utils/theme')
 var darkmode = require('../../utils/darkmode')
 var shared = require('../../utils/shared')
+var prefs = require('../../utils/prefs')
 
 function greetText() {
   var h = new Date().getHours()
@@ -169,9 +170,12 @@ Page({
     var s = stats.summary(txs, ym)
 
     var recent = []
+    var refundOut = prefs.refundExcluded()
     for (var i = 0; i < txs.length && recent.length < 5; i++) {
       var t = txs[i]
       if (t.ym !== ym) continue
+      /* 抵消口径下退款已经抵进支出里，最近流水也不再单列这一笔 */
+      if (t.type === 'refund' && refundOut) continue
       recent.push({
         id: t.id,
         merchant: t.merchant || '未填写商户',
@@ -193,11 +197,23 @@ Page({
         incomeText: format.money(s.incomeTotal),
         netText: format.money(Math.abs(s.net)),
         netSign: s.net < 0 ? '-' : '',
-        count: s.count
+        count: s.count,
+        refundText: format.money(s.refund),
+        refundOut: refundOut
       },
       recent: recent,
       hasData: s.count > 0,
       uncatCount: s.uncatCount || 0
+    })
+  },
+
+  /* 退款口径：抵消（默认）/ 计入入账。首页、流水页、报表页读的是同一个开关 */
+  toggleRefund: function () {
+    var next = prefs.setRefundExcluded(!prefs.refundExcluded())
+    this.syncData()
+    wx.showToast({
+      title: next ? '退款已抵消，支出同步减少' : '退款已计入入账',
+      icon: 'none'
     })
   },
 

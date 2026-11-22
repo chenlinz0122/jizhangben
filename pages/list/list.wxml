@@ -16,6 +16,7 @@
       <text class="sumi">收入 ¥{{s.incomeText}}</text>
       <text class="sumi">{{s.count}} 笔</text>
     </view>
+    <text class="refnote" wx:if="{{refundNote}}">{{refundNote}}</text>
     <view class="chips">
       <text class="chip back" wx:if="{{backTab}}" bindtap="goBack">‹ 返回{{backLabel}}</text>
       <text class="chip on" wx:if="{{filterCat}}" bindtap="clearFilter">× {{filterCat}}</text>

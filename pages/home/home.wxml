@@ -63,7 +63,7 @@
   <!-- 最近流水 -->
   <view class="card">
     <view class="between">
-      <text class="title inline">最近流水 · 本月</text>
+      <text class="title inline">最近流水 · 本月<text class="scopetip" wx:if="{{scopeLabel}}">· {{scopeLabel}}</text></text>
       <text class="morelink" bindtap="goList">全部 ›</text>
     </view>
 

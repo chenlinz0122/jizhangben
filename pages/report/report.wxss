@@ -84,6 +84,32 @@
   color: #1a6d87;
 }
 
+/* 共同账本视角切换：跟在数字卡里，样式跟上面的支出/入账分段同一套 */
+.scopebar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  margin-top: 18rpx;
+}
+
+.schip {
+  font-size: 22rpx;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.18);
+  padding: 8rpx 22rpx;
+  border-radius: 20rpx;
+}
+
+.schip.on {
+  background: #ffffff;
+  color: var(--brand, #17806b);
+  font-weight: 600;
+}
+
+.hi .schip.on {
+  color: #1a6d87;
+}
+
 .hlab {
   display: block;
   font-size: 22rpx;

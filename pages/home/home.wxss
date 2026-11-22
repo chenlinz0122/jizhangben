@@ -232,6 +232,14 @@
   display: inline;
 }
 
+/* 最近流水标题旁的视角小字：只看自己 / 看双方 / 只看对方 */
+.scopetip {
+  font-size: 22rpx;
+  font-weight: 400;
+  color: #8f969d;
+  margin-left: 4rpx;
+}
+
 .morelink {
   font-size: 23rpx;
   color: var(--brand, #17806b);

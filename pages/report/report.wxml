@@ -33,6 +33,13 @@
         <text>账户转移 ¥{{s.acctText}} 未计入</text>
       </block>
     </view>
+
+    <!-- 共同账本视角：只看自己 / 看双方 / 只看对方（没加入账本时不显示） -->
+    <view class="scopebar" wx:if="{{sharedOn}}">
+      <text class="schip {{scope === 'mine' ? 'on' : ''}}" data-k="mine" bindtap="setScope">只看自己</text>
+      <text class="schip {{scope === 'both' ? 'on' : ''}}" data-k="both" bindtap="setScope">看双方{{sharedMembers > 1 ? ' ·' + sharedMembers + '人' : ''}}</text>
+      <text class="schip {{scope === 'peer' ? 'on' : ''}}" data-k="peer" bindtap="setScope">只看对方</text>
+    </view>
   </view>
 
   <view class="empty" wx:if="{{!hasData}}">这个月还没有数据，先记一笔再说</view>

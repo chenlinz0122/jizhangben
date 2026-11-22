@@ -71,20 +71,39 @@ function byItems() {
 
 check('进了共同账本，data.sharedOn 是 true', page.data.sharedOn === true, page.data.sharedOn)
 check('成员数读到 3', page.data.sharedMembers === 3, page.data.sharedMembers)
-check('默认「全部」视角', page.data.scope === 'all', page.data.scope)
-check('全部视角下 3 条都在', total() === 3, total())
+check('默认「看双方」视角', page.data.scope === 'both', page.data.scope)
+check('看双方视角下 3 条都在', total() === 3, total())
 check('只有别人记的那条挂了名字', byItems().length === 1 && byItems()[0].merchant === '奶茶店', byItems().map((x) => x.merchant))
 check('自己记的不挂名字', byItems().every((x) => x.by === '小李'), byItems())
 check('别人的标签写的是「小李」', byItems()[0] && byItems()[0].by === '小李', byItems()[0])
 
 page.setData({ scope: 'mine' })
 page.refresh()
-check('切到「只看我」后只剩自己 2 条', total() === 2, total())
-check('「只看我」里没有任何别人记录', byItems().length === 0, byItems())
+check('切到「只看自己」后只剩自己 2 条', total() === 2, total())
+check('「只看自己」里没有任何别人记录', byItems().length === 0, byItems())
 check('自己两条都在', page.data.groups[0] && page.data.groups[0].items.some((x) => x.id === 'mine1'), page.data.groups[0] && page.data.groups[0].items.map((x) => x.id))
 
+/* 第三档：只看对方 */
+page.setData({ scope: 'peer' })
+page.refresh()
+check('切到「只看对方」后只剩别人 1 条', total() === 1, total())
+check('「只看对方」里没有自己的记录', page.data.groups[0] && page.data.groups[0].items.every((x) => x.by), page.data.groups[0] && page.data.groups[0].items.map((x) => x.id))
+check('「只看对方」那条就是别人的奶茶', page.data.groups[0] && page.data.groups[0].items[0].merchant === '奶茶店', page.data.groups[0] && page.data.groups[0].items.map((x) => x.merchant))
+
+/* 切换要记进本机偏好：报表、首页读同一个值 */
+const prefsMod = require(path.join(__dirname, '..', 'utils', 'prefs.js'))
+page.setScope({ currentTarget: { dataset: { k: 'peer' } } })
+check('点「只看对方」后偏好存成 peer', prefsMod.viewScope() === 'peer', prefsMod.viewScope())
+page.setScope({ currentTarget: { dataset: { k: 'both' } } })
+check('点「看双方」后偏好存成 both', prefsMod.viewScope() === 'both', prefsMod.viewScope())
+check('偏好文案对得上', prefsMod.viewScopeLabel('mine') === '只看自己' && prefsMod.viewScopeLabel('both') === '看双方' && prefsMod.viewScopeLabel('peer') === '只看对方')
+/* 老版本存的 'all' 也要认成「看双方」 */
+storage.prefs_v1 = { viewScope: 'all' }
+check('老值 all 兼容成 both', prefsMod.viewScope() === 'both', prefsMod.viewScope())
+storage.prefs_v1 = {}
+
 /* 成员备注：给「小李」起名「妹妹」，流水标签要跟着变 */
-page.setData({ scope: 'all' })
+page.setData({ scope: 'both' })
 page.refresh()
 const sharedMod = require(path.join(__dirname, '..', 'utils', 'shared.js'))
 sharedMod.setRemark('小李', '妹妹')

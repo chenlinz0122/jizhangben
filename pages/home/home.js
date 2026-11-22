@@ -62,7 +62,9 @@ Page({
 
     sharedJoined: false,
     sharedName: '',
-    sharedMembers: 0
+    sharedMembers: 0,
+    /* 共同账本视角小标：只看自己 / 看双方 / 只看对方 */
+    scopeLabel: ''
   },
 
   onLoad: function () {
@@ -183,7 +185,12 @@ Page({
 
   syncData: function () {
     var ym = format.ymOf(Date.now())
+    /* 共同账本视角跟流水/报表同一套：首页数字、最近流水都按这个口径，不各算各的 */
+    var scope = shared.isJoined() ? prefs.viewScope() : 'both'
     var txs = store.all()
+    if (scope === 'mine') txs = txs.filter(function (t) { return shared.isMine(t) })
+    else if (scope === 'peer') txs = txs.filter(function (t) { return !shared.isMine(t) })
+    this.setData({ scopeLabel: shared.isJoined() ? prefs.viewScopeLabel(scope) : '' })
     var s = stats.summary(txs, ym)
 
     var recent = []

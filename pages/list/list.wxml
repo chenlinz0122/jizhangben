@@ -23,8 +23,9 @@
       <text class="chip on" wx:if="{{filterDay}}" bindtap="clearFilter">× {{filterDay}}</text>
       <text class="chip {{onlyUncat ? 'on' : ''}}" bindtap="toggleUncat">只看未分类</text>
       <block wx:if="{{sharedOn}}">
-        <text class="chip {{scope === 'all' ? 'on' : ''}}" data-k="all" bindtap="setScope">全部{{sharedMembers > 1 ? ' ·' + sharedMembers + '人' : ''}}</text>
-        <text class="chip {{scope === 'mine' ? 'on' : ''}}" data-k="mine" bindtap="setScope">只看我</text>
+        <text class="chip {{scope === 'mine' ? 'on' : ''}}" data-k="mine" bindtap="setScope">只看自己</text>
+        <text class="chip {{scope === 'both' ? 'on' : ''}}" data-k="both" bindtap="setScope">看双方{{sharedMembers > 1 ? ' ·' + sharedMembers + '人' : ''}}</text>
+        <text class="chip {{scope === 'peer' ? 'on' : ''}}" data-k="peer" bindtap="setScope">只看对方</text>
       </block>
       <text class="chip" bindtap="goImport">＋ 导入</text>
       <text class="chip" bindtap="moreActions">⋯ 管理</text>

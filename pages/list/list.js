@@ -45,10 +45,11 @@ Page({
     catMode: false,
     backTab: '',
     backLabel: '',
-    /* 共同账本：只有加入了才显示「谁记的」和「全部 / 只看我」 */
+    /* 共同账本：只有加入了才显示「谁记的」和视角切换 */
     sharedOn: false,
     sharedMembers: 0,
-    scope: 'all'
+    /* 视角：mine 只看自己 / both 看双方 / peer 只看对方，默认看双方 */
+    scope: 'both'
   },
 
   onLoad: function () {
@@ -91,9 +92,12 @@ Page({
       this.setData({ backTab: '', backLabel: '' })
     }
     var book = shared.current()
+    var sharedOn = shared.isJoined()
     this.setData({
-      sharedOn: shared.isJoined(),
-      sharedMembers: (book && book.members) || 0
+      sharedOn: sharedOn,
+      sharedMembers: (book && book.members) || 0,
+      /* 视角是跟着手机走的偏好，别的页面切换过这里也要跟上 */
+      scope: sharedOn ? prefs.viewScope() : 'both'
     })
     this.refresh()
   },
@@ -123,13 +127,17 @@ Page({
     var searching = !!kw
     var txs = store.all()
     var refundOut = prefs.refundExcluded()
+    /* 共同账本视角：mine 只看自己 / peer 只看对方 / both 看双方（没加入账本时一律当 both） */
+    var scope = this.data.sharedOn ? this.data.scope : 'both'
+    if (scope !== 'mine' && scope !== 'peer') scope = 'both'
 
     /* 第一遍：把当前筛选条件下的记录先收成一个数组 */
     var filtered = []
     for (var i = 0; i < txs.length; i++) {
       var t = txs[i]
-      /* 共同账本：切「只看我」时，别人记的直接跳过（自己记的记录没有 by 字段） */
-      if (this.data.sharedOn && this.data.scope === 'mine' && !shared.isMine(t)) continue
+      /* 共同账本：别人记的记录带 by / byMe=false，自己记的没有这两个字段 */
+      if (scope === 'mine' && !shared.isMine(t)) continue
+      if (scope === 'peer' && shared.isMine(t)) continue
       if (!searching && t.ym !== ym) continue
       if (searching) {
         var hay = [t.merchant, t.desc, t.note, t.category].join(' ').toLowerCase()
@@ -159,7 +167,8 @@ Page({
       var borrowExp = (pt.ym === prevYm && pt.type === 'expense')
       var borrowRef = (pt.ym === nextYm && pt.type === 'refund')
       if (!inMonth && !borrowExp && !borrowRef) continue
-      if (this.data.sharedOn && this.data.scope === 'mine' && !shared.isMine(pt)) continue
+      if (scope === 'mine' && !shared.isMine(pt)) continue
+      if (scope === 'peer' && shared.isMine(pt)) continue
       pairInput.push(pt)
     }
     var pr = refundOut
@@ -312,9 +321,11 @@ Page({
     this.setData({ onlyUncat: !this.data.onlyUncat }, function () { self.refresh() })
   },
 
-  /* 共同账本：全部 / 只看我 */
+  /* 共同账本：只看自己 / 看双方 / 只看对方 —— 切换后记进本机偏好，报表和首页跟着一起变 */
   setScope: function (e) {
-    var v = e.currentTarget.dataset.k === 'mine' ? 'mine' : 'all'
+    var k = e.currentTarget.dataset.k
+    var v = (k === 'mine' || k === 'peer') ? k : 'both'
+    prefs.setViewScope(v)
     if (v === this.data.scope) return
     var self = this
     this.setData({ scope: v }, function () { self.refresh() })

@@ -6,6 +6,7 @@ var vip = require('../../utils/vip')
 var prefs = require('../../utils/prefs')
 var darkmode = require('../../utils/darkmode')
 var refundpair = require('../../utils/refundpair')
+var shared = require('../../utils/shared')
 
 function monthShift(ym, delta) {
   var y = parseInt(ym.slice(0, 4), 10)
@@ -127,7 +128,12 @@ Page({
     ],
 
     /* 系统深色模式：环形图要把中心文字画成浅色，否则深色底上看不清 */
-    dark: false
+    dark: false,
+
+    /* 共同账本视角：mine 只看自己 / both 看双方 / peer 只看对方 */
+    sharedOn: false,
+    sharedMembers: 0,
+    scope: 'both'
   },
 
   onLoad: function () {
@@ -151,7 +157,36 @@ Page({
     } else {
       this.setData({ backTab: '', backLabel: '' })
     }
+    /* 共同账本：视角跟着本机偏好走，流水页里切换过这里也要跟上 */
+    var book = shared.current()
+    var on = shared.isJoined()
+    this.setData({
+      sharedOn: on,
+      sharedMembers: (book && book.members) || 0,
+      scope: on ? prefs.viewScope() : 'both'
+    })
     this.syncVip()
+  },
+
+  /* 报表统一取数：加入了共同账本时按「只看自己 / 看双方 / 只看对方」过滤，
+     没加入就照旧全量。所有统计、构成、导出都走这里，避免各页口径打架。 */
+  scopeTxs: function () {
+    var all = store.all()
+    if (!shared.isJoined()) return all
+    var scope = prefs.viewScope()
+    if (scope === 'mine') return all.filter(function (t) { return shared.isMine(t) })
+    if (scope === 'peer') return all.filter(function (t) { return !shared.isMine(t) })
+    return all
+  },
+
+  /* 切换视角：写进本机偏好，流水页和首页一起变 */
+  setScope: function (e) {
+    var k = e.currentTarget.dataset.k
+    var v = (k === 'mine' || k === 'peer') ? k : 'both'
+    prefs.setViewScope(v)
+    if (v === this.data.scope) return
+    var self = this
+    this.setData({ scope: v }, function () { self.refresh() })
   },
 
   /* 报表的免费部分：本月数字卡 + 支出构成 + 数据工具；其余区块都是会员功能，
@@ -186,7 +221,7 @@ Page({
     var self = this
     var ym = this.data.ym
     var kind = this.data.tab
-    var txs = store.all()
+    var txs = this.scopeTxs()
     var s = stats.summary(txs, ym)
     var bs = stats.budgetSpent(txs, ym)
     var ins = stats.insights(txs, ym)
@@ -769,7 +804,7 @@ Page({
 
   exportCsv: function () {
     var ym = this.data.ym
-    var txs = store.all()
+    var txs = this.scopeTxs()
     var lines = ['日期,时间,收/支,金额,分类,交易对方,说明,来源']
     for (var i = 0; i < txs.length; i++) {
       var t = txs[i]
@@ -897,7 +932,7 @@ Page({
       return
     }
 
-    var txs = store.all()
+    var txs = this.scopeTxs()
     var g = stats.uncatGroups(txs, 60)
     if (!g.items.length) {
       var why = g.noMerchant > 0

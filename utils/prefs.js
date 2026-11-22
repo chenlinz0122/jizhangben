@@ -34,8 +34,35 @@ function setRefundExcluded(v) {
   return o.refundOut
 }
 
+/* 共同账本里看哪部分账：'mine' 只看自己 / 'both' 看双方（默认） / 'peer' 只看对方
+ * 只对自己手机生效；没加入账本时这个设置不起作用（一律当全部）。 */
+function viewScope() {
+  var v = read().viewScope
+  if (v === 'mine' || v === 'peer') return v
+  /* 老版本存的是 'all' 或干脆没存，一律当「看双方」 */
+  return 'both'
+}
+
+function setViewScope(v) {
+  var o = read()
+  o.viewScope = (v === 'mine' || v === 'peer') ? v : 'both'
+  save(o)
+  return o.viewScope
+}
+
+/* 给界面用的一行小字：只看自己 / 看双方 / 只看对方 */
+function viewScopeLabel(v) {
+  var s = v || viewScope()
+  if (s === 'mine') return '只看自己'
+  if (s === 'peer') return '只看对方'
+  return '看双方'
+}
+
 module.exports = {
   KEY: KEY,
   refundExcluded: refundExcluded,
-  setRefundExcluded: setRefundExcluded
+  setRefundExcluded: setRefundExcluded,
+  viewScope: viewScope,
+  setViewScope: setViewScope,
+  viewScopeLabel: viewScopeLabel
 }

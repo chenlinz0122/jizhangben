@@ -1,7 +1,8 @@
 .page {
   min-height: 100vh;
-  background: #f4f5f7;
-  padding-bottom: 60rpx;
+  background: #f4f6f5;
+  padding-top: 1rpx;
+  padding-bottom: calc(60rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 
@@ -25,15 +26,14 @@
 
 .hero {
   background: var(--hero-bg, linear-gradient(160deg, #1a8f76 0%, #12695a 100%));
-  padding: 70rpx 32rpx 34rpx;
-  border-radius: 0 0 32rpx 32rpx;
-  box-shadow: 0 16rpx 36rpx rgba(18, 105, 90, 0.18);
+  margin: 28rpx 24rpx 0;
+  padding: 36rpx 30rpx;
+  border-radius: 30rpx;
 }
 
 /* 入账用青蓝：跟支出的墨绿是同一族冷色，比原来的土黄干净，也不抢红色的支出数 */
 .hero.hi {
   background: linear-gradient(160deg, #26809b 0%, #18637c 100%);
-  box-shadow: 0 16rpx 36rpx rgba(24, 99, 124, 0.18);
 }
 
 .hrow {
@@ -148,6 +148,23 @@
   border-radius: 8rpx;
 }
 
+/* 退款口径单独一行，右侧给一个明确的"改"入口 */
+.hnote {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin-top: 14rpx;
+  font-size: 20rpx;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.hnote-act {
+  flex: none;
+  color: #ffffff;
+  opacity: .9;
+}
+
 .empty {
   margin: 40rpx 24rpx;
   padding: 60rpx 30rpx;
@@ -162,9 +179,9 @@
 
 /* ---------- 分类 ---------- */
 .cat {
-  margin-bottom: 26rpx;
+  margin-bottom: 18rpx;
   border-radius: 16rpx;
-  padding: 12rpx 8rpx;
+  padding: 10rpx 6rpx;
 }
 
 .cat:active {
@@ -176,22 +193,31 @@
 }
 
 .camt {
-  font-size: 23rpx;
-  color: #8b9198;
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #253b34;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 条形与「占比 · 笔数」同一行：每类占两行，列表更紧凑 */
+.barline {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  margin-top: 10rpx;
 }
 
 .track {
-  height: 12rpx;
+  flex: 1;
+  height: 10rpx;
   background: #eff1f3;
   border-radius: 8rpx;
-  margin-top: 10rpx;
   overflow: hidden;
 }
 
 .fill {
   height: 12rpx;
   border-radius: 8rpx;
-  min-width: 6rpx;
 }
 
 .more {
@@ -308,7 +334,6 @@
 
 .dbar {
   width: 68%;
-  min-height: 4rpx;
   border-radius: 4rpx 4rpx 0 0;
   background: #d7dee0;
 }
@@ -388,7 +413,6 @@
   left: 50%;
   transform: translateX(-50%);
   width: 34rpx;
-  min-height: 4rpx;
   border-radius: 6rpx 6rpx 0 0;
   background: #dde2e4;
 }
@@ -555,7 +579,8 @@
   display: block;
   font-size: 19rpx;
   color: #b1b7bd;
-  margin-top: 6rpx;
+  white-space: nowrap;
+  flex: none;
 }
 
 .cbmeta {
@@ -835,6 +860,77 @@
   color: #8b9198;
 }
 
+/* 负净支出用蓝色斜纹，与零值区分。 */
+.accounting-note {
+  margin-bottom: 18rpx;
+}
+
+.refund-legend {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  margin-top: 18rpx;
+  font-size: 20rpx;
+  line-height: 1.6;
+  color: #287a95;
+}
+
+.refund-legend .sw {
+  flex: none;
+}
+
+.dbar.expense.net-refund,
+.dbar.income.net-refund,
+.mbar.expense.net-refund,
+.mbar.income.net-refund,
+.cell.net-refund,
+.sw.net-refund {
+  background: repeating-linear-gradient(135deg, #26809b 0, #26809b 7rpx, #58b2c9 7rpx, #58b2c9 12rpx);
+}
+
+.dbar.zero,
+.mbar.zero {
+  height: 0 !important;
+  min-height: 0;
+}
+
+.cell.net-refund {
+  position: relative;
+}
+
+.cell.net-refund .cd {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.cal-minus {
+  position: absolute;
+  right: 7rpx;
+  top: 0;
+  color: #ffffff;
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.cat.negative .camt,
+.cat.negative .cmeta,
+.yrow.negative .yrowamt,
+.yrow.negative .yrowmeta,
+.mamt.negative,
+.mval.negative {
+  color: #26809b;
+}
+
+.page.dark .refund-legend,
+.page.dark .cat.negative .camt,
+.page.dark .cat.negative .cmeta,
+.page.dark .yrow.negative .yrowamt,
+.page.dark .yrow.negative .yrowmeta,
+.page.dark .mamt.negative,
+.page.dark .mval.negative {
+  color: #73cce1;
+}
+
 /* ---------- AI 补分类 ---------- */
 .aicat {
   margin-top: 8rpx;
@@ -991,7 +1087,6 @@
 .ybarfill {
   height: 10rpx;
   border-radius: 6rpx;
-  min-width: 6rpx;
   opacity: 0.85;
 }
 

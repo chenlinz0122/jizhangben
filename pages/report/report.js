@@ -5,41 +5,46 @@ var category = require('../../utils/category')
 var vip = require('../../utils/vip')
 var prefs = require('../../utils/prefs')
 var darkmode = require('../../utils/darkmode')
-var refundpair = require('../../utils/refundpair')
 var shared = require('../../utils/shared')
+var dataTools = require('../../utils/data-tools')
 
-function monthShift(ym, delta) {
-  var y = parseInt(ym.slice(0, 4), 10)
-  var m = parseInt(ym.slice(5, 7), 10) + delta
-  while (m < 1) { m += 12; y -= 1 }
-  while (m > 12) { m -= 12; y += 1 }
-  return y + '-' + (m < 10 ? '0' + m : '' + m)
+function cents(amount) {
+  var n = Number(amount) || 0
+  return ((n < 0 ? -1 : 1) * Math.round(Math.abs(n) * 100 + 1e-8)) || 0
 }
 
-/* 按类型排个名：支出看花得最多，入账看进得最多 */
+/* 折叠正支出时，退款抵减项仍单列。 */
+function previewCats(list, limit) {
+  return list.filter(function (c, i) { return i < limit || c.negative })
+}
+
 function topBy(txs, ym, kind, n) {
-  var map = {}
-  for (var i = 0; i < txs.length; i++) {
-    var t = txs[i]
+  var rows = stats.ledger(txs, prefs.refundExcluded())
+  var map = Object.create(null)
+  for (var i = 0; i < rows.length; i++) {
+    var t = rows[i]
     if (t.ym !== ym) continue
     var hit = kind === 'income'
-      ? (t.type === 'income' || (!prefs.refundExcluded() && t.type === 'refund'))
+      ? (t.type === 'income' || t.type === 'refund')
       : (t.type === 'expense')
     if (!hit) continue
-    var key = String(t.merchant || '未知').trim()
-    if (!map[key]) map[key] = { name: key, amount: 0, count: 0, cat: '' }
-    map[key].amount += t.amount
-    map[key].count++
-    map[key].cat = t.category
+    var key = String(t.merchant || '未知').trim() || '未知'
+    if (!map[key]) map[key] = { name: key, cents: 0, count: 0, cat: '', ids: Object.create(null) }
+    var row = map[key]
+    row.cents += cents(t.amount)
+    var id = String(t.originalId || t.id || ('row' + i))
+    if (!row.ids[id]) { row.ids[id] = true; row.count++ }
+    row.cat = t.category
   }
   var list = Object.keys(map).map(function (k) { return map[k] })
-  list.sort(function (a, b) { return b.amount - a.amount })
-  var top = list.slice(0, n || 6)
-  for (var j = 0; j < top.length; j++) {
-    top[j].amountText = format.money(top[j].amount)
-    top[j].icon = category.iconOf(top[j].cat)
-  }
-  return top
+  list.sort(function (a, b) { return b.cents - a.cents })
+  return list.slice(0, n || 6).map(function (row) {
+    return {
+      name: row.name, amount: row.cents / 100, count: row.count, cat: row.cat,
+      amountText: format.signedMoney(row.cents / 100), negative: row.cents < 0,
+      icon: String(row.cat || '账').slice(0, 1)
+    }
+  })
 }
 
 var theme = require('../../utils/theme')
@@ -139,14 +144,22 @@ Page({
   onLoad: function () {
     var self = this
     this.setData({ ym: format.ymOf(Date.now()), dark: darkmode.isDark() })
-    darkmode.watch(function (dark) {
-      self.setData({ dark: dark }, function () { self.refresh() })
+    this._unwatchDark = darkmode.watch(function (dark) {
+      self.setData({ dark: dark }, function () { if (self._visible) { theme.syncTabBar(); self.refresh() } })
     })
   },
 
   onShow: function () {
-    this.setData({ themeKey: theme.get().key })
+    this._visible = true
+    this.setData({ themeKey: theme.get().key, dark: darkmode.isDark() })
+    theme.syncTabBar()
     var app = getApp()
+    if (/^\d{4}-(0[1-9]|1[0-2])$/.test(app.globalData.reportYm || '') && app.globalData.reportYm <= format.ymOf(Date.now())) {
+      this.setData({ ym: app.globalData.reportYm })
+    }
+    app.globalData.reportYm = ''
+    var section = app.globalData.reportSection
+    app.globalData.reportSection = ''
     /* 只有点名「由本页显示返回」的标记才在这儿消费；
      * 「回流水页」的标记留给流水页自己读，否则报表顺手把它吃掉，流水页就没有返回按钮了。 */
     if (app.globalData.backFor === '/pages/report/report') {
@@ -166,17 +179,24 @@ Page({
       scope: on ? prefs.viewScope() : 'both'
     })
     this.syncVip()
+    if (section === 'tools' || section === 'budget') {
+      if (section === 'budget' && !vip.isVip()) { vip.guard('月度预算'); return }
+      this.setData({ tab: 'expense' }, function () {
+        if (wx.pageScrollTo) wx.pageScrollTo({ selector: section === 'tools' ? '#data-tools' : '#budget-card', duration: 250 })
+      })
+    }
+  },
+
+  onHide: function () { this._visible = false },
+
+  onUnload: function () {
+    if (this._unwatchDark) this._unwatchDark()
   },
 
   /* 报表统一取数：加入了共同账本时按「只看自己 / 看双方 / 只看对方」过滤，
      没加入就照旧全量。所有统计、构成、导出都走这里，避免各页口径打架。 */
   scopeTxs: function () {
-    var all = store.all()
-    if (!shared.isJoined()) return all
-    var scope = prefs.viewScope()
-    if (scope === 'mine') return all.filter(function (t) { return shared.isMine(t) })
-    if (scope === 'peer') return all.filter(function (t) { return !shared.isMine(t) })
-    return all
+    return shared.viewRows(store.all(), prefs.viewScope())
   },
 
   /* 切换视角：写进本机偏好，流水页和首页一起变 */
@@ -228,78 +248,60 @@ Page({
     var cmp = stats.compareCats(txs, ym)
     var cal = stats.calendar(txs, ym)
     var ys = stats.yearSummary(txs, ym.split('-')[0])
-    /* 全库还有多少笔没分好类（不分月份，AI 补分类是补全库） */
     var uncatCount = 0
+    var grossCats = Object.create(null)
+    var maxPayment = null
     for (var ui = 0; ui < txs.length; ui++) {
-      if (txs[ui].type === 'expense' && txs[ui].category === '未分类') uncatCount++
+      var raw = txs[ui]
+      if (raw.byMe !== false && raw.type === 'expense' && raw.category === '未分类') uncatCount++
+      if (raw.ym !== ym || raw.type !== 'expense') continue
+      var name = raw.category || '未分类'
+      grossCats[name] = (grossCats[name] || 0) + cents(raw.amount)
+      if (cents(raw.amount) > 0 && (!maxPayment || cents(raw.amount) > cents(maxPayment.amount))) maxPayment = raw
     }
     /* 年度分类：支出 / 入账两个榜，默认只露前 3 类，展开看全年全部类目 */
     if (ys) {
       var yIncome = this.data.yearTab === 'income'
-      var yAll = (yIncome ? ys.topAllIn : ys.topAll) || []
+      var yAll = ((yIncome ? ys.topAllIn : ys.topAll) || []).filter(function (c) { return c.amount !== 0 })
       var yOpen = this.data.yearCatsOpen
+      var yPreview = previewCats(yAll, 3)
       ys.topTotal = yAll.length
-      ys.topMore = yAll.length > 3
-      ys.top = yOpen ? yAll : yAll.slice(0, 3)
+      ys.topMore = yAll.length > yPreview.length
+      ys.top = yOpen ? yAll : yPreview
       ys.moreLabel = yOpen ? '收起' : '展开全部 ' + yAll.length + ' 类'
-      ys.topLabel = yIncome ? '入账最多的分类' : '支出最多的分类'
+      ys.topLabel = yIncome ? '入账分类排行' : (s.refundOut ? '净支出分类排行' : '支出分类排行')
     }
 
     /* 支出分类带环比 + 分类预算 */
     var cb = store.catBudgets()
-    /* 分类净额：跟流水页用同一套「退款—付款」配对来算，
-       这样从报表点进某个分类，看到的合计和这里一模一样 */
-    var catNet = {}
-    var prNet = null
-    if (s.refundOut) {
-      var pairIn = []
-      var pmYm = monthShift(ym, -1)
-      var nmYm = monthShift(ym, 1)
-      for (var pi = 0; pi < txs.length; pi++) {
-        var pt2 = txs[pi]
-        if (pt2.ym === ym) pairIn.push(pt2)
-        else if (pt2.ym === pmYm && pt2.type === 'expense') pairIn.push(pt2)
-        else if (pt2.ym === nmYm && pt2.type === 'refund') pairIn.push(pt2)
-      }
-      prNet = refundpair.pair(pairIn)
-      for (var ci = 0; ci < txs.length; ci++) {
-        var ct = txs[ci]
-        if (ct.ym !== ym || ct.type !== 'expense') continue
-        var lv = (prNet.leftOf[ct.id] === undefined) ? ct.amount : prNet.leftOf[ct.id]
-        catNet[ct.category] = Math.round(((catNet[ct.category] || 0) + lv) * 100) / 100
-      }
-    }
     var expCats = s.byCat.map(function (c) {
       var prev = cmp.amountOf(c.name)
+      var change = cents(c.amount) - cents(prev)
       var deltaText = ''
-      var deltaDir = ''
-      var d = prev > 0 ? Math.round(((c.amount - prev) / prev) * 100) : 0
-      if (prev <= 0) {
-        deltaText = '新增'
-      } else if (Math.abs(d) > 999) {
-        /* 上月基数只有几块钱时，百分比会算成 +29603% 这种没法看的数字，
-         * 超过 999% 就直接把上月的真实金额写出来 */
-        deltaText = '上月 ¥' + format.money(prev)
-        deltaDir = d > 0 ? 'up' : 'down'
-      } else if (d === 0) { deltaText = '持平' } else {
+      var deltaDir = change > 0 ? 'up' : (change < 0 ? 'down' : '')
+      var d = prev !== 0 ? Math.round((change / Math.abs(cents(prev))) * 100) : 0
+      if (change === 0) {
+        deltaText = '持平'
+      } else if (prev <= 0 || c.amount < 0 || Math.abs(d) > 999) {
+        /* 上个月这类没有消费就别写「上月 ¥0.00」，那是一条噪音；
+           也别染成红色的「涨了」，新出现的分类不是坏消息 */
+        if (prev > 0) {
+          deltaText = '上月 ¥' + format.signedMoney(prev)
+        } else {
+          deltaText = '本月新增'
+          deltaDir = ''
+        }
+      } else {
         deltaText = (d > 0 ? '+' : '') + d + '%'
-        deltaDir = d > 0 ? 'up' : 'down'
       }
       var bud = cb[c.name] || 0
-      /* 分类预算的「已花」要扣掉这个类目的退款，不能拿原价去比额度 */
-      var netAmt = prNet
-        ? Math.max(Math.round((catNet[c.name] || 0) * 100) / 100, 0)
-        : Math.max(Math.round((bs.byCat[c.name] || 0) * 100) / 100, 0)
-      var backAmt = Math.max(Math.round((c.amount - netAmt) * 100) / 100, 0)
-      /* 默认「抵消」口径下，分类金额也按扣完退款后的净额展示，跟顶部「共支出」对得上 */
-      var showAmt = s.refundOut ? netAmt : c.amount
-      var showPct = (s.refundOut && s.expense > 0)
-        ? Math.round((showAmt / s.expense) * 1000) / 10
-        : c.pct
+      var signedNet = bs.byCat[c.name] || 0
+      var netAmt = Math.max(signedNet, 0)
+      var backAmt = Math.max((grossCats[c.name] || 0) - cents(signedNet), 0) / 100
       return {
-        _amt: showAmt,
-        name: c.name, amountText: format.money(showAmt), pct: showPct, count: c.count,
-        color: c.color, icon: category.iconOf(c.name), tint: category.tintOf(c.name), deltaText: deltaText, deltaDir: deltaDir,
+        _amt: c.amount, negative: c.amount < 0,
+        name: c.name, amountText: c.amountText, pct: c.pct, count: c.count,
+        color: c.color, icon: String(c.name || '账').slice(0, 1), tint: category.tintOf(c.name), deltaText: deltaText, deltaDir: deltaDir,
         budget: bud,
         budgetText: bud > 0 ? format.money(bud) : '',
         budgetSpentText: format.money(netAmt),
@@ -307,22 +309,20 @@ Page({
         budgetPct: bud > 0 ? Math.min(100, Math.round((netAmt / bud) * 100)) : 0,
         budgetOver: bud > 0 && netAmt > bud
       }
-    }).filter(function (c) {
-      /* 抵消口径下被退款退干净的类目不再占一行 */
-      return !(s.refundOut && c._amt <= 0)
-    })
+    }).filter(function (c) { return c._amt !== 0 })
 
     var incCats = s.byIncome.map(function (c) {
       return {
+        _amt: c.amount, negative: c.amount < 0,
         name: c.name, amountText: c.amountText, pct: c.pct, count: c.count,
-        color: c.color, icon: category.iconOf(c.name), tint: category.tintOf(c.name), deltaText: '', deltaDir: ''
+        color: c.color, icon: String(c.name || '账').slice(0, 1), tint: category.tintOf(c.name), deltaText: '', deltaDir: ''
       }
     })
 
     /* 当前 tab 的分类，默认 5 条 */
     var full = kind === 'income' ? incCats : expCats
     this._cats = full
-    var n = this.data.catsOpen ? full.length : Math.min(full.length, 5)
+    var preview = previewCats(full, 5)
     /* 每日对比 */
     var daily = this.buildDaily(txs, ym, kind)
     /* 缩放档位换算成柱子宽度：44 / 62 rpx 之外一律铺满整行 */
@@ -332,28 +332,29 @@ Page({
 
     /* 近 6 个月对比 */
     var tr6 = stats.trend(txs, ym, 6)
-    var max6 = 1
+    var max6 = 0
     for (var i = 0; i < tr6.length; i++) {
       var v = kind === 'income' ? tr6[i].income : tr6[i].expense
-      if (v > max6) max6 = v
+      max6 = Math.max(max6, Math.abs(v))
     }
     var months = tr6.map(function (x) {
       var v2 = kind === 'income' ? x.income : x.expense
-      var h = Math.round((v2 / max6) * 100)
-      if (v2 > 0 && h < 4) h = 4
+      var h = max6 > 0 ? Math.round((Math.abs(v2) / max6) * 100) : 0
+      if (v2 !== 0 && h < 4) h = 4
       return {
         ym: x.ym,
         label: x.label,
-        text: format.money(v2),
+        text: format.signedMoney(v2),
         h: h,
         active: x.ym === ym,
-        zero: v2 <= 0
+        negative: v2 < 0,
+        zero: v2 === 0
       }
     })
     var activeIdx = 0
     months.forEach(function (x, i) { if (x.active) activeIdx = i })
 
-    /* 预算：口径是「退款也算没花」，已花 = 支出 - 退款 */
+    /* 预算消耗最低为零，报表净支出保留负数。 */
     var b = store.budget()
     var curYm = format.ymOf(Date.now())
     var isCur = ym === curYm
@@ -373,10 +374,10 @@ Page({
       .filter(function (n) { return n !== '未分类' })
       .map(function (n) {
         var budN = cb[n] || 0
-        var spentN = Math.max(Math.round((bs.byCat[n] || 0) * 100) / 100, 0)
+        var spentN = Math.max(bs.byCat[n] || 0, 0)
         return {
           name: n,
-          icon: category.iconOf(n),
+          icon: String(n).slice(0, 1),
           tint: category.tintOf(n),
           spentText: format.money(spentN),
           has: budN > 0,
@@ -395,7 +396,7 @@ Page({
     var topExp = topBy(txs, ym, 'expense', 6)
     var topInc = topBy(txs, ym, 'income', 6)
     var rankBoards = [
-      { key: 'exp', title: '支出排行', sub: '本月花得最多的商户', inc: false, list: topExp },
+      { key: 'exp', title: s.refundOut ? '净支出排行' : '支出排行', sub: s.refundOut ? '含当月退款抵减 · 按净额排序' : '本月花得最多的商户', inc: false, list: topExp },
       { key: 'inc', title: '入账排行', sub: '本月进账最多的商户', inc: true, list: topInc }
     ]
     if (kind === 'income') rankBoards = [rankBoards[1], rankBoards[0]]
@@ -406,7 +407,7 @@ Page({
       isCurMonth: isCur,
       hasData: s.count > 0,
       s: {
-        expenseText: format.money(s.expense),
+        expenseText: format.signedMoney(s.expense),
         incomeText: format.money(s.incomeTotal),
         netText: format.money(Math.abs(s.net)),
         netSign: s.net < 0 ? '-' : '',
@@ -419,11 +420,11 @@ Page({
         acctText: format.money(s.acct)
       },
 
-      avgDailyText: format.money(ins.avgDaily),
-      maxMerchant: ins.maxTx ? ins.maxTx.merchant : '',
-      maxAmountText: ins.maxTx ? format.money(ins.maxTx.amount) : '0.00',
-      weekdayText: format.money(ins.weekday),
-      weekendText: format.money(ins.weekend),
+      avgDailyText: format.signedMoney(ins.avgDaily),
+      maxMerchant: maxPayment ? maxPayment.merchant : '',
+      maxAmountText: maxPayment ? format.money(maxPayment.amount) : '0.00',
+      weekdayText: format.signedMoney(ins.weekday),
+      weekendText: format.signedMoney(ins.weekend),
       spentDays: ins.spentDays,
 
       budget: b,
@@ -440,10 +441,8 @@ Page({
       catBudgetOpen: this.data.catBudgetOpen,
       catBudgetList: catBudgetList,
 
-      cats: full.slice(0, n),
-      /* 按钮跟「展开状态」无关：只要类目超过 5 个就一直在，
-         否则展开到全部条数后 catsHasMore 变 false，按钮消失就收不回去了 */
-      catsHasMore: full.length > 5,
+      cats: this.data.catsOpen ? full : preview,
+      catsHasMore: full.length > preview.length,
       catsTotal: full.length,
 
       daily: daily,
@@ -460,15 +459,17 @@ Page({
       uncatCount: uncatCount,
 
       cells: cal.cells.map(function (c, idx) {
-        c.k = c.blank ? 'b' + idx : 'd' + c.d
-        return c
+        return Object.assign({}, c, {
+          k: c.blank ? 'b' + idx : 'd' + c.d,
+          negative: !c.blank && c.amount < 0
+        })
       }),
       selDayText: ''
     }, function () {
       var cid = kind === 'income' ? 'piein' : 'pie'
       var opt = {
         text: '¥' + (kind === 'income' ? self.data.s.incomeText : self.data.s.expenseText),
-        label: kind === 'income' ? '本月入账' : '本月支出'
+        label: kind === 'income' ? '本月入账' : (s.refundOut ? '本月净支出' : '本月支出')
       }
       self.drawPie(cid, self._cats, opt)
       /* 页面从别处切进来时 canvas 可能还没挂上，稍后再补绘一次 */
@@ -476,46 +477,28 @@ Page({
     })
   },
 
-  /* 本月每天的量：支出算原价支出，入账算收入 + 退款 */
+  /* 每日与月汇总共用现金流日期口径。 */
   buildDaily: function (txs, ym, kind) {
-    var p = ym.split('-')
-    var y = parseInt(p[0], 10)
-    var m = parseInt(p[1], 10)
-    var dim = new Date(y, m, 0).getDate()
-
-    var raw = []
-    for (var d = 1; d <= dim; d++) raw.push(0)
-
-    for (var i = 0; i < txs.length; i++) {
-      var t = txs[i]
-      if (t.ym !== ym) continue
-      var dd = parseInt(String(t.day).split('-')[2], 10)
-      if (dd < 1 || dd > dim) continue
-      if (kind === 'income') {
-        if (t.type === 'income' || (!prefs.refundExcluded() && t.type === 'refund')) raw[dd - 1] += t.amount
-      } else if (t.type === 'expense') {
-        raw[dd - 1] += t.amount
-      } else if (t.type === 'refund' && prefs.refundExcluded()) {
-        /* 抵消口径：退款抵在当天支出上（负数下面会被夹成 0） */
-        raw[dd - 1] -= t.amount
-      }
-    }
-
+    var cal = stats.calendar(txs, ym)
+    var m = parseInt(ym.split('-')[1], 10)
+    var dim = cal.days.length
+    var raw = cal.days.map(function (c) { return kind === 'income' ? c.income : c.amount })
     var max = 0
     var maxIdx = -1
     for (var k = 0; k < raw.length; k++) {
-      if (raw[k] > max) { max = raw[k]; maxIdx = k }
+      if (Math.abs(raw[k]) > max) { max = Math.abs(raw[k]); maxIdx = k }
     }
 
     var list = raw.map(function (v, idx) {
-      var use = v > 0 ? v : 0
-      var h = max > 0 ? Math.round((use / max) * 100) : 0
-      if (use > 0 && h < 5) h = 5
-      var day = idx + 1
-      /* 放大后每一列下面要有个日期，不然滑着就不知道看的是哪天 */
+      var h = max > 0 ? Math.round((Math.abs(v) / max) * 100) : 0
+      if (v !== 0 && h < 5) h = 5
+      var day = cal.days[idx].d
       var ax = ''
       if (day === 1 || day % 5 === 0 || day === dim) ax = m + '.' + day
-      return { d: day, h: h, isMax: idx === maxIdx && max > 0, ax: ax }
+      return {
+        d: day, amount: v, amountText: format.signedMoney(v), h: h,
+        negative: v < 0, zero: v === 0, isMax: idx === maxIdx && max > 0, ax: ax
+      }
     })
 
     var left = dim > 1 ? ((maxIdx + 0.5) / dim) * 100 : 50
@@ -529,9 +512,9 @@ Page({
       list: list,
       dim: dim,
       show: max > 0,
-      tipText: max > 0 ? (m + '月' + (maxIdx + 1) + '日 · ' + (kind === 'income' ? '共入账' : '共支出') + ' ¥' + format.money(max)) : '',
+      tipText: max > 0 ? (m + '月' + cal.days[maxIdx].d + '日 · ' + (kind === 'income' ? '共入账' : (prefs.refundExcluded() ? '净支出' : '共支出')) + ' ¥' + format.signedMoney(raw[maxIdx])) : '',
       tipLeft: left,
-      maxText: format.money(max),
+      maxText: format.signedMoney(max > 0 ? raw[maxIdx] : 0),
       x1: m + '.' + 1,
       x2: m + '.' + mid1,
       x3: m + '.' + mid2,
@@ -575,13 +558,22 @@ Page({
       var rInner = rOuter * 0.62
 
       var total = 0
-      for (var i = 0; i < cats.length; i++) total += cats[i].pct
-      if (total <= 0) total = 100
+      for (var i = 0; i < cats.length; i++) {
+        if (cats[i]._amt > 0) total += cents(cats[i]._amt)
+      }
+      if (total === 0) {
+        ctx.beginPath()
+        ctx.arc(cx, cy, (rOuter + rInner) / 2, 0, Math.PI * 2)
+        ctx.lineWidth = rOuter - rInner
+        ctx.strokeStyle = self.data.dark ? '#343d46' : '#e6eaed'
+        ctx.stroke()
+      }
 
       var start = -Math.PI / 2
       for (var j = 0; j < cats.length; j++) {
-        var sweep = (cats[j].pct / total) * Math.PI * 2
-        if (sweep < 0.015) sweep = 0.015
+        if (cats[j]._amt <= 0 || total === 0) continue
+        var sweep = (cents(cats[j]._amt) / total) * Math.PI * 2
+        if (sweep <= 0) continue
         ctx.beginPath()
         ctx.arc(cx, cy, rOuter, start, start + sweep)
         ctx.arc(cx, cy, rInner, start + sweep, start, true)
@@ -702,6 +694,7 @@ Page({
     app.globalData.filterKind = this.data.tab
     app.globalData.filterYm = this.data.ym
     app.globalData.filterDay = ''
+    app.globalData.filterUncat = false
     app.globalData.backFor = '/pages/list/list'
     app.globalData.backTab = '/pages/report/report'
     app.globalData.backLabel = '报表'
@@ -747,6 +740,7 @@ Page({
     app.globalData.filterCat = ''
     app.globalData.filterKind = 'expense'
     app.globalData.filterYm = this.data.ym
+    app.globalData.filterUncat = false
     app.globalData.backFor = '/pages/list/list'
     app.globalData.backTab = '/pages/report/report'
     app.globalData.backLabel = '报表'
@@ -771,7 +765,8 @@ Page({
       success: function (res) {
         if (!res.confirm) return
         var v = Number(String(res.content || '').replace(/[^\d.]/g, ''))
-        store.setBudget(v)
+        var saved = store.setBudget(v)
+        if (saved === null) return
         self.refresh()
         wx.showToast({ title: v > 0 ? '预算已设' : '已取消预算', icon: 'none' })
       }
@@ -795,7 +790,7 @@ Page({
       success: function (m) {
         if (!m.confirm) return
         var v = Number(String(m.content || '').replace(/[^\d.]/g, ''))
-        store.setCatBudget(name, v)
+        if (store.setCatBudget(name, v) === null) return
         self.refresh()
         wx.showToast({ title: v > 0 ? '预算已设' : '已取消预算', icon: 'none' })
       }
@@ -834,92 +829,15 @@ Page({
     })
   },
 
-  /* 备份：全量 JSON 转发到聊天 / 存到本地 */
+  /* 与「我的」共用免费数据工具，跨页面也只允许一个操作。 */
   backup: function () {
     var self = this
-    var data = store.exportAll()
-    var fs = wx.getFileSystemManager()
-    var path = wx.env.USER_DATA_PATH + '/book_backup_' + format.dayOf(Date.now()) + '.json'
-    fs.writeFile({
-      filePath: path,
-      data: JSON.stringify(data),
-      encoding: 'utf8',
-      success: function () {
-        var openDoc = function () {
-          wx.openDocument({
-            filePath: path,
-            fileType: 'json',
-            showMenu: true,
-            fail: function () {
-              wx.showModal({ title: '备份文件已生成', content: '路径：' + path, showCancel: false })
-            }
-          })
-        }
-        if (wx.shareFileMessage) {
-          wx.shareFileMessage({ filePath: path, fail: openDoc })
-        } else {
-          openDoc()
-        }
-      },
-      fail: function () { wx.showToast({ title: '生成备份失败', icon: 'none' }) }
-    })
+    return dataTools.backup(function () { self.refresh() })
   },
 
-  /* 恢复：从聊天里选备份 JSON，流水按现有判重规则合并 */
   restore: function () {
     var self = this
-    wx.chooseMessageFile({
-      count: 1,
-      type: 'file',
-      extension: ['json'],
-      success: function (res) {
-        var f = res.tempFiles[0]
-        if (!f) return
-        var fs = wx.getFileSystemManager()
-        fs.readFile({
-          filePath: f.path,
-          encoding: 'utf8',
-          success: function (r) {
-            var payload = null
-            try { payload = JSON.parse(r.data) } catch (e) {
-              wx.showToast({ title: '文件不是有效备份', icon: 'none' })
-              return
-            }
-            var n = Array.isArray(payload.txs) ? payload.txs.length : 0
-            if (!n) { wx.showToast({ title: '备份里没有流水', icon: 'none' }); return }
-            wx.showModal({
-              title: '恢复备份？',
-              content: '备份里有 ' + n + ' 笔流水；已存在的会自动跳过，不会重复记。',
-              confirmText: '恢复',
-              success: function (m) {
-                if (!m.confirm) return
-                try {
-                  var out = store.importAll(payload)
-                  self.refresh()
-                  wx.showModal({
-                    title: '恢复完成',
-                    content: '新增 ' + out.added + ' 笔，重复跳过 ' + out.dup + ' 笔，合并 ' + out.merged + ' 笔' +
-                      (out.skipped ? '，无效数据跳过 ' + out.skipped + ' 笔' : '') +
-                      (out.trimmed ? '，超出一年清掉 ' + out.trimmed + ' 笔' : '') +
-                      '；库里共 ' + out.total + ' 笔。',
-                    showCancel: false
-                  })
-                } catch (err) {
-                  /* 不把原始异常文案（英文）直接弹给用户 */
-                  var msg = String((err && err.message) || '')
-                  if (/格式不对/.test(msg)) {
-                    wx.showToast({ title: '备份文件格式不对', icon: 'none' })
-                  } else {
-                    wx.showToast({ title: '恢复失败，备份可能已损坏', icon: 'none' })
-                  }
-                }
-              }
-            })
-          },
-          fail: function () { wx.showToast({ title: '读不到这个文件', icon: 'none' }) }
-        })
-      }
-    })
+    return dataTools.restore(function () { self.refresh() })
   },
 
   /* AI 补分类：只处理词库没命中的「未分类」，按商户去重后一批批问
@@ -932,7 +850,7 @@ Page({
       return
     }
 
-    var txs = this.scopeTxs()
+    var txs = this.scopeTxs().filter(function (t) { return t.byMe !== false })
     var g = stats.uncatGroups(txs, 60)
     if (!g.items.length) {
       var why = g.noMerchant > 0
@@ -1024,6 +942,16 @@ Page({
         if (!res.confirm) return
         var out = store.applyCategories(map)
         self.refresh()
+        if (!out || out.saved !== true || out.partial) {
+          wx.showModal({
+            title: '分类保存失败',
+            content: out && out.partial
+              ? '分类或规则可能已有部分写入且回滚未完成。请先核对实际账本、导出备份，再决定是否重试。'
+              : '本次分类和规则未保存，可以重试，或先导出备份。',
+            showCancel: false
+          })
+          return
+        }
         wx.showModal({
           title: '补了 ' + out.changed + ' 笔',
           content: '同时沉淀了 ' + out.learned + ' 条商户规则，以后这同一批商户导入时会自动分好类，不用再调 AI。\n判错的去「流水」页点那笔改一下，手改会覆盖这里的结论。',
@@ -1037,12 +965,12 @@ Page({
     var n = store.all().length
     wx.showModal({
       title: '清空所有数据？',
-      content: '库里 ' + n + ' 笔流水、学到的分类规则、月度预算会一起清零，不能恢复。只想删某个月的，去「流水」页点右上「⋯ 管理」。',
+      content: '本机 ' + n + ' 笔流水、分类规则和预算会清空，不能恢复。你自己已共享的记录会在下次同步时从云端删除；其他成员的记录只清除本机副本，不删除对方云端记录，本机清除标记保留期间不会重新拉回。无法远程擦除成员已保存的本机副本。建议先在「数据工具」导出备份；只删某个月的本人流水，请去「流水 → 管理」。',
       confirmText: '清空',
       confirmColor: '#d9433f',
       success: function (res) {
         if (!res.confirm) return
-        store.clearAll()
+        if (store.clearAll() === false) return
         wx.showToast({ title: '已清空', icon: 'none' })
         var pages = getCurrentPages()
         var cur = pages[pages.length - 1]

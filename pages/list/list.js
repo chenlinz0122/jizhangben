@@ -5,29 +5,15 @@ var category = require('../../utils/category')
 var vip = require('../../utils/vip')
 var shared = require('../../utils/shared')
 var prefs = require('../../utils/prefs')
-var refundpair = require('../../utils/refundpair')
 
 var theme = require('../../utils/theme')
-
-/* '2026-11' → '2026-10'，'2026-01' → '2025-12' */
-function monthBefore(ym) {
-  var y = parseInt(ym.slice(0, 4), 10)
-  var m = parseInt(ym.slice(5, 7), 10)
-  if (m === 1) { y -= 1; m = 12 } else { m -= 1 }
-  return y + '-' + (m < 10 ? '0' + m : '' + m)
-}
-
-/* '2026-11' → '2026-12'，'2026-12' → '2027-01' */
-function monthAfter(ym) {
-  var y = parseInt(ym.slice(0, 4), 10)
-  var m = parseInt(ym.slice(5, 7), 10)
-  if (m === 12) { y += 1; m = 1 } else { m += 1 }
-  return y + '-' + (m < 10 ? '0' + m : '' + m)
-}
+var darkmode = require('../../utils/darkmode')
 
 Page({
   data: {
     themeKey: 'green',
+    dark: false,
+    maxYm: '',
     ym: '',
     monthText: '',
     canNext: false,
@@ -53,27 +39,27 @@ Page({
   },
 
   onLoad: function () {
-    this.setData({ ym: format.ymOf(Date.now()) })
+    var self = this
+    this.setData({ ym: format.ymOf(Date.now()), maxYm: format.ymOf(Date.now()), dark: darkmode.isDark() })
+    this._unwatchDark = darkmode.watch(function (dark) {
+      self.setData({ dark: dark })
+      if (self._visible) theme.syncTabBar()
+    })
   },
 
   onShow: function () {
-    this.setData({ themeKey: theme.get().key })
+    this._visible = true
+    this.setData({ themeKey: theme.get().key, dark: darkmode.isDark(), maxYm: format.ymOf(Date.now()) })
+    theme.syncTabBar()
     var app = getApp()
-    if (app.globalData.filterUncat) {
-      app.globalData.filterUncat = false
-      /* 从总览跳进「未分类」时，把月份重置到当前月，否则会沿用上次停留的旧月份，
-       * 非搜索状态下刷新会按旧月份过滤，可能显示 0 笔。 */
-      this.setData({ onlyUncat: true, ym: format.ymOf(Date.now()), kw: '', filterDay: '' })
-    }
-    /* 四个筛选条件各自独立读取，不能用 filterCat 当总开关——日历跳当天时 filterCat 是空串 */
-    var jumped = !!(app.globalData.filterCat || app.globalData.filterKind ||
-      app.globalData.filterYm || app.globalData.filterDay)
-    if (app.globalData.filterCat) this.setData({ filterCat: app.globalData.filterCat })
-    if (app.globalData.filterKind) this.setData({ filterKind: app.globalData.filterKind })
-    if (app.globalData.filterYm) this.setData({ ym: app.globalData.filterYm })
-    if (app.globalData.filterDay) this.setData({ filterDay: app.globalData.filterDay })
-    /* 从报表跳过来时清掉搜索词，否则跨月搜索会把月份筛选顶掉 */
-    if (jumped) this.setData({ kw: '' })
+    var g = app.globalData
+    var jumped = !!(g.filterUncat || g.filterCat || g.filterKind || g.filterYm || g.filterDay ||
+      (g.backFor === '/pages/list/list' && g.backTab))
+    if (jumped) this.setData({
+      onlyUncat: !!g.filterUncat, filterCat: g.filterCat || '', filterKind: g.filterKind || '',
+      filterDay: g.filterDay || '', ym: g.filterYm || format.ymOf(Date.now()), kw: ''
+    })
+    app.globalData.filterUncat = false
     app.globalData.filterCat = ''
     app.globalData.filterKind = ''
     app.globalData.filterYm = ''
@@ -100,6 +86,18 @@ Page({
       scope: sharedOn ? prefs.viewScope() : 'both'
     })
     this.refresh()
+    if (g.openTxId) {
+      var id = g.openTxId
+      g.openTxId = ''
+      this.openSheet({ currentTarget: { dataset: { id: id } } })
+    }
+  },
+
+  pickMonth: function (e) {
+    var ym = String(e.detail.value || '')
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(ym) || ym > format.ymOf(Date.now())) return
+    this.setData({ ym: ym, filterDay: '', kw: '' })
+    this.refresh()
   },
 
   /* 页面内的返回按钮：清掉跳转带过来的筛选，再回到来源页 */
@@ -113,11 +111,11 @@ Page({
       ym: format.ymOf(Date.now())
     }, function () { self.refresh() })
     if (!target) return
-    var tabs = ['/pages/index/index', '/pages/list/list', '/pages/report/report']
+    var tabs = ['/pages/home/home', '/pages/index/index', '/pages/list/list', '/pages/report/report']
     if (tabs.indexOf(target) >= 0) {
       wx.switchTab({ url: target })
     } else {
-      wx.navigateTo({ url: target, fail: function () { wx.switchTab({ url: '/pages/index/index' }) } })
+      wx.navigateTo({ url: target, fail: function () { wx.switchTab({ url: '/pages/home/home' }) } })
     }
   },
 
@@ -125,98 +123,51 @@ Page({
     var ym = this.data.ym
     var kw = (this.data.kw || '').trim().toLowerCase()
     var searching = !!kw
-    var txs = store.all()
+    clearTimeout(this._searchTimer)
     var refundOut = prefs.refundExcluded()
-    /* 共同账本视角：mine 只看自己 / peer 只看对方 / both 看双方（没加入账本时一律当 both） */
     var scope = this.data.sharedOn ? this.data.scope : 'both'
-    if (scope !== 'mine' && scope !== 'peer') scope = 'both'
+    var raw = shared.viewRows(store.all(), scope)
+    var txs = stats.ledger(raw, refundOut)
 
     /* 第一遍：把当前筛选条件下的记录先收成一个数组 */
     var filtered = []
     for (var i = 0; i < txs.length; i++) {
       var t = txs[i]
-      /* 共同账本：别人记的记录带 by / byMe=false，自己记的没有这两个字段 */
-      if (scope === 'mine' && !shared.isMine(t)) continue
-      if (scope === 'peer' && shared.isMine(t)) continue
       if (!searching && t.ym !== ym) continue
       if (searching) {
-        var hay = [t.merchant, t.desc, t.note, t.category].join(' ').toLowerCase()
+        var hay = [t.merchant, t.originalMerchant, t.desc, t.note, t.category, t.originalCategory].join(' ').toLowerCase()
         if (hay.indexOf(kw) < 0) continue
       }
       if (this.data.filterDay && t.day !== this.data.filterDay) continue
-      if (this.data.onlyUncat && !(t.type === 'expense' && t.category === '未分类')) continue
+      if (this.data.onlyUncat && !(t.type === 'expense' && !t.refundAdjustment && t.category === '未分类')) continue
       if (this.data.filterCat && t.category !== this.data.filterCat) continue
       if (this.data.filterKind === 'expense' && t.type !== 'expense') continue
       if (this.data.filterKind === 'income' && !(t.type === 'income' || t.type === 'refund')) continue
       filtered.push(t)
     }
 
-    /* 第二遍：抵消口径下把退款和它对应的那笔付款配对（规则见 utils/refundpair.js）
-       —— 全额退款：退款行 + 付款行一起从列表里消失；
-          部分退款：退款行消失，付款行金额改成扣完退款后的净额，并标一句「已退 ¥x」。
-       退款行在任何视图下都不显示（从报表点进来、按分类筛选也一样）。
-
-       配对的取材不看当前这屏的筛选：一律用「这个月的全部流水 + 上个月支出 + 下个月退款」。
-       否则从报表点某个分类进来时，退款对应的付款被筛选挡掉，配对失败就会漏出退款行。 */
-    var prevYm = monthBefore(ym)
-    var nextYm = monthAfter(ym)
-    var pairInput = []
-    for (var ps = 0; ps < txs.length; ps++) {
-      var pt = txs[ps]
-      var inMonth = (pt.ym === ym)
-      var borrowExp = (pt.ym === prevYm && pt.type === 'expense')
-      var borrowRef = (pt.ym === nextYm && pt.type === 'refund')
-      if (!inMonth && !borrowExp && !borrowRef) continue
-      if (scope === 'mine' && !shared.isMine(pt)) continue
-      if (scope === 'peer' && shared.isMine(pt)) continue
-      pairInput.push(pt)
-    }
-    var pr = refundOut
-      ? refundpair.pair(pairInput)
-      : { hideId: {}, leftOf: {}, refundedOf: {}, pairs: [], unmatchedAmount: 0 }
-    var skipId = pr.hideId
-
-    /* 配上的付款如果不在这一屏（跨月、被分类筛选挡掉），这屏看不到那笔付款，
-       金额只能从本屏支出合计里扣。只算「退款本身在这屏里」的那些配对：
-       从报表点某个分类进来时，本屏一条退款都没有，就不该跟着扣别屏的钱。 */
-    var inView = {}
-    for (var iv = 0; iv < filtered.length; iv++) inView[filtered[iv].id] = true
-    var crossAmount = 0
-    for (var cq = 0; cq < pr.pairs.length; cq++) {
-      var cpr = pr.pairs[cq]
-      if (inView[cpr.refund.id] && !inView[cpr.expense.id]) {
-        crossAmount = Math.round((crossAmount + cpr.amount) * 100) / 100
-      }
-    }
-
+    filtered.sort(function (a, b) { return b.time - a.time })
+    var total = stats.totals(filtered)
     var groups = []
-    var cur = null
-    var tExp = 0
-    var tInc = 0
-    var tCount = 0
+    var dayMap = Object.create(null)
 
     for (var m = 0; m < filtered.length; m++) {
       var tx = filtered[m]
-      if (skipId[tx.id]) continue
-
-      tCount++
-      var netAmt = tx.amount
-      if (tx.type === 'expense') {
-        netAmt = (pr.leftOf[tx.id] === undefined) ? tx.amount : pr.leftOf[tx.id]
-        tExp += netAmt
-      }
-      if (tx.type === 'income' || (tx.type === 'refund' && !refundOut)) tInc += tx.amount
-
-      if (!cur || cur.day !== tx.day) {
+      var cur = dayMap[tx.day]
+      if (!cur) {
         var parts = tx.day.split('-')
         cur = {
           day: tx.day,
           label: parseInt(parts[1], 10) + '月' + parseInt(parts[2], 10) + '日',
           items: [],
-          spend: 0
+          spend: 0,
+          refund: 0
         }
         groups.push(cur)
+        dayMap[tx.day] = cur
       }
+      if (tx.type === 'expense') cur.spend += Math.round(tx.amount * 100)
+      if (tx.refundAdjustment) { cur.refund += Math.round(-tx.amount * 100); continue }
 
       /* 谁记的：别人的记录带名字（有备注就显示备注）；自己的不挂，进账本页之前一律不挂 */
       var byNick = (this.data.sharedOn && tx.by && tx.byMe === false) ? String(tx.by) : ''
@@ -227,13 +178,12 @@ Page({
         id: tx.id,
         merchant: tx.merchant || '（没有商户名）',
         category: tx.category,
-        amountText: format.money(netAmt),
-        refundedText: pr.refundedOf[tx.id] ? format.money(pr.refundedOf[tx.id]) : '',
+        amountText: format.money(tx.amount),
         timeText: format.pad(new Date(tx.time).getHours()) + ':' + format.pad(new Date(tx.time).getMinutes()),
         type: tx.type,
         sign: sign,
         color: category.colorOf(tx.category),
-        icon: category.iconOf(tx.category),
+        icon: String(tx.category || '账').slice(0, 1),
         tint: category.tintOf(tx.category),
         isUncat: tx.category === '未分类',
         /* 行内也把说明带出来：账单里的「美团-机票」这种关键信息，藏在详情里等于没有 */
@@ -241,59 +191,38 @@ Page({
         note: tx.note || '',
         /* 别人记的账挂个名字标签，显示成「小李 标记的」；自己记的不挂 */
         by: byNick,
-        byLabel: byNick ? shared.labelOf(byNick) : ''
+        byLabel: byNick ? shared.labelOf(byNick, tx.ownerKey) : ''
       }
       cur.items.push(row)
-      if (tx.type === 'expense') cur.spend += netAmt
     }
 
-    /* 合并后合计仍要准确：付款不在这屏的退款，以及极端情况下整本账都找不到支出的退款，
-       都从本屏支出里扣掉 */
-    tExp -= (crossAmount + pr.unmatchedAmount)
-
-    var note = ''
-    /* 只有「整月视图」才给这句配对汇总；从报表点分类/搜关键词进来时，配对整个月发生，
-       写在筛选结果上面会让人以为被筛掉的也在这一屏 */
+    var note = total.refundAdjustment > 0
+      ? '付款 ¥' + format.money(total.expense + total.refundAdjustment) +
+        ' − 退款 ¥' + format.money(total.refundAdjustment) + ' = 净支出 ¥' + format.signedMoney(total.expense) +
+        ' · 退款按到账日计，笔数含退款'
+      : ''
     var plainView = !searching && !this.data.filterCat && !this.data.filterDay &&
       !this.data.filterKind && !this.data.onlyUncat
-    if (plainView && refundOut) {
-      var fullCnt = 0
-      var partCnt = 0
-      for (var q = 0; q < filtered.length; q++) {
-        var et = filtered[q]
-        if (et.type !== 'expense' || !pr.refundedOf[et.id]) continue
-        if (pr.refundedOf[et.id] >= et.amount - 0.01) fullCnt++
-        else partCnt++
-      }
-      if (fullCnt > 0 && partCnt > 0) {
-        note = '退款已配对：' + fullCnt + ' 组全额退款连付款一起剔除，' + partCnt + ' 笔部分退款并进付款按净额显示'
-      } else if (fullCnt > 0) {
-        note = fullCnt + ' 组全额退款已连对应的付款一起剔除'
-      } else if (partCnt > 0) {
-        note = partCnt + ' 笔退款已并进对应的付款，按净额显示'
-      }
-      if (pr.unmatchedAmount > 0.005) {
-        note += (note ? '；' : '') + '另有 ¥' + format.money(pr.unmatchedAmount) + ' 退款没配上付款，留在列表里、已从支出里扣'
-      }
-    }
 
     /* 看双方时最常见的困惑：「同步成功了、账本里也有，可这个月流水里一条对方的都没有」。
        对方的账多半记在别的月份（流水默认只看本月），这里直接说清楚，别让人以为是同步丢了。 */
     if (plainView && this.data.sharedOn && scope !== 'mine') {
       var peerAll = 0
       var peerThisMonth = 0
-      for (var pa = 0; pa < txs.length; pa++) {
-        if (shared.isMine(txs[pa])) continue
+      for (var pa = 0; pa < raw.length; pa++) {
+        if (shared.isMine(raw[pa])) continue
         peerAll++
-        if (txs[pa].ym === ym) peerThisMonth++
+        if (raw[pa].ym === ym) peerThisMonth++
       }
       if (peerAll > 0 && peerThisMonth === 0) {
         note += (note ? '；' : '') + '对方记的 ' + peerAll + ' 笔都在别的月份，用上面的 ‹ › 翻一下就能看到'
       }
     }
 
+    groups.sort(function (a, b) { return a.day < b.day ? 1 : (a.day > b.day ? -1 : 0) })
     groups.forEach(function (g) {
-      g.spendText = format.money(Math.max(g.spend, 0))
+      g.spendText = format.signedMoney(g.spend / 100)
+      g.refundText = g.refund ? format.money(g.refund / 100) : ''
     })
 
     this.setData({
@@ -303,16 +232,29 @@ Page({
       groups: groups,
       refundNote: note,
       s: {
-        expenseText: format.money(Math.max(tExp, 0)),
-        incomeText: format.money(tInc),
-        count: tCount
+        expenseText: format.signedMoney(total.expense),
+        incomeText: format.money(total.income),
+        count: total.count,
+        refundOut: refundOut
       }
     })
   },
 
   onSearch: function (e) {
     var self = this
-    this.setData({ kw: e.detail.value }, function () { self.refresh() })
+    clearTimeout(this._searchTimer)
+    this.setData({ kw: e.detail.value })
+    this._searchTimer = setTimeout(function () { self.refresh() }, 180)
+  },
+
+  onHide: function () {
+    this._visible = false
+    clearTimeout(this._searchTimer)
+  },
+
+  onUnload: function () {
+    clearTimeout(this._searchTimer)
+    if (this._unwatchDark) this._unwatchDark()
   },
 
   clearKw: function () {
@@ -322,13 +264,13 @@ Page({
 
   prevMonth: function () {
     var self = this
-    this.setData({ ym: format.shiftMonth(this.data.ym, -1) }, function () { self.refresh() })
+    this.setData({ ym: format.shiftMonth(this.data.ym, -1), filterDay: '' }, function () { self.refresh() })
   },
 
   nextMonth: function () {
     if (!this.data.canNext) return
     var self = this
-    this.setData({ ym: format.shiftMonth(this.data.ym, 1) }, function () { self.refresh() })
+    this.setData({ ym: format.shiftMonth(this.data.ym, 1), filterDay: '' }, function () { self.refresh() })
   },
 
   toggleUncat: function () {
@@ -398,13 +340,14 @@ Page({
       catMode: false,
       sheetItem: {
         id: tx.id,
+        canEdit: store.canEdit(tx),
         merchant: tx.merchant || '（没有商户名）',
         amountText: format.money(tx.amount),
         sign: (tx.type === 'income' || tx.type === 'refund') ? '+' : (tx.type === 'transfer' ? '' : '-'),
         dirText: dir.t,
         dirClass: dir.cls,
         category: tx.category,
-        icon: category.iconOf(tx.category),
+        icon: String(tx.category || '账').slice(0, 1),
         color: category.colorOf(tx.category),
         dateText: d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日 周' + wk,
         timeText: format.pad(d.getHours()) + ':' + format.pad(d.getMinutes()),
@@ -412,7 +355,8 @@ Page({
         note: tx.note || '',
         /* 这笔谁记的：带原始昵称（改备注用）和显示名 */
         byNick: (tx.by && tx.byMe === false) ? String(tx.by) : '',
-        byLabel: (tx.by && tx.byMe === false) ? shared.labelOf(tx.by) : '',
+        byLabel: (tx.by && tx.byMe === false) ? shared.labelOf(tx.by, tx.ownerKey) : '',
+        ownerKey: tx.ownerKey || '',
         status: tx.status || '',
         account: tx.account || '',
         source: tx.source || '',
@@ -426,14 +370,27 @@ Page({
     this.setData({ sheetVisible: false, sheetItem: null, catMode: false })
   },
 
+  editableTx: function (id) {
+    var all = store.all()
+    for (var i = 0; i < all.length; i++) {
+      if (all[i].id !== id) continue
+      if (store.canEdit(all[i])) return all[i]
+      wx.showToast({ title: '只能修改或删除自己记的账', icon: 'none' })
+      return null
+    }
+    return null
+  },
+
   /* 默认先看明细，点「改分类」才展开类目清单，别一上来甩 21 个选项 */
   toggleCatMode: function () {
+    var item = this.data.sheetItem
+    if (!item || !this.editableTx(item.id)) return
     this.setData({ catMode: !this.data.catMode })
   },
 
   editNote: function () {
     var item = this.data.sheetItem
-    if (!item) return
+    if (!item || !this.editableTx(item.id)) return
     var self = this
     wx.showModal({
       title: '这笔的备注',
@@ -441,9 +398,9 @@ Page({
       placeholderText: '比如「和室友 AA」「报销用」',
       content: item.note || '',
       success: function (res) {
-        if (!res.confirm) return
+        if (!res.confirm || !self.editableTx(item.id)) return
         var v = String(res.content || '').trim()
-        store.update(item.id, { note: v })
+        if (store.update(item.id, { note: v }) === null) return
         self.setData({ 'sheetItem.note': v })
         self.refresh()
         wx.showToast({ title: v ? '备注已保存' : '备注已清空', icon: 'none' })
@@ -457,7 +414,7 @@ Page({
     if (!item || !item.byNick) return
     var self = this
     var nick = item.byNick
-    var cur = shared.remarkOf(nick)
+    var cur = shared.remarkOf(nick, item.ownerKey)
     wx.showModal({
       title: '他叫什么（你自己看的名字）',
       editable: true,
@@ -465,9 +422,10 @@ Page({
       content: cur,
       success: function (res) {
         if (!res.confirm) return
-        var v = shared.setRemark(nick, res.content)
+        var v = shared.setRemark(nick, res.content, item.ownerKey)
+        if (v === null) { wx.showToast({ title: '个人备注未保存，请重试', icon: 'none' }); return }
         self.setData({
-          'sheetItem.byLabel': shared.labelOf(nick)
+          'sheetItem.byLabel': shared.labelOf(nick, item.ownerKey)
         })
         self.refresh()
         wx.showToast({ title: v ? '备注已保存' : '已恢复原名', icon: 'none' })
@@ -479,16 +437,20 @@ Page({
     var cat = e.currentTarget.dataset.cat
     var item = this.data.sheetItem
     if (!item) return
-    var txs = store.all()
-    var tx = null
-    for (var i = 0; i < txs.length; i++) {
-      if (txs[i].id === item.id) { tx = txs[i]; break }
-    }
+    var tx = this.editableTx(item.id)
     if (!tx) return
-    store.update(item.id, { category: cat })
-    store.learn(tx.merchant, cat)
+    if (store.update(item.id, { category: cat }) === null) return
+    var learned = store.learn(tx.merchant, cat)
     this.setData({ sheetVisible: false, sheetItem: null, catMode: false })
     this.refresh()
+    if (learned === false) {
+      wx.showModal({
+        title: '本笔分类已保存',
+        content: '这笔已改成「' + cat + '」，但分类规则未保存，后续导入不会应用这次规则。可稍后再修改分类来学习规则。',
+        showCancel: false
+      })
+      return
+    }
     wx.showToast({ title: '已改成「' + cat + '」', icon: 'none' })
     this.offerBatch(tx, cat)
   },
@@ -496,6 +458,7 @@ Page({
   /* 改完一笔，顺手问一句：这个商户之前的账要不要一起改？
    * 不然同一个商户错 20 笔，就得点 20 次。 */
   offerBatch: function (tx, cat) {
+    if (!tx || !store.canEdit(tx)) return
     var name = String(tx.merchant || '').trim()
     if (!name || name.length < 2) return
     var income = tx.type === 'income' || tx.type === 'refund'
@@ -503,7 +466,7 @@ Page({
     var all = store.all()
     for (var i = 0; i < all.length; i++) {
       var t = all[i]
-      if (t.id === tx.id) continue
+      if (t.id === tx.id || !store.canEdit(t)) continue
       if (String(t.merchant || '').trim() !== name) continue
       if ((t.type === 'income' || t.type === 'refund') !== income) continue
       if (t.category === cat) continue
@@ -515,11 +478,12 @@ Page({
     setTimeout(function () {
       wx.showModal({
         title: '一起改「' + name + '」？',
-        content: '这个商户还有 ' + ids.length + ' 笔不是「' + cat + '」，要一起改成「' + cat + '」吗',
+        content: '你自己记的这个商户还有 ' + ids.length + ' 笔不是「' + cat + '」，要一起改成「' + cat + '」吗？不会修改其他成员的记录。',
         confirmText: '一起改',
         success: function (res) {
           if (!res.confirm) return
           var n = store.relabel(ids, cat)
+          if (n === null) return
           self.refresh()
           wx.showToast({ title: '又改了 ' + n + ' 笔', icon: 'none' })
         }
@@ -529,15 +493,16 @@ Page({
 
   onLongPress: function (e) {
     var id = e.currentTarget.dataset.id
+    if (!this.editableTx(id)) return
     var self = this
     wx.showModal({
       title: '删除这笔？',
-      content: '删了就找不回来了',
+      content: '删了就找不回来了；本人已共享记录的云端删除将在下次同步时提交。',
       confirmText: '删除',
       confirmColor: '#d9433f',
       success: function (res) {
-        if (!res.confirm) return
-        store.remove(id)
+        if (!res.confirm || !self.editableTx(id)) return
+        if (store.remove(id) === false) return
         self.refresh()
       }
     })
@@ -546,16 +511,16 @@ Page({
   /* 弹窗里直接删这笔（不靠长按，长按很多人不知道） */
   deleteSheetItem: function () {
     var item = this.data.sheetItem
-    if (!item) return
+    if (!item || !this.editableTx(item.id)) return
     var self = this
     wx.showModal({
       title: '删除这笔？',
-      content: item.merchant + ' ¥' + item.amountText + '\n删了就找不回来了',
+      content: item.merchant + ' ¥' + item.amountText + '\n删了就找不回来了；本人已共享记录的云端删除将在下次同步时提交。',
       confirmText: '删除',
       confirmColor: '#d9433f',
       success: function (res) {
-        if (!res.confirm) return
-        store.remove(item.id)
+        if (!res.confirm || !self.editableTx(item.id)) return
+        if (store.remove(item.id) === false) return
         self.setData({ sheetVisible: false, sheetItem: null, catMode: false })
         self.refresh()
         wx.showToast({ title: '已删除', icon: 'none' })
@@ -574,7 +539,7 @@ Page({
       ? '退款：抵消支出（点一下改成计入）'
       : '退款：计入入账（点一下改成抵消）'
     wx.showActionSheet({
-      itemList: [vipItem, refundItem, '删除 ' + format.monthLabel(ym) + ' 的全部流水', '清空全部数据（含分类规则）'],
+      itemList: [vipItem, refundItem, '删除 ' + format.monthLabel(ym) + ' 的本人流水', '清空全部数据（含分类规则）'],
       success: function (res) {
         if (res.tapIndex === 0) self.goVip()
         else if (res.tapIndex === 1) self.toggleRefund()
@@ -596,6 +561,10 @@ Page({
     })
   },
 
+  goShare: function () {
+    wx.navigateTo({ url: '/pages/share/share' })
+  },
+
   goVip: function () {
     wx.navigateTo({ url: '/pages/vip/vip' })
   },
@@ -604,16 +573,17 @@ Page({
     var self = this
     var ym = this.data.ym
     var n = 0
-    store.all().forEach(function (t) { if (t.ym === ym) n++ })
-    if (!n) { wx.showToast({ title: '这个月本来就没数据', icon: 'none' }); return }
+    store.all().forEach(function (t) { if (t.ym === ym && store.canEdit(t)) n++ })
+    if (!n) { wx.showToast({ title: '这个月没有本人可删除的流水', icon: 'none' }); return }
     wx.showModal({
-      title: '删除 ' + format.monthLabel(ym) + ' 的流水？',
-      content: '这个月共 ' + n + ' 笔，删了找不回来；其他月份不受影响。',
+      title: '删除 ' + format.monthLabel(ym) + ' 的本人流水？',
+      content: '这个月你自己记的共 ' + n + ' 笔，删了找不回来；其他成员和其他月份的记录不受影响。本人已共享记录的云端删除将在下次同步时提交。建议先导出备份。',
       confirmText: '删除',
       confirmColor: '#d9433f',
       success: function (res) {
         if (!res.confirm) return
         var removed = store.removeMonth(ym)
+        if (removed === null) return
         self.refresh()
         wx.showToast({ title: '已删除 ' + removed + ' 笔', icon: 'none' })
       }
@@ -625,12 +595,12 @@ Page({
     var n = store.all().length
     wx.showModal({
       title: '清空全部数据？',
-      content: '库里 ' + n + ' 笔流水、学到的分类规则、月度预算会一起清零，找不回来。建议先去「导入」页把两份账单原件重新导一遍，再回来清。',
+      content: '本机 ' + n + ' 笔流水、分类规则和预算会清空，不能恢复。你自己已共享的记录会在下次同步时从云端删除；其他成员的记录只清除本机副本，不删除对方云端记录，本机清除标记保留期间不会重新拉回。无法远程擦除成员已保存的本机副本。建议先去「报表 → 数据工具」导出备份。',
       confirmText: '全部清空',
       confirmColor: '#d9433f',
       success: function (res) {
         if (!res.confirm) return
-        store.clearAll()
+        if (store.clearAll() === false) return
         self.setData({ onlyUncat: false, filterCat: '', filterKind: '', filterDay: '', kw: '' })
         self.refresh()
         wx.showToast({ title: '已清空', icon: 'none' })

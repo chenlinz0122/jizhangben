@@ -13,17 +13,13 @@
       </view>
     </view>
 
-    <text class="hlab">{{tab === 'income' ? '共入账' : '共支出'}}</text>
+    <text class="hlab">{{tab === 'income' ? '共入账' : (s.refundOut ? '净支出' : '共支出')}}</text>
     <text class="hnum">¥{{tab === 'income' ? s.incomeText : s.expenseText}}</text>
 
     <view class="hfoot">
       <text>{{s.count}} 笔流水</text>
       <text class="hdot">·</text>
       <text>收支结余 {{s.netSign}}¥{{s.netText}}</text>
-      <block wx:if="{{s.refundText !== '0.00'}}">
-        <text class="hdot">·</text>
-        <text class="hswitch" bindtap="toggleRefund">退款 ¥{{s.refundText}} {{s.refundOut ? '已抵消' : '计入入账'}} · 点这里改</text>
-      </block>
       <block wx:if="{{s.investText !== '0.00'}}">
         <text class="hdot">·</text>
         <text>理财 ¥{{s.investText}} 未计入</text>
@@ -32,6 +28,12 @@
         <text class="hdot">·</text>
         <text>账户转移 ¥{{s.acctText}} 未计入</text>
       </block>
+    </view>
+
+    <!-- 退款单独一行：和上方流水数字分开，别把口径说明挤成一串 -->
+    <view class="hnote" wx:if="{{s.refundText !== '0.00'}}" bindtap="toggleRefund">
+      <text>退款 ¥{{s.refundText}} · {{s.refundOut ? '按到账日抵减支出' : '按到账日计入入账'}}</text>
+      <text class="hnote-act">改口径 ›</text>
     </view>
 
     <!-- 共同账本视角：只看自己 / 看双方 / 只看对方（没加入账本时不显示） -->
@@ -47,7 +49,7 @@
   <!-- 构成：环形图 + 分类（可展开） -->
   <view class="card" wx:if="{{cats.length > 0}}">
     <view class="between">
-      <text class="title inline">{{tab === 'income' ? '入账构成' : '支出构成'}}</text>
+      <text class="title inline">{{tab === 'income' ? '入账构成' : (s.refundOut ? '净支出构成' : '支出构成')}}</text>
       <text class="muted2">点分类看明细</text>
     </view>
     <view class="piebox">
@@ -55,7 +57,8 @@
       <canvas type="2d" id="piein" wx:else class="pie"></canvas>
     </view>
 
-    <view class="cat" wx:for="{{cats}}" wx:key="name" data-name="{{item.name}}" bindtap="tapCat">
+    <text class="hint accounting-note" wx:if="{{tab === 'expense' && s.refundOut}}">圆环只算正支出，退款抵减单独列</text>
+    <view class="cat {{item.negative ? 'negative' : ''}}" wx:for="{{cats}}" wx:key="name" data-name="{{item.name}}" bindtap="tapCat">
       <view class="between">
         <view class="left">
           <view class="ic" style="background:{{item.tint}}"><text class="ic-em">{{item.icon}}</text></view>
@@ -64,11 +67,13 @@
         </view>
         <text class="camt">¥{{item.amountText}}</text>
       </view>
-      <view class="track">
-        <view class="fill" style="width:{{item.pct}}%;background:{{item.color}}"></view>
+      <view class="barline">
+        <view class="track" wx:if="{{!item.negative}}">
+          <view class="fill" style="width:{{item.pct}}%;background:{{item.color}}"></view>
+        </view>
+        <text class="cmeta">{{item.negative ? '退款抵减项，不计占比' : item.pct + '% · ' + item.count + ' 笔'}}</text>
       </view>
-      <text class="cmeta">占比 {{item.pct}}% · {{item.count}} 笔</text>
-      <text class="cbmeta {{item.budgetOver ? 'over' : ''}}" wx:if="{{item.budget > 0}}">分类预算 ¥{{item.budgetText}} · 已花 ¥{{item.budgetSpentText}} · {{item.budgetPct}}%<text wx:if="{{item.budgetRefundText}}">（已扣退款 ¥{{item.budgetRefundText}}）</text></text>
+      <text class="cbmeta {{item.budgetOver ? 'over' : ''}}" wx:if="{{item.budget > 0}}">分类预算 ¥{{item.budgetText}} · 已用 ¥{{item.budgetSpentText}} · {{item.budgetPct}}%<text wx:if="{{item.budgetRefundText}}">（本月抵减 ¥{{item.budgetRefundText}}，已用最低为 0）</text></text>
     </view>
 
     <view class="more" wx:if="{{catsHasMore}}" bindtap="toggleCats">
@@ -92,7 +97,7 @@
     <view class="tag-card" wx:for="{{teasers}}" wx:key="name" bindtap="goVip">
       <view class="tc-head">
         <text class="tc-name">{{item.name}}</text>
-        <text class="tc-lock">🔒</text>
+        <text class="tc-lock">会员</text>
       </view>
       <view class="tc-bar" wx:for="{{item.bars}}" wx:for-item="w" wx:for-index="wi" wx:key="*this" style="width:{{w}}"></view>
       <text class="tc-hint">{{item.hint}}</text>
@@ -102,7 +107,7 @@
   <!-- 每日对比（可放大缩小） -->
   <view class="card" wx:if="{{hasData && !locked}}">
     <view class="between">
-      <text class="title inline">{{tab === 'income' ? '每日入账' : '每日支出'}}</text>
+      <text class="title inline">{{tab === 'income' ? '每日入账' : (s.refundOut ? '每日净支出' : '每日支出')}}</text>
       <view class="zoomwrap">
         <text class="zbtn {{dayZoom === 1 ? 'off' : ''}}" data-d="-1" bindtap="zoomDay">−</text>
         <text class="zval">{{dayZoom}}×</text>
@@ -119,7 +124,7 @@
         <view class="dbubble" wx:if="{{daily.show}}" style="left:{{daily.tipLeft}}%">{{daily.tipText}}</view>
         <view class="dchart">
           <view class="dcol" wx:for="{{daily.list}}" wx:key="d" data-d="{{item.d}}" bindtap="tapDaily">
-            <view class="dbar {{item.isMax ? 'max' : ''}} {{tab}}" style="height:{{item.h}}%"></view>
+            <view class="dbar {{item.isMax ? 'max' : ''}} {{tab}} {{item.negative ? 'net-refund' : ''}} {{item.zero ? 'zero' : ''}}" style="height:{{item.h}}%"></view>
           </view>
         </view>
         <view class="xaxis">
@@ -135,7 +140,7 @@
           <view class="dchart" style="width:{{dInW}}rpx">
             <view class="dcolz" style="width:{{dColW}}rpx" wx:for="{{daily.list}}" wx:key="d"
                   data-d="{{item.d}}" bindtap="tapDaily">
-              <view class="dbar {{item.isMax ? 'max' : ''}} {{tab}}" style="height:{{item.h}}%"></view>
+              <view class="dbar {{item.isMax ? 'max' : ''}} {{tab}} {{item.negative ? 'net-refund' : ''}} {{item.zero ? 'zero' : ''}}" style="height:{{item.h}}%"></view>
             </view>
           </view>
           <view class="daxis" style="width:{{dInW}}rpx">
@@ -144,26 +149,34 @@
         </view>
       </scroll-view>
     </view>
+    <view class="refund-legend" wx:if="{{tab === 'expense' && s.refundOut}}">
+      <view class="sw net-refund"></view>
+      <text>净退款（退款多于支出）· 柱高按绝对金额</text>
+    </view>
   </view>
 
   <!-- 月度对比（近 6 个月，可左右滑动） -->
   <view class="card {{tab === 'income' ? 'hi' : ''}}" wx:if="{{hasData && !locked}}">
     <view class="between">
-      <text class="title inline">月度对比 · 近 6 个月</text>
+      <text class="title inline">{{tab === 'income' ? '入账' : (s.refundOut ? '净支出' : '支出')}}对比 · 近 6 个月</text>
       <text class="muted2">左右滑动 · 点柱子看明细</text>
     </view>
     <scroll-view scroll-x enable-flex class="mscroll" enhanced show-scrollbar="{{false}}"
                  scroll-into-view="{{scrollToId}}" scroll-with-animation>
       <view class="mchart" style="width:{{chartW}}rpx">
         <view class="mcol" wx:for="{{months}}" wx:key="ym" id="m{{index}}" data-ym="{{item.ym}}" bindtap="tapBar">
-          <text class="mval {{item.active ? 'on' : ''}}">{{item.text}}</text>
+          <text class="mval {{item.active ? 'on' : ''}} {{item.negative ? 'negative' : ''}}">¥{{item.text}}</text>
           <view class="mbararea">
-            <view class="mbar {{tab}} {{item.active ? 'on' : ''}}" style="height:{{item.h}}%"></view>
+            <view class="mbar {{tab}} {{item.active ? 'on' : ''}} {{item.negative ? 'net-refund' : ''}} {{item.zero ? 'zero' : ''}}" style="height:{{item.h}}%"></view>
           </view>
           <text class="mlab {{item.active ? 'on' : ''}}">{{item.label}}</text>
         </view>
       </view>
     </scroll-view>
+    <view class="refund-legend" wx:if="{{tab === 'expense' && s.refundOut}}">
+      <view class="sw net-refund"></view>
+      <text>净退款（退款多于支出）· 柱高按绝对金额</text>
+    </view>
   </view>
 
   <!-- 年度汇总（自然年累计） -->
@@ -179,7 +192,7 @@
     <view class="ygrid">
       <view class="ycell">
         <text class="yn">¥{{year.expenseText}}</text>
-        <text class="yl">年支出</text>
+        <text class="yl">{{s.refundOut ? '年净支出' : '年支出'}}</text>
       </view>
       <view class="ycell">
         <text class="yn">¥{{year.incomeText}}</text>
@@ -195,15 +208,15 @@
         <text class="ytlabel">{{year.topLabel}}</text>
         <text class="muted2">点分类看明细</text>
       </view>
-      <view class="yrow" wx:for="{{year.top}}" wx:key="name" data-name="{{item.name}}" bindtap="tapYearCat">
+      <view class="yrow {{item.negative ? 'negative' : ''}}" wx:for="{{year.top}}" wx:key="name" data-name="{{item.name}}" bindtap="tapYearCat">
         <view class="between">
-          <text class="yrowname">{{item.icon}} {{item.name}}</text>
+          <text class="yrowname">{{item.name}}</text>
           <text class="yrowamt {{yearTab === 'income' ? 'yinc' : ''}}">¥{{item.amountText}}</text>
         </view>
-        <view class="ybar">
+        <view class="ybar" wx:if="{{!item.negative}}">
           <view class="ybarfill" style="width:{{item.barPct}}%;background:{{item.color}}"></view>
         </view>
-        <text class="yrowmeta">占比 {{item.pct}}% · {{item.count}} 笔</text>
+        <text class="yrowmeta">{{item.negative ? '退款抵减项' : ((yearTab === 'expense' && s.refundOut ? '正支出占比 ' : '占比 ') + item.pct + '%')}} · {{item.count}} 笔</text>
       </view>
       <view class="more" wx:if="{{year.topMore}}" bindtap="toggleYearCats">{{year.moreLabel}}</view>
     </view>
@@ -220,10 +233,10 @@
       <view class="mrow" wx:for="{{board.list}}" wx:for-item="row" wx:for-index="ri" wx:key="name">
         <text class="mrank {{ri < 3 ? 'top' : ''}}">{{ri + 1}}</text>
         <view class="mcol2">
-          <text class="mname">{{row.icon}} {{row.name}}</text>
+          <text class="mname">{{row.name}}</text>
           <text class="mcat">{{row.cat}} · {{row.count}} 笔</text>
         </view>
-        <text class="mamt {{board.inc ? 'inc' : ''}}">{{board.inc ? '+' : '-'}}¥{{row.amountText}}</text>
+        <text class="mamt {{board.inc ? 'inc' : ''}} {{row.negative ? 'negative' : ''}}">¥{{row.amountText}}</text>
       </view>
     </block>
   </view>
@@ -233,11 +246,11 @@
     <view class="title">这个月的情况</view>
     <view class="igrid">
       <view class="icell">
-        <text class="in">日均支出</text>
+        <text class="in">日均净支出</text>
         <text class="iv">¥{{avgDailyText}}</text>
       </view>
       <view class="icell">
-        <text class="in">最大一笔</text>
+        <text class="in">最大付款（原额）</text>
         <text class="iv">¥{{maxAmountText}}</text>
         <text class="isub">{{maxMerchant}}</text>
       </view>
@@ -246,14 +259,14 @@
         <text class="iv">{{spentDays}} 天</text>
       </view>
       <view class="icell">
-        <text class="in">工作日 / 周末</text>
+        <text class="in">工作日 / 周末净支出</text>
         <text class="iv small">¥{{weekdayText}} / ¥{{weekendText}}</text>
       </view>
     </view>
   </view>
 
   <!-- 预算（只对支出有意义） -->
-  <view class="card" wx:if="{{tab === 'expense' && !locked}}">
+  <view class="card" id="budget-card" wx:if="{{tab === 'expense' && !locked}}">
     <view class="between">
       <text class="title inline">月度预算</text>
       <view class="links">
@@ -264,7 +277,7 @@
 
     <block wx:if="{{budget > 0}}">
       <view class="between bline">
-        <text>已花 ¥{{budgetSpentText}} / 预算 ¥{{budgetText}}</text>
+        <text>已用 ¥{{budgetSpentText}} / 预算 ¥{{budgetText}}</text>
         <text class="bpct {{budgetOver ? 'over' : ''}}">{{budgetPct}}%</text>
       </view>
       <view class="track big">
@@ -276,18 +289,18 @@
     </block>
 
     <text class="hint" wx:else>设一个月度预算，超了这里会变红提醒你。随时能改。</text>
-    <text class="hint" wx:if="{{budgetRefundText !== '0.00'}}">预算按扣除退款后的金额算：本月退款 ¥{{budgetRefundText}} 已经从已花里减掉了（收支统计里退款{{s.refundOut ? '同样抵消掉' : '算作入账'}}，两套口径算出来一样）。</text>
+    <text class="hint">预算已用 = 本月付款 − 本月退款，最低为 0，不随退款展示口径改变；报表净支出可以为负数。<text wx:if="{{budgetRefundText !== '0.00'}}">本月退款 ¥{{budgetRefundText}}。</text></text>
 
     <!-- 分类预算清单：类目一次列全，点一行填额度 -->
     <view class="cblist" wx:if="{{catBudgetOpen}}">
-      <text class="hint">点一个类目填额度，填 0 取消。分类预算的已花同样扣掉退款（按交易对方追回类目）。</text>
+      <text class="hint">点类目填额度，填 0 取消。分类预算已用最低为 0；退款在到账月抵减配对付款的分类，未配对退款单列，不随意归给其他商户或分类。</text>
       <view class="cbrow" wx:for="{{catBudgetList}}" wx:key="name" data-name="{{item.name}}" bindtap="pickCatBudget">
         <view class="cbleft">
           <view class="ic" style="background:{{item.tint}}"><text class="ic-em">{{item.icon}}</text></view>
           <text class="cbname">{{item.name}}</text>
         </view>
         <view class="cbright">
-          <text class="cbspent">已花 ¥{{item.spentText}}</text>
+          <text class="cbspent">已用 ¥{{item.spentText}}</text>
           <text class="cbbud {{item.budClass}}">{{item.budgetLabel}}</text>
         </view>
       </view>
@@ -296,7 +309,7 @@
 
   <!-- 每日花销日历 -->
   <view class="card" wx:if="{{hasData && tab === 'expense' && !locked}}">
-    <view class="title">每日花销日历</view>
+    <view class="title">{{s.refundOut ? '每日净支出日历' : '每日支出日历'}}</view>
     <view class="calweek">
       <text class="cw">日</text>
       <text class="cw">一</text>
@@ -307,12 +320,13 @@
       <text class="cw">六</text>
     </view>
     <view class="cal">
-      <view class="cell {{item.blank ? 'blank' : 'lv' + item.level}}"
+      <view class="cell {{item.blank ? 'blank' : 'lv' + item.level}} {{item.negative ? 'net-refund' : ''}}"
             wx:for="{{cells}}" wx:key="k" data-item="{{item}}" bindtap="tapDay">
         <text class="cd" wx:if="{{!item.blank}}">{{item.d}}</text>
+        <text class="cal-minus" wx:if="{{item.negative}}">−</text>
       </view>
     </view>
-    <view class="calsel">点一个格子，看那天的明细</view>
+    <view class="calsel">按实际发生日期计入 · 点格子看当天明细</view>
     <view class="legend">
       <text class="lgtext">少</text>
       <view class="sw lv0"></view>
@@ -321,6 +335,10 @@
       <view class="sw lv3"></view>
       <view class="sw lv4"></view>
       <text class="lgtext">多</text>
+    </view>
+    <view class="refund-legend" wx:if="{{s.refundOut}}">
+      <view class="sw net-refund"></view>
+      <text>带 − 的蓝色斜纹：净退款（退款多于支出）</text>
     </view>
   </view>
 
@@ -334,7 +352,7 @@
     </view>
   </view>
 
-  <view class="tools">
+  <view class="tools" id="data-tools">
     <view class="btn plain" bindtap="backup">备份数据（导出 JSON）</view>
     <view class="btn plain" bindtap="restore">恢复数据（选备份文件）</view>
     <view class="btn plain" bindtap="exportCsv">复制 CSV（发到电脑看）</view>

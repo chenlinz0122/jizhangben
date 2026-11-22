@@ -1,8 +1,3 @@
-// pages/home/home - 首页
-//
-// 定位：打开小程序第一眼看到的东西——打招呼、这个月花了多少、四个常用入口、最近几笔。
-// 详细流水去「流水」页，图表分析去「报表」页，这里只做「一眼看清 + 最快记一笔」。
-
 var format = require('../../utils/format')
 var store = require('../../utils/store')
 var stats = require('../../utils/stats')
@@ -13,27 +8,11 @@ var theme = require('../../utils/theme')
 var darkmode = require('../../utils/darkmode')
 var shared = require('../../utils/shared')
 var prefs = require('../../utils/prefs')
-var refundpair = require('../../utils/refundpair')
-
-/* '2026-11' → '2026-10'，'2026-01' → '2025-12' */
-function monthBefore(ym) {
-  var y = parseInt(ym.slice(0, 4), 10)
-  var m = parseInt(ym.slice(5, 7), 10)
-  if (m === 1) { y -= 1; m = 12 } else { m -= 1 }
-  return y + '-' + (m < 10 ? '0' + m : '' + m)
-}
-
-/* '2026-11' → '2026-12'，'2026-12' → '2027-01' */
-function monthAfter(ym) {
-  var y = parseInt(ym.slice(0, 4), 10)
-  var m = parseInt(ym.slice(5, 7), 10)
-  if (m === 12) { y += 1; m = 1 } else { m += 1 }
-  return y + '-' + (m < 10 ? '0' + m : '' + m)
-}
 
 function greetText() {
   var h = new Date().getHours()
-  if (h < 6) return '还没睡？'
+  /* 不带标点：wxml 里统一拼「问候，名字」，带问号会拼成「还没睡？，小满」 */
+  if (h < 6) return '夜深了'
   if (h < 11) return '早上好'
   if (h < 14) return '中午好'
   if (h < 18) return '下午好'
@@ -48,21 +27,31 @@ Page({
     greeting: '',
 
     isVip: false,
-    vipText: '',
 
+    ym: '',
+    maxYm: '',
     monthText: '',
+    isCurrent: true,
+    canNext: false,
+    cats: [],
+    budget: 0,
+    budgetPct: 0,
+    budgetOver: false,
+    scope: 'both',
     s: { expenseText: '0.00', incomeText: '0.00', netText: '0.00', netSign: '', count: 0 },
     recent: [],
     hasData: false,
     uncatCount: 0,
 
     themeKey: 'green',
-    themes: [],
     dark: false,
 
     sharedJoined: false,
     sharedName: '',
     sharedMembers: 0,
+    sharedStatus: '',
+    sharedSyncing: false,
+    sharedScopeRequired: false,
     /* 共同账本视角小标：只看自己 / 看双方 / 只看对方 */
     scopeLabel: ''
   },
@@ -72,21 +61,17 @@ Page({
     this.setData({
       greeting: greetText(),
       themeKey: theme.get().key,
-      themes: theme.list(),
+      ym: format.ymOf(Date.now()), maxYm: format.ymOf(Date.now()),
       dark: darkmode.isDark()
     })
-    /* 系统切换深浅色时跟着变，不用重启小程序 */
-    darkmode.watch(function (dark) { self.setData({ dark: dark }) })
-    /* 第一次进来、没登录、也还没点过「先逛逛」→ 引导一次登录。
-       延迟 300ms，别在首屏渲染时把页面盖住。 */
-    if (!account.isLogin() && !account.skipped()) {
-      setTimeout(function () {
-        wx.navigateTo({ url: '/pages/login/login' })
-      }, 300)
-    }
+    this._unwatchDark = darkmode.watch(function (dark) {
+      self.setData({ dark: dark })
+      if (self._homeVisible) theme.syncTabBar()
+    })
   },
 
   onShow: function () {
+    this._homeVisible = true
     this.syncProfile()
     this.syncData()
     this.syncVip()
@@ -101,95 +86,152 @@ Page({
     })
   },
 
-  /* 共同账本：显示账本名；打开链接进来且还没加入时问一句要不要加 */
-  syncShared: function () {
-    var self = this
-    var b = shared.current()
-    this.setData({
-      sharedJoined: !!b,
-      sharedName: (b && b.name) || '',
-      sharedMembers: (b && b.members) || 0
-    })
-
-    var pending = shared.pendingShare()
-    if (pending && !b) {
-      wx.showModal({
-        title: '一起记账？',
-        content: '对方邀请你加入共同账本，加入后彼此的记录会同步到对方手机上。',
-        confirmText: '加入',
-        cancelText: '先不用',
-        success: function (r) {
-          if (!r.confirm) { shared.clearPendingShare(); return }
-          shared.joinBook(pending, '', function (res) {
-            shared.clearPendingShare()
-            if (res && res.ok) {
-              self.setData({
-                sharedJoined: true,
-                sharedName: res.name || '共同账本',
-                sharedMembers: res.members || 1
-              })
-              wx.showToast({ title: '已加入共同账本', icon: 'none' })
-              return
-            }
-            wx.showToast({ title: (res && res.msg) || '加入失败', icon: 'none' })
-          })
-        }
-      })
-      return
-    }
-    if (pending && b) shared.clearPendingShare()
-
-    /* 已经加入了就顺手静默同步一次，但 5 分钟内不重复跑 */
-    if (b && Date.now() - (b.lastSync || 0) > 5 * 60 * 1000) {
-      shared.sync(function (res) {
-        if (res && res.ok) {
-          if (res.members) self.setData({ sharedMembers: res.members })
-          if (res.added > 0) {
-            self.syncData()
-            wx.showToast({ title: '共同账本新增 ' + res.added + ' 条', icon: 'none' })
-          }
-        }
-      })
-    }
+  onHide: function () {
+    this._homeVisible = false
   },
 
-  /* 首页这张卡就是「同步入口」：
-     已经加入了 → 点一下直接同步（不用再进二级页找按钮）；
-     还没加入 → 进共同账本页去创建 / 输邀请码。 */
-  goShare: function () {
-    if (!shared.isJoined()) {
-      wx.navigateTo({ url: '/pages/share/share' })
+  onUnload: function () {
+    if (this._unwatchDark) this._unwatchDark()
+  },
+
+  applyShared: function () {
+    var b = shared.current()
+    if (b && b.shareSince != null && this.data.sharedScopeRequired) {
+      this.setData({ sharedStatus: '共享范围：' + shared.scopeText() })
+    }
+    this.setData({
+      sharedJoined: !!(b && b.bookId),
+      sharedName: (b && b.name) || '共同账本',
+      sharedMembers: (b && b.members) || 0,
+      sharedScopeRequired: !!(b && b.shareSince == null)
+    })
+  },
+
+  sharedError: function (res, fallback) {
+    var msg = (res && res.msg) || fallback
+    if (res && res.code === 'UPGRADE_REQUIRED') msg += '；请上传并部署新版云函数 book 后重试'
+    return msg + (res && res.code ? '（' + res.code + '）' : '')
+  },
+
+  /* 无本机缓存也尝试恢复成员身份；离线不丢掉已加入的展示。 */
+  syncShared: function () {
+    this.applyShared()
+    if (this._sharedLoading || this._syncing || this._joining || this._invitePrompt) return
+    if (shared.busy()) {
+      this.setData({ sharedStatus: '共同账本正在处理其他操作，请稍后同步' })
       return
     }
-    if (this._syncing) return
-    this._syncing = true
     var self = this
-    wx.showLoading({ title: '同步中', mask: true })
-    shared.sync(function (res) {
-      self._syncing = false
-      wx.hideLoading()
-      if (res && res.ok) {
-        if (res.members) self.setData({ sharedMembers: res.members })
-        self.syncData()
-        wx.showToast({
-          title: res.added > 0 ? ('同步完成，新增 ' + res.added + ' 条') : '同步完成，没有新记录',
-          icon: 'none',
-          duration: 1600
-        })
+    this._sharedLoading = true
+    shared.info(function (res) {
+      self._sharedLoading = false
+      self.applyShared()
+      if (!res || !res.ok) {
+        self.setData({ sharedStatus: self.sharedError(res, '暂时无法查询共同账本，请检查网络后重试') })
         return
       }
-      wx.showModal({
-        title: '同步没成功',
-        content: (res && res.msg) || '检查网络后再试一次',
-        showCancel: false,
-        confirmText: '知道了'
-      })
+      self.syncData()
+      if (self._homeVisible === false) return
+      var b = shared.current()
+      if (!res.joined || !b) {
+        self.setData({ sharedStatus: '创建或加入后，先确认共享范围再同步' })
+        self.acceptPendingShare()
+        return
+      }
+      var pending = shared.pendingShare()
+      if (pending && pending === b.code) shared.clearPendingShare()
+      if (b.shareSince == null) {
+        self.setData({ sharedStatus: '尚未确认共享范围，请点「管理 / 邀请」选择；未确认不会自动同步' })
+        return
+      }
+      if (!self.data.sharedStatus) self.setData({ sharedStatus: '共享范围：' + shared.scopeText() })
+      // 自动和手动使用同一把页面锁；失败也限频，避免反复 onShow 重试。
+      var lastAttempt = self._autoBookId === b.bookId ? (self._lastSyncAttempt || 0) : 0
+      if (Date.now() - Math.max(b.lastSync || 0, lastAttempt) > 5 * 60 * 1000) self.runSharedSync(false)
+    })
+  },
+
+  acceptPendingShare: function () {
+    var pending = shared.pendingShare()
+    if (!pending || shared.current() || this._invitePrompt || this._joining || shared.busy()) return
+    var self = this
+    this._invitePrompt = true
+    wx.showModal({
+      title: '一起记账？',
+      content: '加入后，账本昵称对成员可见。流水要先选择并确认共享范围才会上传；确认后首页可自动同步。',
+      confirmText: '加入',
+      cancelText: '先不用',
+      success: function (r) {
+        self._invitePrompt = false
+        if (!r.confirm) { shared.clearPendingShare(); return }
+        if (shared.busy()) { self.setData({ sharedStatus: '共同账本正在处理其他操作，邀请码已保留，请稍后重试' }); return }
+        self._joining = true
+        self.setData({ sharedStatus: '正在加入共同账本…' })
+        shared.joinBook(pending, '', function (res) {
+          self._joining = false
+          if (res && res.ok) {
+            shared.clearPendingShare()
+            self.applyShared()
+            self.syncData()
+            self.setData({ sharedStatus: '已加入，请先在管理页确认共享范围' })
+            self.goShare()
+            return
+          }
+          self.setData({ sharedStatus: self.sharedError(res, '加入失败') + '；邀请码已保留，可进管理页重试' })
+        })
+      },
+      fail: function () {
+        self._invitePrompt = false
+        self.setData({ sharedStatus: '邀请确认未完成，邀请码已保留，可进管理页重试' })
+      }
+    })
+  },
+
+  /* 管理/邀请始终进入管理页，与明确的同步按钮分开。 */
+  goShare: function () {
+    wx.navigateTo({ url: '/pages/share/share' })
+  },
+
+  doSync: function () {
+    this.runSharedSync(true)
+  },
+
+  runSharedSync: function (manual) {
+    var b = shared.current()
+    if (!b || !b.bookId) { if (manual) this.goShare(); return }
+    if (b.shareSince == null) {
+      this.setData({ sharedStatus: '请先在管理页选择并确认共享范围，尚未开始同步' })
+      if (manual) this.goShare()
+      return
+    }
+    if (this._syncing || this._sharedLoading || this._joining || this._invitePrompt || shared.busy()) {
+      if (manual) this.setData({ sharedStatus: '共同账本正在处理，请稍后再同步' })
+      return
+    }
+    this._syncing = true
+    this._autoBookId = b.bookId
+    this._lastSyncAttempt = Date.now()
+    this.setData({ sharedSyncing: true, sharedStatus: '同步中，请稍候' })
+    var self = this
+    shared.sync(function (res) {
+      self._syncing = false
+      self.setData({ sharedSyncing: false })
+      self.applyShared()
+      // 更新、删除以及部分成功写入都要重绘，不能只检查 added。
+      self.syncData()
+      if (res && res.ok) {
+        if (res.members != null) self.setData({ sharedMembers: res.members })
+        self.setData({ sharedStatus: shared.syncSummary(res) })
+        return
+      }
+      self.setData({ sharedStatus: self.sharedError(res, '同步失败，请检查网络后重试') })
+      if (manual && res && res.code === 'SCOPE_REQUIRED') self.goShare()
     })
   },
 
   syncTheme: function () {
     var t = theme.get()
-    this.setData({ themeKey: t.key, themes: theme.list() })
+    this.setData({ themeKey: t.key })
     theme.syncTabBar()
   },
 
@@ -197,75 +239,57 @@ Page({
     this.setData({ dark: darkmode.isDark() })
   },
 
-  /* 换配色：只动主色和首页头部；tabBar 选中色只能在运行时改，顺手一起改 */
-  pickTheme: function (e) {
-    var key = e.currentTarget.dataset.key
-    var t = theme.set(key)
-    this.setData({ themeKey: t.key })
-  },
-
   syncProfile: function () {
     var a = account.get()
     this.setData({
       nick: a.nick,
       avatar: a.avatar,
-      isLogin: account.isLogin()
+      isLogin: account.isLogin(),
+      greeting: greetText()
     })
   },
 
   syncData: function () {
-    var ym = format.ymOf(Date.now())
-    /* 共同账本视角跟流水/报表同一套：首页数字、最近流水都按这个口径，不各算各的 */
+    var currentYm = format.ymOf(Date.now())
+    var ym = this.data.ym || currentYm
+    if (ym > currentYm) ym = currentYm
     var scope = shared.isJoined() ? prefs.viewScope() : 'both'
-    var txs = store.all()
-    if (scope === 'mine') txs = txs.filter(function (t) { return shared.isMine(t) })
-    else if (scope === 'peer') txs = txs.filter(function (t) { return !shared.isMine(t) })
-    this.setData({ scopeLabel: shared.isJoined() ? prefs.viewScopeLabel(scope) : '' })
+    var txs = shared.viewRows(store.all(), scope)
+    this.setData({ scope: scope, scopeLabel: shared.isJoined() ? prefs.viewScopeLabel(scope) : '' })
     var s = stats.summary(txs, ym)
 
     var recent = []
     var refundOut = prefs.refundExcluded()
-    /* 抵消口径下，退款和它对应的付款成对处理：全额退款两条都不进最近流水，
-       部分退款只显示一行净额（规则跟流水页同一个 utils/refundpair.js）。
-       配对范围同样是「本月记录 + 上月支出 + 下月退款」，跨月退款才有付款可配、
-       付款那一页也能跟着变成净额。 */
-    var pr = null
-    if (refundOut) {
-      var prevYm = monthBefore(ym)
-      var nextYm = monthAfter(ym)
-      var pairInput = []
-      for (var p = 0; p < txs.length; p++) {
-        var px = txs[p]
-        if (px.ym === ym) pairInput.push(px)
-        else if (px.ym === prevYm && px.type === 'expense') pairInput.push(px)
-        else if (px.ym === nextYm && px.type === 'refund') pairInput.push(px)
-      }
-      pr = refundpair.pair(pairInput)
-    }
     for (var i = 0; i < txs.length && recent.length < 5; i++) {
       var t = txs[i]
       if (t.ym !== ym) continue
-      if (pr && pr.hideId[t.id]) continue
-      var netAmt = t.amount
-      if (pr && t.type === 'expense' && pr.leftOf[t.id] !== undefined) netAmt = pr.leftOf[t.id]
+      if (refundOut && t.type === 'refund') continue
       recent.push({
         id: t.id,
         merchant: t.merchant || '未填写商户',
         category: t.category,
         color: category.colorOf(t.category),
-        icon: category.iconOf(t.category),
+        initial: String(t.category || '账').slice(0, 1),
+        byLabel: t.byMe === false ? shared.labelOf(t.by || '成员', t.ownerKey) : '',
         tint: category.tintOf(t.category),
-        amountText: format.money(netAmt),
+        amountText: format.money(t.amount),
         timeText: format.shortTime(t.time),
         type: t.type,
         sign: (t.type === 'income' || t.type === 'refund') ? '+' : (t.type === 'transfer' ? '' : '-')
       })
     }
 
+    var budget = vip.isVip() ? store.budget() : 0
+    var spent = budget > 0 ? stats.budgetSpent(txs, ym).net : 0
     this.setData({
+      ym: ym, maxYm: currentYm, canNext: ym < currentYm, isCurrent: ym === currentYm,
+      cats: s.byCat.filter(function (c) { return c.amount !== 0 }).slice(0, 3),
+      budget: budget, budgetText: format.money(budget), budgetSpentText: format.money(spent),
+      budgetLeftText: format.money(Math.abs(budget - spent)), budgetOver: spent > budget,
+      budgetPct: budget > 0 ? Math.min(100, Math.round(spent / budget * 100)) : 0,
       monthText: format.monthLabel(ym),
       s: {
-        expenseText: format.money(s.expense),
+        expenseText: format.signedMoney(s.expense),
         incomeText: format.money(s.incomeTotal),
         netText: format.money(Math.abs(s.net)),
         netSign: s.net < 0 ? '-' : '',
@@ -275,7 +299,7 @@ Page({
       },
       recent: recent,
       hasData: s.count > 0,
-      uncatCount: s.uncatCount || 0
+      uncatCount: txs.filter(function (t) { return t.ym === ym && t.type === 'expense' && t.category === '未分类' && store.canEdit(t) }).length
     })
   },
 
@@ -291,46 +315,60 @@ Page({
 
   syncVip: function () {
     var self = this
-    this.setData({
-      isVip: vip.isVip(),
-      vipText: vip.isVip() ? vip.statusText() : '未开通会员 · 点右上角'
-    })
+    this.setData({ isVip: vip.isVip() })
     if (this._vipChecked) return
     this._vipChecked = true
     vip.refresh(function () {
-      self.setData({
-        isVip: vip.isVip(),
-        vipText: vip.isVip() ? vip.statusText() : '未开通会员 · 点右上角'
-      })
+      self.setData({ isVip: vip.isVip() })
+      self.syncData()
     })
   },
 
-  /* ---------- 头像 ---------- */
-  tapAvatar: function () {
-    if (!this.data.isLogin) {
-      wx.navigateTo({ url: '/pages/login/login' })
-      return
-    }
-    wx.showActionSheet({
-      itemList: ['换个昵称头像', '退出登录'],
-      success: function (res) {
-        if (res.tapIndex === 0) {
-          wx.navigateTo({ url: '/pages/login/login' })
-        } else if (res.tapIndex === 1) {
-          wx.showModal({
-            title: '退出登录',
-            content: '只清昵称和头像，账本数据一条都不动。',
-            confirmText: '退出',
-            success: function (r) {
-              if (!r.confirm) return
-              account.logout()
-              account.markSkip()
-              wx.reLaunch({ url: '/pages/home/home' })
-            }
-          })
-        }
-      }
-    })
+  goMine: function () {
+    wx.switchTab({ url: '/pages/index/index' })
+  },
+
+  pickMonth: function (e) {
+    var ym = String(e.detail.value || '')
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(ym) || ym > format.ymOf(Date.now())) return
+    this.setData({ ym: ym })
+    this.syncData()
+  },
+
+  prevMonth: function () {
+    this.setData({ ym: format.shiftMonth(this.data.ym, -1) })
+    this.syncData()
+  },
+
+  nextMonth: function () {
+    if (!this.data.canNext) return
+    this.setData({ ym: format.shiftMonth(this.data.ym, 1) })
+    this.syncData()
+  },
+
+  currentMonth: function () {
+    this.setData({ ym: format.ymOf(Date.now()) })
+    this.syncData()
+  },
+
+  setScope: function (e) {
+    prefs.setViewScope(e.currentTarget.dataset.k)
+    this.syncData()
+  },
+
+  goBudget: function () {
+    if (!vip.guard('月度预算')) return
+    getApp().globalData.reportSection = 'budget'
+    this.goReport()
+  },
+
+  openRecent: function (e) {
+    getApp().globalData.openTxId = e.currentTarget.dataset.id
+    this.goList()
+  },
+
+  goCategory: function (e) {
+    this.goList({ category: e.currentTarget.dataset.name })
   },
 
   /* ---------- 入口 ---------- */
@@ -346,16 +384,10 @@ Page({
     wx.navigateTo({ url: '/pages/import/import' })
   },
 
-  goVip: function () {
-    wx.navigateTo({ url: '/pages/vip/vip' })
-  },
-
-  openFeedback: function () {
-    wx.navigateTo({ url: '/pages/feedback/feedback' })
-  },
-
-  goList: function () {
+  goList: function (options) {
     var app = getApp()
+    var cat = options && options.category || ''
+    Object.assign(app.globalData, { filterUncat: false, filterCat: cat, filterKind: cat ? 'expense' : '', filterYm: this.data.ym, filterDay: '' })
     app.globalData.backFor = '/pages/list/list'
     app.globalData.backTab = '/pages/home/home'
     app.globalData.backLabel = '首页'
@@ -364,6 +396,7 @@ Page({
 
   goReport: function () {
     var app = getApp()
+    app.globalData.reportYm = this.data.ym
     app.globalData.backFor = '/pages/report/report'
     app.globalData.backTab = '/pages/home/home'
     app.globalData.backLabel = '首页'
@@ -375,7 +408,7 @@ Page({
     app.globalData.filterUncat = true
     app.globalData.filterCat = ''
     app.globalData.filterKind = ''
-    app.globalData.filterYm = ''
+    app.globalData.filterYm = this.data.ym
     app.globalData.filterDay = ''
     app.globalData.backFor = '/pages/list/list'
     app.globalData.backTab = '/pages/home/home'

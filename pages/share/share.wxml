@@ -1,0 +1,76 @@
+<!-- pages/share/share - 共同账本 -->
+<view class="page {{dark ? 'dark' : ''}}">
+  <view class="hero">
+    <text class="h1">共同账本</text>
+    <text class="h2">邀请一个人，咱俩记同一本账：谁记的都能看到</text>
+  </view>
+
+  <!-- 已加入 -->
+  <block wx:if="{{joined}}">
+    <view class="card">
+      <view class="between">
+        <text class="bname">{{name}}</text>
+        <text class="bmeta">{{members}} / {{memberLimit}} 人</text>
+      </view>
+
+      <view class="codebox">
+        <text class="clab">邀请码</text>
+        <text class="cval">{{codeText}}</text>
+      </view>
+
+      <view class="row2">
+        <button class="btn main" open-type="share">转发给 TA</button>
+        <view class="btn plain" bindtap="copyCode">复制邀请码</view>
+      </view>
+
+      <view class="syncrow">
+        <text class="sync-t">上次同步：{{lastSyncText}}</text>
+        <view class="sync-btn {{busy ? 'off' : ''}}" bindtap="doSync">立即同步</view>
+      </view>
+      <text class="err" wx:if="{{msg}}">{{msg}}</text>
+    </view>
+
+    <view class="card">
+      <text class="ct">怎么用</text>
+      <view class="li">· 平时照常记账，都记在自己手机上</view>
+      <view class="li">· 点「立即同步」把新记的推上去、把对方记的拉下来</view>
+      <view class="li">· 同步按记录编号去重，不会重复不会翻倍</view>
+      <view class="li">· 打开这个页面会自动同步一次，不用天天惦记</view>
+    </view>
+
+    <view class="card">
+      <text class="ct">注意</text>
+      <view class="li">· 这是「合并账本」，不是实时协作：没点同步前，对方看不到你刚记的账</view>
+      <view class="li">· 两个人的分类习惯会各自保留，合到一起后按记录里的分类显示</view>
+      <view class="li">· {{isOwner ? '你是创建人，退出等于解散，对方也会被移出' : '退出后本地记录保留，只是不再同步'}}</view>
+    </view>
+
+    <view class="quit" bindtap="quit">{{isOwner ? '解散这个账本' : '退出这个账本'}}</view>
+  </block>
+
+  <!-- 未加入 -->
+  <block wx:else>
+    <view class="card">
+      <text class="ct">我已经有账本，邀请 TA 进来</text>
+      <input class="ipt" placeholder="账本名字，比如「我们的家」" maxlength="20" value="{{nameInput}}" bindinput="onName" />
+      <button class="btn main full" loading="{{busy}}" bindtap="createBook">创建共同账本</button>
+      <text class="hint">建好后会生成 6 位邀请码，发给对方就能加入（最多 3 人）</text>
+    </view>
+
+    <view class="card">
+      <text class="ct">TA 邀请我</text>
+      <input class="ipt code" placeholder="输入 6 位邀请码" maxlength="7" value="{{codeInput}}" bindinput="onCode" />
+      <button class="btn plain full" loading="{{busy}}" bindtap="joinBook">加入共同账本</button>
+      <text class="err" wx:if="{{msg}}">{{msg}}</text>
+    </view>
+
+    <view class="card">
+      <text class="ct">合在一起之后</text>
+      <view class="li">· 对方记的账会同步到你手机上，你记的也会到他那边</view>
+      <view class="li">· 你的历史账目不会被上传，只有加入之后新记的、以及你点同步时才推</view>
+      <view class="li">· 想退出随时可以，本地记录一条都不会丢</view>
+    </view>
+  </block>
+
+  <view class="foot">账目只在你和对方之间同步，不会给第三个人看。</view>
+</view>

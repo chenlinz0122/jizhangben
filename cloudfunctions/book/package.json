@@ -1,0 +1,9 @@
+{
+  "name": "book",
+  "version": "1.0.0",
+  "description": "共同账本：两个人记同一本账",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "~2.6.3"
+  }
+}

@@ -84,6 +84,15 @@
     </view>
   </view>
 
+  <!-- 共同账本入口：没加入时是邀请，加入了显示账本名 -->
+  <view class="promo share" bindtap="goShare">
+    <view class="p-left">
+      <text class="p-title">{{sharedJoined ? sharedName : '共同账本'}}</text>
+      <text class="p-desc">{{sharedJoined ? '和 TA 记同一本账 · 点这里同步 / 邀请' : '邀请一个人，两个人记同一本账，谁记的都能看到'}}</text>
+    </view>
+    <text class="p-go">{{sharedJoined ? '去同步 ›' : '去开通 ›'}}</text>
+  </view>
+
   <!-- 免费版会员引导 -->
   <view class="promo" wx:if="{{!isVip}}" bindtap="goVip">
     <view class="p-left">

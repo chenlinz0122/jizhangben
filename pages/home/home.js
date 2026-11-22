@@ -11,6 +11,7 @@ var vip = require('../../utils/vip')
 var account = require('../../utils/account')
 var theme = require('../../utils/theme')
 var darkmode = require('../../utils/darkmode')
+var shared = require('../../utils/shared')
 
 function greetText() {
   var h = new Date().getHours()
@@ -39,7 +40,10 @@ Page({
 
     themeKey: 'green',
     themes: [],
-    dark: false
+    dark: false,
+
+    sharedJoined: false,
+    sharedName: ''
   },
 
   onLoad: function () {
@@ -67,12 +71,61 @@ Page({
     this.syncVip()
     this.syncTheme()
     this.syncDark()
+    this.syncShared()
 
     /* 分享进来（?invite=）时，这里兜一次：核销成功会 +7 天，再刷一次状态 */
     var self = this
     vip.autoAcceptInvite(function (res) {
       if (res && res.ok) self.syncVip()
     })
+  },
+
+  /* 共同账本：显示账本名；打开链接进来且还没加入时问一句要不要加 */
+  syncShared: function () {
+    var self = this
+    var b = shared.current()
+    this.setData({
+      sharedJoined: !!b,
+      sharedName: (b && b.name) || ''
+    })
+
+    var pending = shared.pendingShare()
+    if (pending && !b) {
+      wx.showModal({
+        title: '一起记账？',
+        content: '对方邀请你加入共同账本，加入后彼此的记录会同步到对方手机上。',
+        confirmText: '加入',
+        cancelText: '先不用',
+        success: function (r) {
+          if (!r.confirm) { shared.clearPendingShare(); return }
+          shared.joinBook(pending, function (res) {
+            shared.clearPendingShare()
+            if (res && res.ok) {
+              self.setData({ sharedJoined: true, sharedName: res.name || '共同账本' })
+              wx.showToast({ title: '已加入共同账本', icon: 'none' })
+              return
+            }
+            wx.showToast({ title: (res && res.msg) || '加入失败', icon: 'none' })
+          })
+        }
+      })
+      return
+    }
+    if (pending && b) shared.clearPendingShare()
+
+    /* 已经加入了就顺手静默同步一次，但 5 分钟内不重复跑 */
+    if (b && Date.now() - (b.lastSync || 0) > 5 * 60 * 1000) {
+      shared.sync(function (res) {
+        if (res && res.ok && res.added > 0) {
+          self.syncData()
+          wx.showToast({ title: '共同账本新增 ' + res.added + ' 条', icon: 'none' })
+        }
+      })
+    }
+  },
+
+  goShare: function () {
+    wx.navigateTo({ url: '/pages/share/share' })
   },
 
   syncTheme: function () {

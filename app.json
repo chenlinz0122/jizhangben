@@ -11,6 +11,7 @@
     "pages/vip/vip",
     "pages/login/login",
     "pages/promo/promo",
+    "pages/share/share",
     "pages/feedback/feedback"
   ],
   "window": {
@@ -48,3 +49,4 @@
   "lazyCodeLoading": "requiredComponents",
   "sitemapLocation": "sitemap.json"
 }
+

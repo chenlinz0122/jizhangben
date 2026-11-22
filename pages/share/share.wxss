@@ -1,0 +1,232 @@
+/* pages/share/share - 共同账本 */
+.page {
+  min-height: 100vh;
+  background: #f4f5f7;
+  padding-bottom: 60rpx;
+}
+
+.hero {
+  padding: 40rpx 32rpx 56rpx;
+  background: linear-gradient(160deg, #2f6f5e 0%, #1f5145 100%);
+}
+
+.h1 {
+  display: block;
+  font-size: 44rpx;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.h2 {
+  display: block;
+  margin-top: 14rpx;
+  font-size: 26rpx;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.card {
+  margin: 20rpx 24rpx 0;
+  padding: 28rpx;
+  background: #ffffff;
+  border-radius: 24rpx;
+  box-shadow: 0 6rpx 20rpx rgba(30, 45, 40, 0.06);
+}
+
+.card:first-of-type {
+  margin-top: -40rpx;
+}
+
+.between {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.bname {
+  font-size: 34rpx;
+  font-weight: 700;
+  color: #242a2e;
+}
+
+.bmeta {
+  font-size: 24rpx;
+  color: #8b9399;
+}
+
+.codebox {
+  margin-top: 22rpx;
+  padding: 22rpx 24rpx;
+  background: #f3f7f5;
+  border-radius: 16rpx;
+}
+
+.clab {
+  font-size: 22rpx;
+  color: #8b9399;
+}
+
+.cval {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 40rpx;
+  font-weight: 700;
+  letter-spacing: 4rpx;
+  color: #2f6f5e;
+}
+
+.row2 {
+  display: flex;
+  margin-top: 22rpx;
+}
+
+.btn {
+  flex: 1;
+  height: 84rpx;
+  line-height: 84rpx;
+  font-size: 28rpx;
+  border-radius: 999rpx;
+  padding: 0;
+  margin: 0;
+}
+
+.btn.main {
+  margin-right: 16rpx;
+  color: #ffffff;
+  background: #2f6f5e;
+}
+
+.btn.plain {
+  color: #2f6f5e;
+  background: #eef4f1;
+}
+
+.btn.full {
+  margin-top: 20rpx;
+}
+
+.btn::after {
+  border: none;
+}
+
+.syncrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 26rpx;
+  padding-top: 20rpx;
+  border-top: 1rpx solid #edf0f2;
+}
+
+.sync-t {
+  font-size: 23rpx;
+  color: #8b9399;
+}
+
+.sync-btn {
+  padding: 12rpx 26rpx;
+  font-size: 25rpx;
+  color: #ffffff;
+  background: #2f6f5e;
+  border-radius: 999rpx;
+}
+
+.sync-btn.off {
+  opacity: 0.6;
+}
+
+.ct {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #242a2e;
+  margin-bottom: 16rpx;
+}
+
+.li {
+  font-size: 25rpx;
+  line-height: 1.85;
+  color: #4c5458;
+}
+
+.ipt {
+  height: 88rpx;
+  padding: 0 24rpx;
+  margin-bottom: 8rpx;
+  font-size: 28rpx;
+  background: #f4f5f7;
+  border-radius: 16rpx;
+}
+
+.ipt.code {
+  font-size: 34rpx;
+  letter-spacing: 6rpx;
+  text-align: center;
+}
+
+.hint {
+  display: block;
+  margin-top: 14rpx;
+  font-size: 22rpx;
+  line-height: 1.7;
+  color: #9aa2a8;
+}
+
+.err {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  line-height: 1.6;
+  color: #d0563f;
+}
+
+.quit {
+  margin: 30rpx 24rpx 0;
+  padding: 24rpx;
+  font-size: 26rpx;
+  text-align: center;
+  color: #8b9399;
+  background: #ffffff;
+  border-radius: 20rpx;
+}
+
+.foot {
+  margin: 26rpx 32rpx 0;
+  font-size: 22rpx;
+  line-height: 1.7;
+  color: #a5abb0;
+  text-align: center;
+}
+
+/* 深色跟随系统 */
+.page.dark {
+  background: #12161a;
+}
+
+.page.dark .card,
+.page.dark .quit {
+  background: #1b2026;
+  box-shadow: none;
+}
+
+.page.dark .bname,
+.page.dark .ct {
+  color: #e6e9ec;
+}
+
+.page.dark .codebox {
+  background: #22282e;
+}
+
+.page.dark .ipt {
+  background: #22282e;
+  color: #e6e9ec;
+}
+
+.page.dark .li {
+  color: #cfd5da;
+}
+
+.page.dark .syncrow {
+  border-color: #262c33;
+}

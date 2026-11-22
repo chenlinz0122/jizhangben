@@ -23,6 +23,14 @@ App({
         var vipUtil = require('./utils/vip')
         vipUtil.setPendingInvite(q.invite)
       }
+      /* 共同账本邀请：落在别的页面时，首页会弹一句「要不要加入」；
+         直接落在共同账本页就不用再存（那页自己填邀请码） */
+      if (q.code) {
+        var path = String((options && options.path) || '')
+        if (path.indexOf('pages/share/share') < 0) {
+          require('./utils/shared').setPendingShare(q.code)
+        }
+      }
     } catch (e) {}
 
     /* 云开发只用于「截图识别」的 OCR，流水仍然存在手机本地。

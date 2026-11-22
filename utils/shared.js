@@ -86,8 +86,14 @@ function call(action, data, cb) {
     success: function (r) { done((r && r.result) || { ok: false }) },
     fail: function (err) {
       var msg = String((err && err.errMsg) || '')
+      var code = String((err && err.errCode) || '')
       if (/function not found|FunctionName/i.test(msg)) {
         msg = '云函数 book 还没部署：右键 cloudfunctions/book → 上传并部署'
+      } else if (code === '-501000' || /env.*not.*exist|invalid env/i.test(msg)) {
+        msg = '云开发环境不对（code -501000）：检查 app.js 里写死的 env 和账号下的环境是不是同一个'
+      } else {
+        /* 把原始错误带出来：不然永远只有一句「网络出问题了」，没法定位 */
+        msg = '调用云函数失败' + (code ? '（code ' + code + '）' : '') + (msg ? '：' + msg : '')
       }
       done({ ok: false, msg: msg || '网络出问题了，稍后再试' })
     }

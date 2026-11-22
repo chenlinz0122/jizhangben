@@ -153,8 +153,38 @@ Page({
     }
   },
 
+  /* 首页这张卡就是「同步入口」：
+     已经加入了 → 点一下直接同步（不用再进二级页找按钮）；
+     还没加入 → 进共同账本页去创建 / 输邀请码。 */
   goShare: function () {
-    wx.navigateTo({ url: '/pages/share/share' })
+    if (!shared.isJoined()) {
+      wx.navigateTo({ url: '/pages/share/share' })
+      return
+    }
+    if (this._syncing) return
+    this._syncing = true
+    var self = this
+    wx.showLoading({ title: '同步中', mask: true })
+    shared.sync(function (res) {
+      self._syncing = false
+      wx.hideLoading()
+      if (res && res.ok) {
+        if (res.members) self.setData({ sharedMembers: res.members })
+        self.syncData()
+        wx.showToast({
+          title: res.added > 0 ? ('同步完成，新增 ' + res.added + ' 条') : '同步完成，没有新记录',
+          icon: 'none',
+          duration: 1600
+        })
+        return
+      }
+      wx.showModal({
+        title: '同步没成功',
+        content: (res && res.msg) || '检查网络后再试一次',
+        showCancel: false,
+        confirmText: '知道了'
+      })
+    })
   },
 
   syncTheme: function () {

@@ -36,8 +36,11 @@ App({
     /* 云开发只用于「截图识别」的 OCR，流水仍然存在手机本地。
        没用云环境也不影响记账，只是截图识别不可用。 */
     if (wx.cloud) {
+      /* 云开发环境要写死：不写 env 时用「账号下的默认环境」，
+         一个账号建过好几个环境（或换了环境）就会指到空的那一个，
+         表现就是云函数明明部署了却一直报找不到。 */
       try {
-        wx.cloud.init({ traceUser: true })
+        wx.cloud.init({ env: 'cloud1-d1gspor0c4bf8ef20', traceUser: true })
         this.globalData.cloudReady = true
       } catch (e) {
         this.globalData.cloudReady = false

@@ -88,7 +88,7 @@
   <view class="promo share" bindtap="goShare">
     <view class="p-left">
       <text class="p-title">{{sharedJoined ? sharedName : '共同账本'}}</text>
-      <text class="p-desc">{{sharedJoined ? '和 TA 记同一本账 · 点这里同步 / 邀请' : '邀请一个人，两个人记同一本账，谁记的都能看到'}}</text>
+      <text class="p-desc">{{sharedJoined ? (sharedMembers > 1 ? '账本里 ' + sharedMembers + ' 人 · 点这里同步 / 邀请' : '点这里邀请家人室友，谁记的都能看到') : '几个人记同一本账，谁记的都能看到'}}</text>
     </view>
     <text class="p-go">{{sharedJoined ? '去同步 ›' : '去开通 ›'}}</text>
   </view>

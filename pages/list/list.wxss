@@ -163,9 +163,32 @@
   padding-right: 16rpx;
 }
 
+/* 商户名 +「谁记的」小标签并排 */
+.imrow {
+  display: flex;
+  align-items: center;
+}
+
 .im {
+  flex: 1;
+  min-width: 0;
   display: block;
   font-size: 28rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bytag {
+  flex-shrink: 0;
+  margin-left: 12rpx;
+  padding: 2rpx 12rpx;
+  font-size: 20rpx;
+  line-height: 1.5;
+  color: #a9702d;
+  background: #fbf1e3;
+  border-radius: 999rpx;
+  max-width: 160rpx;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

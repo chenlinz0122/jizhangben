@@ -131,6 +131,13 @@ function mergeInto(target, src) {
       changed = true
     }
   }
+  /* 共同账本：自己这条被别人的记录「并」上了，也把「谁记的」带过来，
+   * 否则合并完就成了无名记录，看着像自己记的 */
+  if (!target.by && src.by) {
+    target.by = src.by
+    if (src.byMe === false) target.byMe = false
+    changed = true
+  }
   return changed
 }
 

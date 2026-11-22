@@ -3,6 +3,7 @@ var store = require('../../utils/store')
 var stats = require('../../utils/stats')
 var category = require('../../utils/category')
 var vip = require('../../utils/vip')
+var shared = require('../../utils/shared')
 
 Page({
   data: {
@@ -22,7 +23,11 @@ Page({
     sheetCats: [],
     catMode: false,
     backTab: '',
-    backLabel: ''
+    backLabel: '',
+    /* 共同账本：只有加入了才显示「谁记的」和「全部 / 只看我」 */
+    sharedOn: false,
+    sharedMembers: 0,
+    scope: 'all'
   },
 
   onLoad: function () {
@@ -63,6 +68,11 @@ Page({
     } else {
       this.setData({ backTab: '', backLabel: '' })
     }
+    var book = shared.current()
+    this.setData({
+      sharedOn: shared.isJoined(),
+      sharedMembers: (book && book.members) || 0
+    })
     this.refresh()
   },
 
@@ -99,6 +109,8 @@ Page({
 
     for (var i = 0; i < txs.length; i++) {
       var t = txs[i]
+      /* 共同账本：切「只看我」时，别人记的直接跳过（自己记的记录没有 by 字段） */
+      if (this.data.sharedOn && this.data.scope === 'mine' && !shared.isMine(t)) continue
       if (!searching && t.ym !== ym) continue
       if (searching) {
         var hay = [t.merchant, t.desc, t.note, t.category].join(' ').toLowerCase()
@@ -139,7 +151,9 @@ Page({
         isUncat: t.category === '未分类',
         /* 行内也把说明带出来：账单里的「美团-机票」这种关键信息，藏在详情里等于没有 */
         desc: t.desc || '',
-        note: t.note || ''
+        note: t.note || '',
+        /* 别人记的账挂个名字，自己记的不挂，一眼能分清；退出账本后不再挂标签 */
+        by: (this.data.sharedOn && t.by && t.byMe === false) ? t.by : ''
       }
       cur.items.push(row)
       /* 小计只算支出的原价：退款不冲减，否则「今天退了上个月买的东西」会让当天小计变成负数，
@@ -188,6 +202,14 @@ Page({
   toggleUncat: function () {
     var self = this
     this.setData({ onlyUncat: !this.data.onlyUncat }, function () { self.refresh() })
+  },
+
+  /* 共同账本：全部 / 只看我 */
+  setScope: function (e) {
+    var v = e.currentTarget.dataset.k === 'mine' ? 'mine' : 'all'
+    if (v === this.data.scope) return
+    var self = this
+    this.setData({ scope: v }, function () { self.refresh() })
   },
 
   clearFilter: function () {

@@ -2,7 +2,7 @@
 <view class="page {{dark ? 'dark' : ''}}">
   <view class="hero">
     <text class="h1">共同账本</text>
-    <text class="h2">邀请一个人，咱俩记同一本账：谁记的都能看到</text>
+    <text class="h2">一个账本最多 10 个人：谁记的都能看到，也能只看自己记的</text>
   </view>
 
   <!-- 已加入 -->
@@ -19,7 +19,7 @@
       </view>
 
       <view class="row2">
-        <button class="btn main" open-type="share">转发给 TA</button>
+        <button class="btn main" open-type="share">转发邀请</button>
         <view class="btn plain" bindtap="copyCode">复制邀请码</view>
       </view>
 
@@ -30,19 +30,34 @@
       <text class="err" wx:if="{{msg}}">{{msg}}</text>
     </view>
 
+    <!-- 成员：谁在这个账本里 -->
+    <view class="card">
+      <view class="between">
+        <text class="ct">账本里的人</text>
+        <text class="edit" bindtap="editNick">改我的名字</text>
+      </view>
+      <view class="mrow" wx:for="{{memberList}}" wx:key="index">
+        <view class="mava {{item.role === 'owner' ? 'own' : ''}}">{{item.initial}}</view>
+        <text class="mname">{{item.nickname}}</text>
+        <text class="mtag me" wx:if="{{item.isMe}}">我</text>
+        <text class="mtag own" wx:if="{{item.role === 'owner' && !item.isMe}}">账主</text>
+      </view>
+      <text class="hint">名字只是用来区分「这笔谁记的」，只有账本里的人能看到</text>
+    </view>
+
     <view class="card">
       <text class="ct">怎么用</text>
-      <view class="li">· 平时照常记账，都记在自己手机上</view>
-      <view class="li">· 点「立即同步」把新记的推上去、把对方记的拉下来</view>
+      <view class="li">· 平时照常记账，都先记在自己手机上</view>
+      <view class="li">· 点「立即同步」把新记的推上去、把别人记的拉下来</view>
+      <view class="li">· 流水页每条都会标「谁记的」，还能切「只看我」</view>
       <view class="li">· 同步按记录编号去重，不会重复不会翻倍</view>
-      <view class="li">· 打开这个页面会自动同步一次，不用天天惦记</view>
     </view>
 
     <view class="card">
       <text class="ct">注意</text>
-      <view class="li">· 这是「合并账本」，不是实时协作：没点同步前，对方看不到你刚记的账</view>
-      <view class="li">· 两个人的分类习惯会各自保留，合到一起后按记录里的分类显示</view>
-      <view class="li">· {{isOwner ? '你是创建人，退出等于解散，对方也会被移出' : '退出后本地记录保留，只是不再同步'}}</view>
+      <view class="li">· 这是「合并账本」，不是实时协作：没点同步前，别人看不到你刚记的账</view>
+      <view class="li">· 每个人的分类习惯各自保留，合到一起后按记录里的分类显示</view>
+      <view class="li">· {{isOwner ? '你是账主，退出等于解散，其他人也会被移出' : '退出后本地记录保留，只是不再同步'}}</view>
     </view>
 
     <view class="quit" bindtap="quit">{{isOwner ? '解散这个账本' : '退出这个账本'}}</view>
@@ -51,26 +66,29 @@
   <!-- 未加入 -->
   <block wx:else>
     <view class="card">
-      <text class="ct">我已经有账本，邀请 TA 进来</text>
+      <text class="ct">我先建一本</text>
+      <input class="ipt" placeholder="你的名字，比如「小王」（别人用这个认你记的账）" maxlength="10" value="{{nickInput}}" bindinput="onNick" />
       <input class="ipt" placeholder="账本名字，比如「我们的家」" maxlength="20" value="{{nameInput}}" bindinput="onName" />
       <button class="btn main full" loading="{{busy}}" bindtap="createBook">创建共同账本</button>
-      <text class="hint">建好后会生成 6 位邀请码，发给对方就能加入（最多 3 人）</text>
+      <text class="hint">建好后会生成 6 位邀请码，发给家人 / 室友就能加入，最多 10 人</text>
     </view>
 
     <view class="card">
-      <text class="ct">TA 邀请我</text>
+      <text class="ct">别人邀请我</text>
       <input class="ipt code" placeholder="输入 6 位邀请码" maxlength="7" value="{{codeInput}}" bindinput="onCode" />
+      <input class="ipt" placeholder="你的名字，比如「小李」" maxlength="10" value="{{nickInput}}" bindinput="onNick" />
       <button class="btn plain full" loading="{{busy}}" bindtap="joinBook">加入共同账本</button>
       <text class="err" wx:if="{{msg}}">{{msg}}</text>
     </view>
 
     <view class="card">
       <text class="ct">合在一起之后</text>
-      <view class="li">· 对方记的账会同步到你手机上，你记的也会到他那边</view>
+      <view class="li">· 别人记的账会同步到你手机上，你记的也会同步过去</view>
+      <view class="li">· 每条记录都带着「谁记的」，总账和只自己的账随时切换着看</view>
       <view class="li">· 你的历史账目不会被上传，只有加入之后新记的、以及你点同步时才推</view>
       <view class="li">· 想退出随时可以，本地记录一条都不会丢</view>
     </view>
   </block>
 
-  <view class="foot">账目只在你和对方之间同步，不会给第三个人看。</view>
+  <view class="foot">账目只在同一个账本里的人之间同步，不会外传。</view>
 </view>

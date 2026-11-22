@@ -1,4 +1,4 @@
-// pages/share/share —— 共同账本：邀请好友，两个人记同一本账
+// pages/share/share —— 共同账本：多人记同一本账
 var shared = require('../../utils/shared')
 var darkmode = require('../../utils/darkmode')
 
@@ -11,6 +11,21 @@ function timeText(ms) {
   return pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes())
 }
 
+/* 头像位上放名字第一个字，比默认图标好认 */
+function withInitial(list) {
+  var out = []
+  for (var i = 0; i < (list || []).length; i++) {
+    var m = list[i] || {}
+    out.push({
+      nickname: m.nickname || '成员',
+      role: m.role === 'owner' ? 'owner' : 'member',
+      isMe: !!m.isMe,
+      initial: String(m.nickname || '成').slice(0, 1)
+    })
+  }
+  return out
+}
+
 Page({
   data: {
     joined: false,
@@ -18,10 +33,13 @@ Page({
     code: '',
     codeText: '',
     members: 0,
-    memberLimit: 3,
+    memberLimit: 10,
+    memberList: [],
+    myName: '',
     isOwner: false,
     lastSyncText: '还没同步过',
     nameInput: '',
+    nickInput: '',
     codeInput: '',
     busy: false,
     msg: '',
@@ -36,11 +54,21 @@ Page({
     /* 分享链接带 code：填进输入框，让用户确认一下再加入（不偷偷加入） */
     var q = opts && (opts.code || opts.share)
     if (q) this.setData({ codeInput: String(q).toUpperCase() })
+    /* 上次填过的名字回填一次，省得每次都敲 */
+    var saved = ''
+    try { saved = String(wx.getStorageSync('share_nick_v1') || '') } catch (e) { saved = '' }
+    if (saved) this.setData({ nickInput: saved })
     this.load()
   },
 
   onShow: function () {
     if (this.data.joined) this.load()
+  },
+
+  onNick: function (e) {
+    var v = String(e.detail.value || '').slice(0, 10)
+    try { wx.setStorageSync('share_nick_v1', v) } catch (err) {}
+    this.setData({ nickInput: v, msg: '' })
   },
 
   onName: function (e) { this.setData({ nameInput: e.detail.value, msg: '' }) },
@@ -55,7 +83,7 @@ Page({
     if (!b) { this.setData({ joined: false }); return }
     shared.info(function (res) {
       if (!res || !res.ok) { self.setData({ joined: false }); return }
-      if (!res.joined) { self.setData({ joined: false }); return }
+      if (!res.joined) { this.setData({ joined: false }); return }
       self.apply(res)
     })
   },
@@ -68,7 +96,9 @@ Page({
       code: code,
       codeText: code ? code.slice(0, 3) + ' ' + code.slice(3) : '',
       members: res.members || 1,
-      memberLimit: res.memberLimit || 3,
+      memberLimit: res.memberLimit || 10,
+      memberList: withInitial(res.memberList),
+      myName: res.nickname || shared.myName() || '',
       isOwner: !!res.owner
     })
     var b = shared.current()
@@ -79,10 +109,14 @@ Page({
     var self = this
     if (this.data.busy) return
     this.setData({ busy: true, msg: '' })
-    shared.createBook(this.data.nameInput, function (res) {
+    shared.createBook(this.data.nameInput, this.data.nickInput, function (res) {
       if (res && res.ok) {
         self.setData({ busy: false, joined: true })
-        self.apply({ name: res.name, code: res.code, members: 1, memberLimit: 3, owner: true })
+        self.apply({
+          name: res.name, code: res.code, members: res.members || 1,
+          memberLimit: res.memberLimit || 10, memberList: res.memberList,
+          nickname: res.nickname, owner: true
+        })
         wx.showToast({ title: '账本建好了', icon: 'success' })
         return
       }
@@ -98,15 +132,43 @@ Page({
       return
     }
     this.setData({ busy: true, msg: '' })
-    shared.joinBook(this.data.codeInput, function (res) {
+    shared.joinBook(this.data.codeInput, this.data.nickInput, function (res) {
       if (res && res.ok) {
         self.setData({ busy: false, joined: true, codeInput: '' })
         shared.clearPendingShare()
-        self.apply({ name: res.name, code: res.code, members: res.members || 2, memberLimit: 3 })
+        self.apply({
+          name: res.name, code: res.code, members: res.members || 2,
+          memberLimit: res.memberLimit || 10, memberList: res.memberList,
+          nickname: res.nickname
+        })
         wx.showToast({ title: '已加入共同账本', icon: 'success' })
         return
       }
       self.setData({ busy: false, msg: (res && res.msg) || '加入失败，稍后再试' })
+    })
+  },
+
+  /* 改自己的名字：只影响以后记的账，别人已经同步走的旧记录还是旧名字 */
+  editNick: function () {
+    var self = this
+    wx.showModal({
+      title: '我在这个账本里叫什么',
+      editable: true,
+      placeholderText: '比如「小王」',
+      content: this.data.myName || '',
+      success: function (r) {
+        if (!r.confirm) return
+        var v = String(r.content || '').trim().slice(0, 10)
+        if (!v) return
+        shared.setNick(v, function (res) {
+          if (res && res.ok) {
+            self.setData({ myName: res.nickname || v, memberList: withInitial(res.memberList) })
+            wx.showToast({ title: '改好了', icon: 'none' })
+            return
+          }
+          self.setData({ msg: (res && res.msg) || '改名字失败，稍后再试' })
+        })
+      }
     })
   },
 
@@ -135,6 +197,7 @@ Page({
           duration: 1600
         })
         if (res.members) self.setData({ members: res.members })
+        if (res.memberList) self.setData({ memberList: withInitial(res.memberList) })
         return
       }
       self.setData({ msg: (res && res.msg) || '同步失败，检查网络后再试' })
@@ -147,15 +210,15 @@ Page({
     wx.showModal({
       title: owner ? '解散共同账本？' : '退出共同账本？',
       content: owner
-        ? '你是账本创建人，退出会把整本拆掉：对方也会被移出，云端的共享记录会被清空（你本地账目不受影响）。'
-        : '退出后你就看不到对方新记的账了，本地已有的记录会保留。',
+        ? '你是账主，退出会把整本拆掉：其他人也会被移出，云端的共享记录会被清空（你们本地账目不受影响）。'
+        : '退出后你就看不到别人新记的账了，本地已有的记录会保留。',
       confirmText: owner ? '解散' : '退出',
       confirmColor: '#d0563f',
       success: function (r) {
         if (!r.confirm) return
         shared.leave(function (res) {
           if (res && res.ok) {
-            self.setData({ joined: false, name: '', code: '', codeText: '', members: 0 })
+            self.setData({ joined: false, name: '', code: '', codeText: '', members: 0, memberList: [] })
             wx.showToast({ title: owner ? '已解散' : '已退出', icon: 'none' })
             return
           }
@@ -168,7 +231,7 @@ Page({
   onShareAppMessage: function () {
     var code = this.data.code
     return {
-      title: '加进我的共同账本，咱俩记同一本账',
+      title: '加进我的共同账本，一起记同一本账',
       path: '/pages/share/share?code=' + code
     }
   },

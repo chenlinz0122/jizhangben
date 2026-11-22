@@ -198,6 +198,63 @@
   text-align: center;
 }
 
+/* 成员行：头像位放名字第一个字 */
+.edit {
+  font-size: 23rpx;
+  color: #2f6f5e;
+  padding: 6rpx 4rpx;
+}
+
+.mrow {
+  display: flex;
+  align-items: center;
+  padding: 14rpx 0;
+}
+
+.mrow + .mrow {
+  border-top: 1rpx solid #f0f3f5;
+}
+
+.mava {
+  width: 60rpx;
+  height: 60rpx;
+  line-height: 60rpx;
+  margin-right: 18rpx;
+  font-size: 26rpx;
+  text-align: center;
+  color: #5a6b66;
+  background: #e9efec;
+  border-radius: 50%;
+}
+
+.mava.own {
+  color: #ffffff;
+  background: #2f6f5e;
+}
+
+.mname {
+  flex: 1;
+  font-size: 27rpx;
+  color: #242a2e;
+}
+
+.mtag {
+  margin-left: 10rpx;
+  padding: 4rpx 14rpx;
+  font-size: 20rpx;
+  border-radius: 999rpx;
+}
+
+.mtag.me {
+  color: #2f6f5e;
+  background: #e9f2ee;
+}
+
+.mtag.own {
+  color: #a9702d;
+  background: #fbf1e3;
+}
+
 /* 深色跟随系统 */
 .page.dark {
   background: #12161a;
@@ -210,8 +267,37 @@
 }
 
 .page.dark .bname,
-.page.dark .ct {
+.page.dark .ct,
+.page.dark .mname {
   color: #e6e9ec;
+}
+
+.page.dark .mrow + .mrow {
+  border-top-color: #262c33;
+}
+
+.page.dark .mava {
+  color: #b8c3bd;
+  background: #262c33;
+}
+
+.page.dark .mava.own {
+  color: #ffffff;
+  background: #2f6f5e;
+}
+
+.page.dark .mtag.me {
+  color: #8fd0bd;
+  background: #22302b;
+}
+
+.page.dark .mtag.own {
+  color: #d8a760;
+  background: #2f2a22;
+}
+
+.page.dark .edit {
+  color: #8fd0bd;
 }
 
 .page.dark .codebox {

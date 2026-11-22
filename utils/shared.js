@@ -1,10 +1,12 @@
 /* 共同账本（客户端）
  *
  * 口径：
- *   1. 账本仍然以本地 Storage 为准，云端只做「两人之间的中转」；
- *   2. 记账 / 导入照旧写本地，sync() 时把还没推过的记录推上去，再把对方的拉下来合并；
- *   3. 合并走 store.addMany()，按 id 去重，重名重复推不会翻倍；
- *   4. 一个人只能在一个共同账本里，退出（房主退出 = 解散）由云端处理。
+ *   1. 账本仍然以本地 Storage 为准，云端只做「多人之间的中转」；
+ *   2. 记账 / 导入照旧写本地，sync() 时把还没推过的记录推上去，再把别人的拉下来合并；
+ *   3. 合并走 store.addMany()，按 id 去重，重复推不会翻倍；
+ *   4. 谁记的：拉下来的记录带 by（昵称）和 byMe（是不是我记的），本地一起存；
+ *      自己记的记录没有 by，一律当成「我」，所以不用给历史数据补字段；
+ *   5. 一个人只能在一个共同账本里，退出（账主退出 = 解散）由云端处理。
  */
 
 var store = require('./store')
@@ -38,12 +40,22 @@ function isJoined() {
   return !!(b && b.bookId)
 }
 
+/* 我的昵称：没设过就报空，页面自己兜底成「我」 */
+function myName() {
+  var b = current()
+  return (b && b.nickname) || ''
+}
+
 function save(book) {
   var old = current() || {}
   var next = {
     bookId: book.bookId,
     name: book.name || old.name || '共同账本',
     code: book.code || old.code || '',
+    nickname: book.nickname || old.nickname || '',
+    members: book.members || old.members || 0,
+    memberLimit: book.memberLimit || old.memberLimit || 10,
+    memberList: book.memberList || old.memberList || [],
     joinedAt: old.joinedAt || Date.now(),
     lastSync: old.lastSync || 0
   }
@@ -79,34 +91,64 @@ function call(action, data, cb) {
   })
 }
 
-/* 建一本（已经有就直接返回那一本） */
-function createBook(name, cb) {
-  call('create', { name: name }, function (res) {
-    if (res && res.ok) save(res)
+/* 建一本（已经当账主就直接返回那一本） */
+function createBook(name, nickname, cb) {
+  call('create', { name: name, nickname: nickname }, function (res) {
+    if (res && res.ok) {
+      res.nickname = myNameOfList(res.memberList) || nickname || ''
+      save(res)
+    }
     cb && cb(res)
   })
 }
 
 /* 用 6 位邀请码加入 */
-function joinBook(code, cb) {
-  call('join', { code: code }, function (res) {
-    if (res && res.ok) save(res)
+function joinBook(code, nickname, cb) {
+  call('join', { code: code, nickname: nickname }, function (res) {
+    if (res && res.ok) {
+      res.nickname = myNameOfList(res.memberList) || nickname || ''
+      save(res)
+    }
     cb && cb(res)
   })
 }
 
-/* 账本概况：名称、邀请码、几个人 */
+/* 从成员清单里挑出「我」的名字 */
+function myNameOfList(list) {
+  if (!list || !list.length) return ''
+  for (var i = 0; i < list.length; i++) {
+    if (list[i] && list[i].isMe) return list[i].nickname || ''
+  }
+  return ''
+}
+
+/* 改自己的昵称（以后新记的账用新名字，历史记录保留当时的名字） */
+function setNick(nickname, cb) {
+  call('setNick', { nickname: nickname }, function (res) {
+    if (res && res.ok) {
+      var b = current()
+      if (b) { b.nickname = res.nickname || nickname || ''; writeObj(BOOK_KEY, b) }
+    }
+    cb && cb(res)
+  })
+}
+
+/* 账本概况：名称、邀请码、几个人、都是谁 */
 function info(cb) {
   var b = current()
   if (!b) { cb && cb({ ok: false, code: 'NO_BOOK' }); return }
   call('my', {}, function (res) {
-    if (res && res.ok && res.joined) save(res)
-    else if (res && res.ok && !res.joined) clear()
+    if (res && res.ok && res.joined) {
+      res.nickname = res.nickname || myNameOfList(res.memberList) || (b && b.nickname) || ''
+      save(res)
+    } else if (res && res.ok && !res.joined) {
+      clear()
+    }
     cb && cb(res)
   })
 }
 
-/* 退出（房主退出会把整本拆掉，代价值得在页面上说清楚） */
+/* 退出（账主退出会把整本拆掉，代价值得在页面上说清楚） */
 function leave(cb) {
   call('leave', {}, function (res) {
     if (res && res.ok) clear()
@@ -164,7 +206,7 @@ function pushPending(bookId, cb) {
   })
 }
 
-/* 拉对方的记录并合并进本地 */
+/* 拉别人的记录并合并进本地 */
 function pullAndMerge(bookId, cb) {
   call('pull', { bookId: bookId }, function (res) {
     if (!res || !res.ok) { cb && cb(res || { ok: false }); return }
@@ -173,13 +215,19 @@ function pullAndMerge(bookId, cb) {
     for (var i = 0; i < rows.length; i++) {
       var row = rows[i]
       if (!row || !row.id) continue
-      incoming.push({
+      var one = {
         id: row.id, time: row.time, day: row.day, ym: row.ym,
         type: row.type, amount: row.amount, category: row.category,
         desc: row.desc, account: row.account, byPlatform: row.byPlatform,
         status: row.status, merchant: row.merchant, note: row.note,
         src: row.src, edited: row.edited
-      })
+      }
+      /* 谁记的：别人的记录带名字，自己的记录不带（本地历史数据也就不用迁移） */
+      if (row.byName && !row.isMe) {
+        one.by = row.byName
+        one.byMe = false
+      }
+      incoming.push(one)
     }
     var out = { added: 0, merged: 0, members: res.members || 0 }
     if (incoming.length) {
@@ -192,7 +240,12 @@ function pullAndMerge(bookId, cb) {
     for (var q = 0; q < incoming.length; q++) ids.push(incoming[q].id)
     markPushed(ids)
     var b = current()
-    if (b) { b.lastSync = Date.now(); writeObj(BOOK_KEY, b) }
+    if (b) {
+      b.lastSync = Date.now()
+      if (res.memberList) b.memberList = res.memberList
+      if (res.members) b.members = res.members
+      writeObj(BOOK_KEY, b)
+    }
     cb && cb(Object.assign({ ok: true }, out))
   })
 }
@@ -208,6 +261,12 @@ function sync(cb) {
       cb && cb(r)
     })
   })
+}
+
+/* 本地这条记录是不是我自己记的：没有 by 就是自己 */
+function isMine(t) {
+  if (!t) return true
+  return !(t.by && t.byMe === false)
 }
 
 /* 分享链接：/pages/share/share?code=XXXXXX */
@@ -238,8 +297,11 @@ module.exports = {
   PENDING_KEY: PENDING_KEY,
   current: current,
   isJoined: isJoined,
+  myName: myName,
+  isMine: isMine,
   createBook: createBook,
   joinBook: joinBook,
+  setNick: setNick,
   info: info,
   leave: leave,
   sync: sync,

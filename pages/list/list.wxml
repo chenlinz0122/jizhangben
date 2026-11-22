@@ -21,6 +21,10 @@
       <text class="chip on" wx:if="{{filterCat}}" bindtap="clearFilter">× {{filterCat}}</text>
       <text class="chip on" wx:if="{{filterDay}}" bindtap="clearFilter">× {{filterDay}}</text>
       <text class="chip {{onlyUncat ? 'on' : ''}}" bindtap="toggleUncat">只看未分类</text>
+      <block wx:if="{{sharedOn}}">
+        <text class="chip {{scope === 'all' ? 'on' : ''}}" data-k="all" bindtap="setScope">全部{{sharedMembers > 1 ? ' ·' + sharedMembers + '人' : ''}}</text>
+        <text class="chip {{scope === 'mine' ? 'on' : ''}}" data-k="mine" bindtap="setScope">只看我</text>
+      </block>
       <text class="chip" bindtap="goImport">＋ 导入</text>
       <text class="chip" bindtap="moreActions">⋯ 管理</text>
     </view>
@@ -40,7 +44,10 @@
             data-id="{{item.id}}" bindtap="openSheet" bindlongpress="onLongPress">
         <view class="ic" style="background:{{item.tint}}"><text class="ic-em">{{item.icon}}</text></view>
         <view class="ileft">
-          <text class="im">{{item.merchant}}</text>
+          <view class="imrow">
+            <text class="im">{{item.merchant}}</text>
+            <text class="bytag" wx:if="{{item.by}}">{{item.by}}</text>
+          </view>
           <text class="isub">{{item.category}} · {{item.timeText}}<text class="notedot" wx:if="{{item.note}}"> · 有备注</text></text>
           <text class="idesc" wx:if="{{item.desc}}">{{item.desc}}</text>
         </view>

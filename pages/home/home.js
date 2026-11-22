@@ -43,7 +43,8 @@ Page({
     dark: false,
 
     sharedJoined: false,
-    sharedName: ''
+    sharedName: '',
+    sharedMembers: 0
   },
 
   onLoad: function () {
@@ -86,7 +87,8 @@ Page({
     var b = shared.current()
     this.setData({
       sharedJoined: !!b,
-      sharedName: (b && b.name) || ''
+      sharedName: (b && b.name) || '',
+      sharedMembers: (b && b.members) || 0
     })
 
     var pending = shared.pendingShare()
@@ -98,10 +100,14 @@ Page({
         cancelText: '先不用',
         success: function (r) {
           if (!r.confirm) { shared.clearPendingShare(); return }
-          shared.joinBook(pending, function (res) {
+          shared.joinBook(pending, '', function (res) {
             shared.clearPendingShare()
             if (res && res.ok) {
-              self.setData({ sharedJoined: true, sharedName: res.name || '共同账本' })
+              self.setData({
+                sharedJoined: true,
+                sharedName: res.name || '共同账本',
+                sharedMembers: res.members || 1
+              })
               wx.showToast({ title: '已加入共同账本', icon: 'none' })
               return
             }
@@ -116,9 +122,12 @@ Page({
     /* 已经加入了就顺手静默同步一次，但 5 分钟内不重复跑 */
     if (b && Date.now() - (b.lastSync || 0) > 5 * 60 * 1000) {
       shared.sync(function (res) {
-        if (res && res.ok && res.added > 0) {
-          self.syncData()
-          wx.showToast({ title: '共同账本新增 ' + res.added + ' 条', icon: 'none' })
+        if (res && res.ok) {
+          if (res.members) self.setData({ sharedMembers: res.members })
+          if (res.added > 0) {
+            self.syncData()
+            wx.showToast({ title: '共同账本新增 ' + res.added + ' 条', icon: 'none' })
+          }
         }
       })
     }

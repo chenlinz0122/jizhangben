@@ -11,16 +11,21 @@ function timeText(ms) {
   return pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes())
 }
 
-/* 头像位上放名字第一个字，比默认图标好认 */
+/* 头像位上放名字第一个字，比默认图标好认；显示名优先用「我给他起的备注」 */
 function withInitial(list) {
   var out = []
   for (var i = 0; i < (list || []).length; i++) {
     var m = list[i] || {}
+    var nick = m.nickname || '成员'
+    var remark = shared.remarkOf(nick)
+    var label = remark || nick
     out.push({
-      nickname: m.nickname || '成员',
+      nickname: nick,
+      remark: remark,
+      label: label,
       role: m.role === 'owner' ? 'owner' : 'member',
       isMe: !!m.isMe,
-      initial: String(m.nickname || '成').slice(0, 1)
+      initial: String(label || '成').slice(0, 1)
     })
   }
   return out
@@ -168,6 +173,35 @@ Page({
           }
           self.setData({ msg: (res && res.msg) || '改名字失败，稍后再试' })
         })
+      }
+    })
+  },
+
+  /* 给账本里的人起备注：只在我这台手机上生效，不改他本人填的昵称 */
+  editRemark: function (e) {
+    var self = this
+    var nick = String(e.currentTarget.dataset.nick || '')
+    if (!nick) return
+    if (this.data.myName && nick === this.data.myName) {
+      this.editNick()
+      return
+    }
+    var cur = shared.remarkOf(nick)
+    wx.showModal({
+      title: '「' + nick + '」在你手机上叫什么',
+      editable: true,
+      placeholderText: '比如「妹妹」「室友老张」，留空恢复原名',
+      content: cur,
+      success: function (r) {
+        if (!r.confirm) return
+        var v = shared.setRemark(nick, r.content)
+        var raw = []
+        for (var i = 0; i < self.data.memberList.length; i++) {
+          var m = self.data.memberList[i]
+          raw.push({ nickname: m.nickname, role: m.role, isMe: m.isMe })
+        }
+        self.setData({ memberList: withInitial(raw) })
+        wx.showToast({ title: v ? '备注已保存' : '已恢复原名', icon: 'none' })
       }
     })
   },

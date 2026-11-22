@@ -83,6 +83,21 @@ check('切到「只看我」后只剩自己 2 条', total() === 2, total())
 check('「只看我」里没有任何别人记录', byItems().length === 0, byItems())
 check('自己两条都在', page.data.groups[0] && page.data.groups[0].items.some((x) => x.id === 'mine1'), page.data.groups[0] && page.data.groups[0].items.map((x) => x.id))
 
+/* 成员备注：给「小李」起名「妹妹」，流水标签要跟着变 */
+page.setData({ scope: 'all' })
+page.refresh()
+const sharedMod = require(path.join(__dirname, '..', 'utils', 'shared.js'))
+sharedMod.setRemark('小李', '妹妹')
+check('备注存下来了', sharedMod.remarkOf('小李') === '妹妹', sharedMod.remarkOf('小李'))
+check('显示名优先用备注', sharedMod.labelOf('小李') === '妹妹', sharedMod.labelOf('小李'))
+page.refresh()
+check('刷新后行内标签变成「妹妹」', byItems()[0] && byItems()[0].byLabel === '妹妹', byItems()[0] && byItems()[0].byLabel)
+check('备注不影响别人的记录', byItems().length === 1, byItems().length)
+sharedMod.setRemark('小李', '')
+check('清空备注回到原名', sharedMod.labelOf('小李') === '小李', sharedMod.labelOf('小李'))
+page.refresh()
+check('恢复原名后标签也回「小李」', byItems()[0] && byItems()[0].byLabel === '小李', byItems()[0] && byItems()[0].byLabel)
+
 /* 没加入账本时不该受 scope 影响：模拟未加入 */
 delete storage.shared_book_v1
 page.setData({ sharedOn: false, scope: 'mine' })

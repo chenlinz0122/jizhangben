@@ -188,7 +188,7 @@
   color: #a9702d;
   background: #fbf1e3;
   border-radius: 999rpx;
-  max-width: 160rpx;
+  max-width: 220rpx;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

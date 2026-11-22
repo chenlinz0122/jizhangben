@@ -232,10 +232,28 @@
   background: #2f6f5e;
 }
 
-.mname {
+.mnames {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+}
+
+.mname {
+  min-width: 0;
   font-size: 27rpx;
   color: #242a2e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 起了备注时，原名跟在后面当小字 */
+.mnick {
+  flex-shrink: 0;
+  margin-left: 8rpx;
+  font-size: 21rpx;
+  color: #9aa2a8;
 }
 
 .mtag {
@@ -298,6 +316,10 @@
 
 .page.dark .edit {
   color: #8fd0bd;
+}
+
+.page.dark .mnick {
+  color: #7d868d;
 }
 
 .page.dark .codebox {

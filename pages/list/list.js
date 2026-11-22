@@ -137,6 +137,8 @@ Page({
         groups.push(cur)
       }
 
+      /* 谁记的：别人的记录带名字（有备注就显示备注）；自己的不挂，进账本页之前一律不挂 */
+      var byNick = (this.data.sharedOn && t.by && t.byMe === false) ? String(t.by) : ''
       var row = {
         id: t.id,
         merchant: t.merchant || '（没有商户名）',
@@ -152,8 +154,9 @@ Page({
         /* 行内也把说明带出来：账单里的「美团-机票」这种关键信息，藏在详情里等于没有 */
         desc: t.desc || '',
         note: t.note || '',
-        /* 别人记的账挂个名字，自己记的不挂，一眼能分清；退出账本后不再挂标签 */
-        by: (this.data.sharedOn && t.by && t.byMe === false) ? t.by : ''
+        /* 别人记的账挂个名字标签，显示成「小李 标记的」；自己记的不挂 */
+        by: byNick,
+        byLabel: byNick ? shared.labelOf(byNick) : ''
       }
       cur.items.push(row)
       /* 小计只算支出的原价：退款不冲减，否则「今天退了上个月买的东西」会让当天小计变成负数，
@@ -276,6 +279,9 @@ Page({
         timeText: format.pad(d.getHours()) + ':' + format.pad(d.getMinutes()),
         desc: tx.desc || '',
         note: tx.note || '',
+        /* 这笔谁记的：带原始昵称（改备注用）和显示名 */
+        byNick: (tx.by && tx.byMe === false) ? String(tx.by) : '',
+        byLabel: (tx.by && tx.byMe === false) ? shared.labelOf(tx.by) : '',
         status: tx.status || '',
         account: tx.account || '',
         source: tx.source || '',
@@ -310,6 +316,30 @@ Page({
         self.setData({ 'sheetItem.note': v })
         self.refresh()
         wx.showToast({ title: v ? '备注已保存' : '备注已清空', icon: 'none' })
+      }
+    })
+  },
+
+  /* 给记这笔的人起备注：改完这一本账里他记的都会一起改成新名字 */
+  editByRemark: function () {
+    var item = this.data.sheetItem
+    if (!item || !item.byNick) return
+    var self = this
+    var nick = item.byNick
+    var cur = shared.remarkOf(nick)
+    wx.showModal({
+      title: '他叫什么（你自己看的名字）',
+      editable: true,
+      placeholderText: '比如「妹妹」「室友老张」，留空恢复原名',
+      content: cur,
+      success: function (res) {
+        if (!res.confirm) return
+        var v = shared.setRemark(nick, res.content)
+        self.setData({
+          'sheetItem.byLabel': shared.labelOf(nick)
+        })
+        self.refresh()
+        wx.showToast({ title: v ? '备注已保存' : '已恢复原名', icon: 'none' })
       }
     })
   },

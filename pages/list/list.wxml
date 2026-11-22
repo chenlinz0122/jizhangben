@@ -46,7 +46,7 @@
         <view class="ileft">
           <view class="imrow">
             <text class="im">{{item.merchant}}</text>
-            <text class="bytag" wx:if="{{item.by}}">{{item.by}}</text>
+            <text class="bytag" wx:if="{{item.byLabel}}">{{item.byLabel}} 标记的</text>
           </view>
           <text class="isub">{{item.category}} · {{item.timeText}}<text class="notedot" wx:if="{{item.note}}"> · 有备注</text></text>
           <text class="idesc" wx:if="{{item.desc}}">{{item.desc}}</text>
@@ -83,6 +83,10 @@
     <view class="srow">
       <text class="sl">时间</text>
       <text class="sv">{{sheetItem.dateText}} {{sheetItem.timeText}}</text>
+    </view>
+    <view class="srow" wx:if="{{sheetItem.byLabel}}" bindtap="editByRemark">
+      <text class="sl">记账人</text>
+      <text class="sv">{{sheetItem.byLabel}} 标记的<text class="sv-dim"> · 点这里改备注</text></text>
     </view>
     <view class="srow" wx:if="{{sheetItem.desc}}">
       <text class="sl">说明</text>

@@ -14,6 +14,8 @@ var store = require('./store')
 var BOOK_KEY = 'shared_book_v1'
 var PUSHED_KEY = 'shared_pushed_v1'
 var PENDING_KEY = 'pending_share_v1'
+/* 我给账本里其他成员起的外号：{ bookId: { 云端昵称: 备注 } }，只存自己手机 */
+var REMARK_KEY = 'shared_remarks_v1'
 
 var TX_FIELDS = ['id', 'time', 'day', 'ym', 'type', 'amount', 'category', 'desc', 'account',
   'byPlatform', 'status', 'merchant', 'note', 'src', 'edited']
@@ -269,6 +271,45 @@ function isMine(t) {
   return !(t.by && t.byMe === false)
 }
 
+/* ---- 成员备注：我给「小李」起名叫「妹妹」，流水上就显示「妹妹 标记的」 ----
+ * 只存在本机，不上云：你起的备注别人看不到，同一个人在不同手机上可以叫不同名字。 */
+function remarksAll() {
+  var v = readObj(REMARK_KEY)
+  return v && typeof v === 'object' ? v : {}
+}
+
+function remarkOf(nick) {
+  var n = String(nick || '')
+  if (!n) return ''
+  var b = current()
+  var bid = (b && b.bookId) || '_'
+  var m = remarksAll()[bid] || {}
+  return String(m[n] || '')
+}
+
+/* 该显示的名字：有备注用备注，没有就用他自己填的昵称 */
+function labelOf(nick) {
+  var n = String(nick || '')
+  if (!n) return ''
+  return remarkOf(n) || n
+}
+
+/* 设备注（空串 = 清掉，恢复原名）。返回实际存下的备注 */
+function setRemark(nick, remark) {
+  var n = String(nick || '').trim()
+  if (!n) return ''
+  var v = String(remark || '').trim().slice(0, 10)
+  var b = current()
+  var bid = (b && b.bookId) || '_'
+  var all = remarksAll()
+  var m = all[bid] || {}
+  if (v) m[n] = v
+  else delete m[n]
+  all[bid] = m
+  writeObj(REMARK_KEY, all)
+  return v
+}
+
 /* 分享链接：/pages/share/share?code=XXXXXX */
 function sharePath() {
   var b = current()
@@ -295,10 +336,14 @@ module.exports = {
   BOOK_KEY: BOOK_KEY,
   PUSHED_KEY: PUSHED_KEY,
   PENDING_KEY: PENDING_KEY,
+  REMARK_KEY: REMARK_KEY,
   current: current,
   isJoined: isJoined,
   myName: myName,
   isMine: isMine,
+  remarkOf: remarkOf,
+  labelOf: labelOf,
+  setRemark: setRemark,
   createBook: createBook,
   joinBook: joinBook,
   setNick: setNick,

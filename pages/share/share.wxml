@@ -36,20 +36,24 @@
         <text class="ct">账本里的人</text>
         <text class="edit" bindtap="editNick">改我的名字</text>
       </view>
-      <view class="mrow" wx:for="{{memberList}}" wx:key="index">
+      <view class="mrow" wx:for="{{memberList}}" wx:key="index"
+            data-nick="{{item.nickname}}" bindtap="editRemark">
         <view class="mava {{item.role === 'owner' ? 'own' : ''}}">{{item.initial}}</view>
-        <text class="mname">{{item.nickname}}</text>
+        <view class="mnames">
+          <text class="mname">{{item.label}}</text>
+          <text class="mnick" wx:if="{{item.remark}}">{{item.nickname}}</text>
+        </view>
         <text class="mtag me" wx:if="{{item.isMe}}">我</text>
         <text class="mtag own" wx:if="{{item.role === 'owner' && !item.isMe}}">账主</text>
       </view>
-      <text class="hint">名字只是用来区分「这笔谁记的」，只有账本里的人能看到</text>
+      <text class="hint">点一下成员能给他起备注，流水页就显示成「备注 标记的」；昵称和备注都在你手机上，别人看不到</text>
     </view>
 
     <view class="card">
       <text class="ct">怎么用</text>
       <view class="li">· 平时照常记账，都先记在自己手机上</view>
       <view class="li">· 点「立即同步」把新记的推上去、把别人记的拉下来</view>
-      <view class="li">· 流水页每条都会标「谁记的」，还能切「只看我」</view>
+      <view class="li">· 流水页每条都写着「谁 标记的」，顶部还能切「只看我」</view>
       <view class="li">· 同步按记录编号去重，不会重复不会翻倍</view>
     </view>
 

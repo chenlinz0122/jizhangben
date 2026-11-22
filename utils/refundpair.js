@@ -106,11 +106,13 @@ function pair(txs) {
 
   for (var j = 0; j < ref.length; j++) {
     var r = ref[j]
-    /* 退款本身永远不单独显示：要么和付款成对消失，要么把付款冲成净额 */
+    /* 默认退款不单独显示：要么和付款成对消失，要么把付款冲成净额 */
     hideId[r.id] = true
 
     var remain = round2(r.amount)
     var guard = 0
+    var allocs = []
+    var pairsBefore = pairs.length
     while (remain > 0.005 && guard < 20) {
       guard++
       var best = null
@@ -129,39 +131,30 @@ function pair(txs) {
       refundedOf[best.tx.id] = round2((refundedOf[best.tx.id] || 0) + use)
       if (best.left <= 0.005) hideId[best.tx.id] = true
       pairs.push({ refund: r, expense: best.tx, amount: round2(use), guessed: bestScore < 30 })
+      allocs.push({ e: best, use: use })
       remain = round2(remain - use)
     }
 
-    /* 兜底：名字和金额都对不上（账单里商户名被平台改写过）时，
-       钱还是得有个落脚的地方——摊到「时间最近、还有余额」的那笔支出上，
-       宁可归类粗一点，也不留一条孤零零的退款。优先同月，没有再放宽到 180 天内。
-       这里不强制退款晚于付款：有的账单退款日期会被平台写成比付款还早。 */
+    /* 配不上就配不上，绝不硬塞：
+       商户名和金额都对不上时，宁可让这条退款单独留着（前端会标成「未配到付款」），
+       也不摊到别的支出上——把「闲鱼退 12.5」塞给「海底捞 320」只会把账算坏。
+       只配上一半（退款 100、只找到 60 的付款）同样算没配上：整笔撤回，
+       不留「这半笔已经冲掉了」的半截状态。 */
     if (remain > 0.005) {
-      var fallback = null
-      var bestGap = Infinity
-      for (var f = 0; f < exp.length; f++) {
-        var fe = exp[f]
-        if (fe.left <= 0.005) continue
-        var gap = Math.abs(r.time - fe.time) / 86400000
-        if (gap > WINDOW_DAYS) continue
-        /* 同月优先：跨月的时间差再小也往后排 */
-        var weight = (fe.tx.ym === r.ym) ? gap : gap + 200
-        if (weight < bestGap) { bestGap = weight; fallback = fe }
+      for (var a = 0; a < allocs.length; a++) {
+        var al = allocs[a]
+        al.e.left = round2(al.e.left + al.use)
+        leftOf[al.e.tx.id] = al.e.left
+        var rest = round2((refundedOf[al.e.tx.id] || 0) - al.use)
+        if (rest > 0.005) refundedOf[al.e.tx.id] = rest
+        else delete refundedOf[al.e.tx.id]
+        if (al.e.left > 0.005) delete hideId[al.e.tx.id]
       }
-      if (fallback) {
-        var use2 = Math.min(remain, fallback.left)
-        fallback.left = round2(fallback.left - use2)
-        leftOf[fallback.tx.id] = fallback.left
-        refundedOf[fallback.tx.id] = round2((refundedOf[fallback.tx.id] || 0) + use2)
-        if (fallback.left <= 0.005) hideId[fallback.tx.id] = true
-        pairs.push({ refund: r, expense: fallback.tx, amount: round2(use2), guessed: true })
-        remain = round2(remain - use2)
-      }
-    }
-
-    if (remain > 0.005) {
+      pairs.length = pairsBefore
       unmatched.push(r)
-      unmatchedAmount = round2(unmatchedAmount + remain)
+      unmatchedAmount = round2(unmatchedAmount + round2(r.amount))
+      /* 这一条不再隐藏：让它留在列表里，用户能看到「这笔退款没配上」 */
+      delete hideId[r.id]
     }
   }
 

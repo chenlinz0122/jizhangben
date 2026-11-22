@@ -56,16 +56,16 @@ function tx(id, type, merchant, amount, day) {
   ok(r.pairs.length === 1, '部分退款：应产生 1 组配对')
 })()
 
-/* 4. 退款比付款早（账单里平台把日期写反了）：仍按兜底配对，不留孤立退款 */
+/* 4. 退款日期比付款早：不硬配，两条都留着让人自己看 */
 ;(function () {
   var list = [
     tx('e4', 'expense', '星巴克', 30, '2026-11-20'),
     tx('r4', 'refund', '星巴克', 30, '2026-11-01')
   ]
   var r = rp.pair(list)
-  ok(r.hideId.e4 === true, '退款早于付款：同商户同金额仍应成对剔除')
-  ok(r.hideId.r4 === true, '退款早于付款：退款行隐藏')
-  ok(r.unmatched.length === 0, '退款早于付款：不应残留未配对')
+  ok(r.hideId.e4 === undefined, '退款早于付款：付款不动')
+  ok(r.hideId.r4 === undefined, '退款早于付款：退款留着')
+  ok(r.unmatchedAmount === 30, '退款早于付款：记为未配对 30')
 })()
 
 /* 5. 同商户两笔同额支出 + 一笔退款：只吃掉其中一笔 */
@@ -99,30 +99,30 @@ function tx(id, type, merchant, amount, day) {
   ok(r.unmatchedAmount === 0, '大额退款：不应残留未配对金额')
 })()
 
-/* 7. 名字和金额都对不上：走兜底，摊到退款前最近的那笔支出，不能留孤零零的退款 */
+/* 7. 名字和金额都对不上：坚决不配，宁可留着，也不许把闲鱼退的钱塞给海底捞 */
 ;(function () {
   var list = [
     tx('e7', 'expense', '海底捞', 320, '2026-11-06'),
     tx('r7', 'refund', '闲鱼', 12.5, '2026-11-07')
   ]
   var r = rp.pair(list)
-  ok(r.hideId.e7 === undefined, '名字金额都不同：付款行仍保留（冲成净额）')
-  ok(r.leftOf.e7 === 307.5, '名字金额都不同：付款净额应为 307.5')
-  ok(r.refundedOf.e7 === 12.5, '名字金额都不同：记录已退 12.5')
-  ok(r.hideId.r7 === true, '名字金额都不同：退款行隐藏')
-  ok(r.unmatched.length === 0, '名字金额都不同：不应残留未配对退款')
-  ok(r.pairs[0].guessed === true, '名字金额都不同：应标成推断配对')
+  ok(r.hideId.e7 === undefined, '名字金额都不同：付款不动')
+  ok(r.leftOf.e7 === 320, '名字金额都不同：付款保持原价 320')
+  ok(r.refundedOf.e7 === undefined, '名字金额都不同：付款不应被记已退')
+  ok(r.hideId.r7 === undefined, '名字金额都不同：退款留着自己显示')
+  ok(r.unmatchedAmount === 12.5, '名字金额都不同：记为未配对 12.5')
+  ok(r.pairs.length === 0, '名字金额都不同：不应产生任何配对')
 })()
 
-/* 7b. 跨月兜底：10 月花的钱、11 月才退，名字也不同 */
+/* 7b. 跨月：10 月花的钱、11 月才退，名字看着不同但金额刚好对得上 → 正常配上 */
 ;(function () {
   var list = [
     tx('e7b', 'expense', '某服装店', 199, '2026-10-20'),
     tx('r7b', 'refund', '支付宝退款', 199, '2026-11-02')
   ]
   var r = rp.pair(list)
-  ok(r.hideId.e7b === true, '跨月兜底：付款应被退干净并隐藏')
-  ok(r.unmatched.length === 0, '跨月兜底：不应残留')
+  ok(r.hideId.e7b === true, '跨月同金额：付款应被退干净并隐藏')
+  ok(r.unmatched.length === 0, '跨月同金额：不应残留')
 })()
 
 /* 8. 超过 180 天的退款不参与配对 */
@@ -144,12 +144,27 @@ function tx(id, type, merchant, amount, day) {
   ok(rp.normMerchant('星巴克(上海)有限公司') === '星巴克', '规范化：去有限公司 → 星巴克')
 })()
 
-/* 10. 只有退款没有支出：全额记为未配对，不崩 */
+/* 10. 只有退款没有支出：整笔记为未配对，退款留在列表里，不崩 */
 ;(function () {
   var list = [tx('r10', 'refund', '某商家', 88, '2026-11-11')]
   var r = rp.pair(list)
-  ok(r.hideId.r10 === true, '孤立退款：仍隐藏')
+  ok(r.hideId.r10 === undefined, '孤立退款：留在列表里')
   ok(r.unmatchedAmount === 88, '孤立退款：未配对金额 88')
+})()
+
+/* 11. 只配上一半（退款 100，只找到 60 的付款）：整笔撤回，不留半截 */
+;(function () {
+  var list = [
+    tx('e11', 'expense', '饿了么', 60, '2026-11-09'),
+    tx('r11', 'refund', '饿了么', 100, '2026-11-12')
+  ]
+  var r = rp.pair(list)
+  ok(r.leftOf.e11 === 60, '只配一半：付款恢复原价 60')
+  ok(r.refundedOf.e11 === undefined, '只配一半：付款不应被记已退')
+  ok(r.hideId.e11 === undefined, '只配一半：付款不隐藏')
+  ok(r.hideId.r11 === undefined, '只配一半：退款留在列表里')
+  ok(r.pairs.length === 0, '只配一半：不应留下半截配对')
+  ok(r.unmatchedAmount === 100, '只配一半：整笔记未配对 100')
 })()
 
 console.log('通过 ' + pass + ' 项，失败 ' + fail + ' 项')

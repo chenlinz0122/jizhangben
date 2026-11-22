@@ -219,6 +219,11 @@
   margin-top: 4rpx;
 }
 
+/* 没配上付款的退款：整行留在这儿，颜色压下去，别让它看起来像一笔进账 */
+.irefund.gray {
+  color: #9aa0a6;
+}
+
 /* 行内的商品说明：账单里的「美团-机票」这种关键信息 */
 .idesc {
   display: block;

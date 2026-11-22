@@ -205,10 +205,16 @@ Page({
       }
       pr = refundpair.pair(pairInput)
     }
+    var unmatchedId = {}
+    if (pr) {
+      for (var u = 0; u < pr.unmatched.length; u++) unmatchedId[pr.unmatched[u].id] = true
+    }
     for (var i = 0; i < txs.length && recent.length < 5; i++) {
       var t = txs[i]
       if (t.ym !== ym) continue
       if (pr && pr.hideId[t.id]) continue
+      /* 除了退款页上留着让它自己说话，首页这份 5 条摘要里不塞「没配上」的退款 */
+      if (unmatchedId[t.id]) continue
       var netAmt = t.amount
       if (pr && t.type === 'expense' && pr.leftOf[t.id] !== undefined) netAmt = pr.leftOf[t.id]
       recent.push({

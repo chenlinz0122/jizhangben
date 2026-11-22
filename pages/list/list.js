@@ -169,7 +169,7 @@ Page({
     var skipId = pr.hideId
 
     /* 配上的付款如果不在这一屏（跨月、被分类筛选挡掉），这屏看不到那笔付款，
-       金额只能从本屏支出合计里扣，并在提示里说清楚 */
+       金额只能从本屏支出合计里扣。跨月本来就是常态，不再单独提示。 */
     var inView = {}
     for (var iv = 0; iv < filtered.length; iv++) inView[filtered[iv].id] = true
     var crossAmount = 0
@@ -179,6 +179,10 @@ Page({
         crossAmount = Math.round((crossAmount + cpr.amount) * 100) / 100
       }
     }
+
+    /* 没配上付款的退款：不硬配，就让它自己留在列表里，行内标一句「未配到付款」 */
+    var unmatchedId = {}
+    for (var um = 0; um < pr.unmatched.length; um++) unmatchedId[pr.unmatched[um].id] = true
 
     var groups = []
     var cur = null
@@ -211,6 +215,10 @@ Page({
 
       /* 谁记的：别人的记录带名字（有备注就显示备注）；自己的不挂，进账本页之前一律不挂 */
       var byNick = (this.data.sharedOn && tx.by && tx.byMe === false) ? String(tx.by) : ''
+      var isUnmatchedRefund = !!unmatchedId[tx.id]
+      var sign = '+'
+      if (tx.type === 'transfer' || isUnmatchedRefund) sign = ''
+      else if (tx.type === 'expense') sign = '-'
       var row = {
         id: tx.id,
         merchant: tx.merchant || '（没有商户名）',
@@ -219,11 +227,12 @@ Page({
         refundedText: pr.refundedOf[tx.id] ? format.money(pr.refundedOf[tx.id]) : '',
         timeText: format.pad(new Date(tx.time).getHours()) + ':' + format.pad(new Date(tx.time).getMinutes()),
         type: tx.type,
-        sign: (tx.type === 'income' || tx.type === 'refund') ? '+' : (tx.type === 'transfer' ? '' : '-'),
+        sign: sign,
         color: category.colorOf(tx.category),
         icon: category.iconOf(tx.category),
         tint: category.tintOf(tx.category),
         isUncat: tx.category === '未分类',
+        isUnmatchedRefund: isUnmatchedRefund,
         /* 行内也把说明带出来：账单里的「美团-机票」这种关键信息，藏在详情里等于没有 */
         desc: tx.desc || '',
         note: tx.note || '',
@@ -256,11 +265,8 @@ Page({
       } else if (partCnt > 0) {
         note = partCnt + ' 笔退款已并进对应的付款，按净额显示'
       }
-      if (crossAmount > 0.005) {
-        note += (note ? '；' : '') + '另有 ¥' + format.money(crossAmount) + ' 退款对应的是别的月份的付款，那一笔已同步冲减，本屏只扣金额'
-      }
       if (pr.unmatchedAmount > 0.005) {
-        note += (note ? '；' : '') + '另有 ¥' + format.money(pr.unmatchedAmount) + ' 退款整本账都没找到付款，已从支出里扣'
+        note += (note ? '；' : '') + '另有 ¥' + format.money(pr.unmatchedAmount) + ' 退款没配上付款，留在列表里、已从支出里扣'
       }
     }
 

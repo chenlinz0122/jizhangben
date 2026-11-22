@@ -51,9 +51,10 @@
           </view>
           <text class="isub">{{item.category}} · {{item.timeText}}<text class="notedot" wx:if="{{item.note}}"> · 有备注</text></text>
           <text class="irefund" wx:if="{{item.refundedText}}">已退 ¥{{item.refundedText}}</text>
+          <text class="irefund gray" wx:if="{{item.isUnmatchedRefund}}">未配到付款 · 已从支出里扣</text>
           <text class="idesc" wx:if="{{item.desc}}">{{item.desc}}</text>
         </view>
-        <text class="iamt {{item.type === 'income' || item.type === 'refund' ? 'inc' : (item.type === 'transfer' ? 'muted' : 'exp')}}">{{item.sign}}{{item.amountText}}</text>
+        <text class="iamt {{item.isUnmatchedRefund ? 'muted' : (item.type === 'income' || item.type === 'refund' ? 'inc' : (item.type === 'transfer' ? 'muted' : 'exp'))}}">{{item.sign}}{{item.amountText}}</text>
       </view>
     </view>
   </view>

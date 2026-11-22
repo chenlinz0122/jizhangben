@@ -10,6 +10,7 @@
  */
 
 var store = require('./store')
+var format = require('./format')
 
 var BOOK_KEY = 'shared_book_v1'
 var PUSHED_KEY = 'shared_pushed_v1'
@@ -229,6 +230,15 @@ function pullAndMerge(bookId, cb) {
         one.by = row.byName
         one.byMe = false
       }
+      /* 云端老数据可能没带 day / ym：这里先补齐，落库就是完整的，
+         免得流水页按月过滤时把这条挡掉（同步上了却看不见） */
+      if (!one.time && one.day) {
+        var dp = String(one.day).split('-')
+        var ts = new Date(Number(dp[0]), Number(dp[1]) - 1, Number(dp[2])).getTime()
+        if (ts) one.time = ts
+      }
+      if (!one.day && one.time) one.day = format.dayOf(one.time)
+      if (!one.ym) one.ym = one.day ? String(one.day).slice(0, 7) : (one.time ? format.ymOf(one.time) : '')
       incoming.push(one)
     }
     var out = { added: 0, merged: 0, members: res.members || 0 }

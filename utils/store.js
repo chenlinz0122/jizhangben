@@ -37,6 +37,16 @@ function all() {
       t.type = 'transfer'
       t.category = '理财'
     }
+    /* 共同账本拉下来的记录：老版本推上去的可能没带 day / ym（云端只存推上来的字段），
+     * 读出来就按时间补齐。不补的话流水页按月过滤会把它们整条挡掉，
+     * 表现就是「同步成功了、账本里也有这笔，但流水里怎么都看不见」。 */
+    if (!t.time && t.day) {
+      var dp = String(t.day).split('-')
+      var ts = new Date(Number(dp[0]), Number(dp[1]) - 1, Number(dp[2])).getTime()
+      if (ts) t.time = ts
+    }
+    if (!t.day && t.time) t.day = format.dayOf(t.time)
+    if (!t.ym) t.ym = t.day ? String(t.day).slice(0, 7) : (t.time ? format.ymOf(t.time) : '')
   }
   return _cache
 }
@@ -97,6 +107,10 @@ function sameLoose(a, b) {
   if (a.day !== b.day) return false
   if (round2(a.amount) !== round2(b.amount)) return false
   if (!merchantLike(a.merchant, b.merchant)) return false
+  /* 不同人记的账绝不合并：共同账本里两个人可能同一分钟各记一笔同商户同金额
+     （一起点外卖、各买一杯奶茶），那是两笔真实支出，合并掉就等于把对方那条吃了 */
+  if (!!a.by !== !!b.by) return false
+  if (a.by && b.by && a.by !== b.by) return false
 
   var pa = String(a.id || '').charAt(0)
   var pb = String(b.id || '').charAt(0)

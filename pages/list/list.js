@@ -277,6 +277,21 @@ Page({
       }
     }
 
+    /* 看双方时最常见的困惑：「同步成功了、账本里也有，可这个月流水里一条对方的都没有」。
+       对方的账多半记在别的月份（流水默认只看本月），这里直接说清楚，别让人以为是同步丢了。 */
+    if (plainView && this.data.sharedOn && scope !== 'mine') {
+      var peerAll = 0
+      var peerThisMonth = 0
+      for (var pa = 0; pa < txs.length; pa++) {
+        if (shared.isMine(txs[pa])) continue
+        peerAll++
+        if (txs[pa].ym === ym) peerThisMonth++
+      }
+      if (peerAll > 0 && peerThisMonth === 0) {
+        note += (note ? '；' : '') + '对方记的 ' + peerAll + ' 笔都在别的月份，用上面的 ‹ › 翻一下就能看到'
+      }
+    }
+
     groups.forEach(function (g) {
       g.spendText = format.money(Math.max(g.spend, 0))
     })

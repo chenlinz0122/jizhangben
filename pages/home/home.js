@@ -269,7 +269,7 @@ Page({
         merchant: t.merchant || '未填写商户',
         category: t.category,
         color: category.colorOf(t.category),
-        initial: String(t.category || '账').slice(0, 1),
+        initial: category.iconOf(t.category),
         byLabel: t.byMe === false ? shared.labelOf(t.by || '成员', t.ownerKey) : '',
         tint: category.tintOf(t.category),
         amountText: format.money(t.amount),

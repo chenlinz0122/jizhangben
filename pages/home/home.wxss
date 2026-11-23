@@ -85,7 +85,7 @@
 .category-amount { font-variant-numeric: tabular-nums; font-size: 24rpx; text-align: right; min-width: 128rpx; }
 .recent-card { padding-bottom: 8rpx; }
 .recent-row { display: flex; align-items: center; gap: 18rpx; border-top: 1rpx solid var(--line); padding: 25rpx 0; }
-.category-initial { width: 64rpx; height: 64rpx; display: flex; align-items: center; justify-content: center; background: var(--surface-soft); border-radius: 18rpx; font-size: 27rpx; flex: none; }
+.category-initial { width: 64rpx; height: 64rpx; display: flex; align-items: center; justify-content: center; background: var(--surface-soft); border-radius: 18rpx; font-size: 30rpx; flex: none; }
 .recent-copy { flex: 1; min-width: 0; }
 .recent-merchant { display: block; font-size: 27rpx; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .recent-meta { display: block; font-size: 20rpx; color: var(--secondary); line-height: 1.5; margin-top: 7rpx; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

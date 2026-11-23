@@ -166,7 +166,7 @@
 }
 
 .ic-em {
-  font-size: 30rpx;
+  font-size: 32rpx;
   line-height: 1;
 }
 

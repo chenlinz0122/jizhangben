@@ -42,7 +42,7 @@ function topBy(txs, ym, kind, n) {
     return {
       name: row.name, amount: row.cents / 100, count: row.count, cat: row.cat,
       amountText: format.signedMoney(row.cents / 100), negative: row.cents < 0,
-      icon: String(row.cat || '账').slice(0, 1)
+      icon: category.iconOf(row.cat)
     }
   })
 }
@@ -305,7 +305,7 @@ Page({
       return {
         _amt: c.amount, negative: c.amount < 0,
         name: c.name, amountText: c.amountText, pct: c.pct, count: c.count,
-        color: c.color, icon: String(c.name || '账').slice(0, 1), tint: category.tintOf(c.name), deltaText: deltaText, deltaDir: deltaDir,
+        color: c.color, icon: category.iconOf(c.name), tint: category.tintOf(c.name), deltaText: deltaText, deltaDir: deltaDir,
         budget: bud,
         budgetText: bud > 0 ? format.money(bud) : '',
         budgetSpentText: format.money(netAmt),
@@ -319,7 +319,7 @@ Page({
       return {
         _amt: c.amount, negative: c.amount < 0,
         name: c.name, amountText: c.amountText, pct: c.pct, count: c.count,
-        color: c.color, icon: String(c.name || '账').slice(0, 1), tint: category.tintOf(c.name), deltaText: '', deltaDir: ''
+        color: c.color, icon: category.iconOf(c.name), tint: category.tintOf(c.name), deltaText: '', deltaDir: ''
       }
     })
 
@@ -381,7 +381,7 @@ Page({
         var spentN = Math.max(bs.byCat[n] || 0, 0)
         return {
           name: n,
-          icon: String(n).slice(0, 1),
+          icon: category.iconOf(n),
           tint: category.tintOf(n),
           spentText: format.money(spentN),
           has: budN > 0,

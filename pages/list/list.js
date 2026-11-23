@@ -183,7 +183,7 @@ Page({
         type: tx.type,
         sign: sign,
         color: category.colorOf(tx.category),
-        icon: String(tx.category || '账').slice(0, 1),
+        icon: category.iconOf(tx.category),
         tint: category.tintOf(tx.category),
         isUncat: tx.category === '未分类',
         /* 行内也把说明带出来：账单里的「美团-机票」这种关键信息，藏在详情里等于没有 */
@@ -347,7 +347,7 @@ Page({
         dirText: dir.t,
         dirClass: dir.cls,
         category: tx.category,
-        icon: String(tx.category || '账').slice(0, 1),
+        icon: category.iconOf(tx.category),
         color: category.colorOf(tx.category),
         dateText: d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日 周' + wk,
         timeText: format.pad(d.getHours()) + ':' + format.pad(d.getMinutes()),

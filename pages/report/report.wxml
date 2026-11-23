@@ -57,7 +57,6 @@
       <canvas type="2d" id="piein" wx:else class="pie"></canvas>
     </view>
 
-    <text class="hint accounting-note" wx:if="{{tab === 'expense' && s.refundOut}}">圆环只算正支出，退款抵减单独列</text>
     <view class="cat {{item.negative ? 'negative' : ''}}" wx:for="{{cats}}" wx:key="name" data-name="{{item.name}}" bindtap="tapCat">
       <view class="between">
         <view class="left">
@@ -67,12 +66,10 @@
         </view>
         <text class="camt">¥{{item.amountText}}</text>
       </view>
-      <view class="barline">
-        <view class="track" wx:if="{{!item.negative}}">
-          <view class="fill" style="width:{{item.pct}}%;background:{{item.color}}"></view>
-        </view>
-        <text class="cmeta">{{item.negative ? '退款抵减项，不计占比' : item.pct + '% · ' + item.count + ' 笔'}}</text>
+      <view class="track" wx:if="{{!item.negative}}">
+        <view class="fill" style="width:{{item.pct}}%;background:{{item.color}}"></view>
       </view>
+      <text class="cmeta">{{item.negative ? '退款抵减项，不计占比' : '占比 ' + item.pct + '% · ' + item.count + ' 笔'}}</text>
       <text class="cbmeta {{item.budgetOver ? 'over' : ''}}" wx:if="{{item.budget > 0}}">分类预算 ¥{{item.budgetText}} · 已用 ¥{{item.budgetSpentText}} · {{item.budgetPct}}%<text wx:if="{{item.budgetRefundText}}">（本月抵减 ¥{{item.budgetRefundText}}，已用最低为 0）</text></text>
     </view>
 
@@ -149,10 +146,6 @@
         </view>
       </scroll-view>
     </view>
-    <view class="refund-legend" wx:if="{{tab === 'expense' && s.refundOut}}">
-      <view class="sw net-refund"></view>
-      <text>净退款（退款多于支出）· 柱高按绝对金额</text>
-    </view>
   </view>
 
   <!-- 月度对比（近 6 个月，可左右滑动） -->
@@ -161,7 +154,7 @@
       <text class="title inline">{{tab === 'income' ? '入账' : (s.refundOut ? '净支出' : '支出')}}对比 · 近 6 个月</text>
       <text class="muted2">左右滑动 · 点柱子看明细</text>
     </view>
-    <scroll-view scroll-x enable-flex class="mscroll" enhanced show-scrollbar="{{false}}"
+    <scroll-view scroll-x enable-flex class="mscroll" show-scrollbar="{{false}}"
                  scroll-into-view="{{scrollToId}}" scroll-with-animation>
       <view class="mchart" style="width:{{chartW}}rpx">
         <view class="mcol" wx:for="{{months}}" wx:key="ym" id="m{{index}}" data-ym="{{item.ym}}" bindtap="tapBar">
@@ -173,10 +166,6 @@
         </view>
       </view>
     </scroll-view>
-    <view class="refund-legend" wx:if="{{tab === 'expense' && s.refundOut}}">
-      <view class="sw net-refund"></view>
-      <text>净退款（退款多于支出）· 柱高按绝对金额</text>
-    </view>
   </view>
 
   <!-- 年度汇总（自然年累计） -->
@@ -335,10 +324,6 @@
       <view class="sw lv3"></view>
       <view class="sw lv4"></view>
       <text class="lgtext">多</text>
-    </view>
-    <view class="refund-legend" wx:if="{{s.refundOut}}">
-      <view class="sw net-refund"></view>
-      <text>带 − 的蓝色斜纹：净退款（退款多于支出）</text>
     </view>
   </view>
 

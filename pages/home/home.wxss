@@ -50,13 +50,18 @@
   /* 按下的即时反馈：小程序里 view 的 :active 不生效，只能用 hover-class */
   .scope-tap { background: var(--surface); }
 /* 四个快捷入口：不带独立描边，靠图标底色和留白分格，比四张贴纸干净 */
-.quick-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 4rpx; margin: 30rpx 0; }
-.quick-action { box-sizing: border-box; width: 100%; overflow: hidden; background: transparent; color: var(--text); display: flex; flex-direction: column; align-items: center; padding: 14rpx 0 4rpx; border-radius: 22rpx; }
+/* 快捷入口：整块一张白卡包住四个入口，图标用彩色方块（11-22 那版的样子） */
+.quick-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 4rpx; margin: 30rpx 0; padding: 26rpx 6rpx; background: var(--surface); border-radius: 26rpx; border: 1rpx solid var(--line); box-sizing: border-box; }
+.quick-action { box-sizing: border-box; width: 100%; min-width: 0; overflow: hidden; background: transparent; color: var(--text); display: flex; flex-direction: column; align-items: center; padding: 6rpx 0; border-radius: 20rpx; }
 .home-page .quick-action:active { background: var(--surface-soft); }
-.quick-icon { display: flex; align-items: center; justify-content: center; width: 96rpx; height: 96rpx; border-radius: 50%; background: var(--surface); color: var(--brand); border: 1rpx solid var(--line); margin-bottom: 16rpx; }
-.primary .quick-icon { background: var(--brand); color: #ffffff; border-color: var(--brand); box-shadow: 0 10rpx 20rpx rgba(23,128,107,.18); }
-.quick-name { font-size: 25rpx; font-weight: 500; white-space: nowrap; }
-.quick-note { margin-top: 7rpx; font-size: 19rpx; color: var(--secondary); font-weight: 400; white-space: nowrap; }
+.quick-icon { width: 78rpx; height: 78rpx; line-height: 78rpx; text-align: center; font-size: 34rpx; border-radius: 22rpx; margin-bottom: 12rpx; }
+  /* 用半透明底：浅色下是淡彩、深色下自动沉下去，不用再单独写一套深色 */
+  .q-add { background: rgba(23,128,107,.12); }
+  .q-shot { background: rgba(214,127,54,.14); }
+  .q-imp { background: rgba(70,110,200,.13); }
+  .q-rep { background: rgba(139,92,196,.13); }
+.quick-name { max-width: 100%; font-size: 25rpx; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.quick-note { max-width: 100%; margin-top: 5rpx; font-size: 19rpx; color: var(--secondary); font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .home-card { background: var(--surface); border: 1rpx solid var(--line); border-radius: 26rpx; padding: 28rpx; margin-top: 22rpx; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin-bottom: 22rpx; }
 .section-title { font-size: 29rpx; font-weight: 600; }

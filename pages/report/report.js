@@ -474,8 +474,6 @@ Page({
         label: kind === 'income' ? '本月入账' : (s.refundOut ? '本月净支出' : '本月支出')
       }
       self.drawPie(cid, self._cats, opt)
-      /* 页面从别处切进来时 canvas 可能还没挂上，稍后再补绘一次 */
-      setTimeout(function () { self.drawPie(cid, self._cats, opt) }, 500)
     })
   },
 
@@ -547,11 +545,16 @@ Page({
       var win = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync()
       var dpr = win.pixelRatio || 2
 
-      canvas.width = w * dpr
-      canvas.height = h * dpr
-      /* 先改 canvas 宽高再取 context：设 width 会重置画布状态 */
+      /* 尺寸没变就别重设宽高：每次设 width 都会重建整块绘制缓冲，真机上这一下最贵 */
+      var cw = Math.round(w * dpr)
+      if (canvas.width !== cw) {
+        canvas.width = w * dpr
+        canvas.height = h * dpr
+      }
       var ctx = canvas.getContext('2d')
-      ctx.scale(dpr, dpr)
+      /* 真机 canvas 2d 支持 setTransform；测试用的假 ctx 只有 scale，兜一下 */
+      if (ctx.setTransform) ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      else ctx.scale(dpr, dpr)
       ctx.clearRect(0, 0, w, h)
 
       var cx = w / 2

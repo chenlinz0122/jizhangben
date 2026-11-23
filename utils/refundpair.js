@@ -25,27 +25,44 @@ function round2(n) {
   return Math.round((n || 0) * 100) / 100
 }
 
-/* 商户名规范化：去括号内容、去分隔符、去行业噪声词，保留字号（抖音 / 美团 / 淘宝…） */
+/* 商户名规范化：去括号内容、去分隔符、去行业噪声词，保留字号（抖音 / 美团 / 淘宝…）
+ * 缓存：一张账本里商户名就几十种，缓存后正常化只做一次；
+ * 原来对每对(退款,支出)都重算一遍，3000 笔账时这里是主要耗时。 */
+var _normCache = Object.create(null)
 function normMerchant(name) {
-  var s = String(name || '').toLowerCase()
-  if (!s) return ''
+  var raw = String(name || '')
+  var hit = _normCache[raw]
+  if (hit !== undefined) return hit
+  var s = raw.toLowerCase()
+  if (!s) { _normCache[raw] = ''; return '' }
   s = s.replace(/[（(【\[].*?[)）】\]]/g, '')
   s = s.replace(/[\s\-—_·.,，、/\\|:：;；"'“”]/g, '')
   for (var i = 0; i < NOISE.length; i++) {
     s = s.split(NOISE[i]).join('')
   }
+  _normCache[raw] = s
   return s
 }
 
-/* 两个规范化名字有没有 2 个字以上的公共片段（用来认「抖音电商商家」和「抖音商城」） */
+/* 两个规范化名字有没有 2 个字以上的公共片段（用来认「抖音电商商家」和「抖音商城」）
+ * 缓存：这是全流程最贵的一步（长度 10 的名字要试约 45 次子串搜索），
+ * 而名字组合是有限的，缓存后同一对名字只算一次。 */
+var _tokenCache = Object.create(null)
 function shareToken(a, b) {
   if (!a || !b) return false
+  /* 对称：把短的那个放前面当键，命中率翻倍 */
+  var key = a.length <= b.length ? (a + '\u0001' + b) : (b + '\u0001' + a)
+  var hit = _tokenCache[key]
+  if (hit !== undefined) return hit
+  var out = false
   for (var len = Math.min(a.length, b.length); len >= 2; len--) {
     for (var i = 0; i + len <= a.length; i++) {
-      if (b.indexOf(a.substr(i, len)) >= 0) return true
+      if (b.indexOf(a.substr(i, len)) >= 0) { out = true; break }
     }
+    if (out) break
   }
-  return false
+  _tokenCache[key] = out
+  return out
 }
 
 /* 给「支出 e」和「退款 r」打分；返回 -1 表示这对不允许匹配 */

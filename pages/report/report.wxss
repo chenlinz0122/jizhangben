@@ -535,6 +535,14 @@
   height: 320rpx;
 }
 
+/* 画布建好之前的占位圈：同样是 320rpx 的圆，颜色跟页面底色接近，不会跳一下 */
+.pie-ph {
+  margin: 0 auto;
+  border-radius: 50%;
+  background: var(--surface-soft, #eef3f0);
+  box-shadow: inset 0 0 0 56rpx #ffffff;
+}
+
 /* ---------- 分类行 -------- */
 .left {
   display: flex;

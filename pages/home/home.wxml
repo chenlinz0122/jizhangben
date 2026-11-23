@@ -66,7 +66,7 @@
     <view class="section-heading"><text class="section-title">{{s.refundOut ? '净支出去向' : '支出去向'}}</text><text class="section-link" bindtap="goReport">完整分析 ›</text></view>
     <view class="category-row" wx:for="{{cats}}" wx:key="name" data-name="{{item.name}}" bindtap="goCategory">
       <view class="category-label"><view class="category-dot" style="background:{{item.color}}"></view><text>{{item.name}}</text></view>
-      <view class="category-meter"><view style="width:{{item.pct}}%;background:{{item.color}}"></view></view>
+      <view class="category-meter"><view class="category-fill" style="width:{{item.pct}}%;background:{{item.color}}"></view></view>
       <text class="category-amount">¥{{item.amountText}}</text>
     </view>
   </view>

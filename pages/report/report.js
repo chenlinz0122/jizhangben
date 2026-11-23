@@ -139,7 +139,10 @@ Page({
     /* 共同账本视角：mine 只看自己 / both 看双方 / peer 只看对方 */
     sharedOn: false,
     sharedMembers: 0,
-    scope: 'both'
+    scope: 'both',
+
+    /* 环图画布：先不建，等首屏数字渲染完再建，否则渲染层开局就卡住 */
+    hidePie: true
   },
 
   onLoad: function () {
@@ -402,6 +405,8 @@ Page({
     ]
     if (kind === 'income') rankBoards = [rankBoards[1], rankBoards[0]]
 
+    /* 首屏只提交看得见的部分：日历格、年度汇总、排行、月度图这些一起塞过来，
+       渲染层要十几秒才画完，用户看到的就是「报表很卡、打不开」 */
     this.setData({
       monthText: format.monthLabel(ym),
       maxYm: curYm,
@@ -441,11 +446,10 @@ Page({
       budgetPerDayText: restDays > 0 ? format.money(left / restDays) : '0.00',
 
       catBudgetOpen: this.data.catBudgetOpen,
-      catBudgetList: catBudgetList,
-
       cats: this.data.catsOpen ? full : preview,
       catsHasMore: full.length > preview.length,
       catsTotal: full.length,
+      uncatCount: uncatCount,
 
       daily: daily,
       dayZoom: zoom,
@@ -456,10 +460,7 @@ Page({
       scrollToId: 'm' + activeIdx,
       rankBoards: rankBoards,
       rankAny: topExp.length > 0 || topInc.length > 0,
-
-      year: ys,
-      uncatCount: uncatCount,
-
+      catBudgetList: catBudgetList,
       cells: cal.cells.map(function (c, idx) {
         return Object.assign({}, c, {
           k: c.blank ? 'b' + idx : 'd' + c.d,
@@ -473,9 +474,15 @@ Page({
         text: '¥' + (kind === 'income' ? self.data.s.incomeText : self.data.s.expenseText),
         label: kind === 'income' ? '本月入账' : (s.refundOut ? '本月净支出' : '本月支出')
       }
-      self.drawPie(cid, self._cats, opt)
-    })
-  },
+      /* 先把首屏文字渲染完，再建画布：canvas 从「不渲染」到「渲染」这一步在真机上最贵，
+         放在后面，页面就不会一打开先白等十几秒 */
+      self.setData({ hidePie: false }, function () {
+        self.drawPie(cid, self._cats, opt)
+      })
+
+      /* 年度汇总是最重的一块（全年每类每月），单独补一刀，别和首屏挤在一起 */
+      self.setData({ year: ys })
+    })  },
 
   /* 每日与月汇总共用现金流日期口径。 */
   buildDaily: function (txs, ym, kind) {

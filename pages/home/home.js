@@ -352,7 +352,11 @@ Page({
   },
 
   setScope: function (e) {
-    prefs.setViewScope(e.currentTarget.dataset.k)
+    var k = e.currentTarget.dataset.k
+    if (k === this.data.scope) return
+    prefs.setViewScope(k)
+    /* 先立刻切高亮，再算数据：手指抬起就看到选中，不会觉得点了没反应 */
+    this.setData({ scope: k, scopeLabel: shared.isJoined() ? prefs.viewScopeLabel(k) : '' })
     this.syncData()
   },
 

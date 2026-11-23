@@ -53,8 +53,11 @@
       <text class="muted2">点分类看明细</text>
     </view>
     <view class="piebox">
-      <canvas type="2d" id="pie" wx:if="{{tab === 'expense'}}" class="pie"></canvas>
-      <canvas type="2d" id="piein" wx:else class="pie"></canvas>
+      <block wx:if="{{!hidePie}}">
+        <canvas type="2d" id="pie" wx:if="{{tab === 'expense'}}" class="pie"></canvas>
+        <canvas type="2d" id="piein" wx:else class="pie"></canvas>
+      </block>
+      <view wx:else class="pie pie-ph"></view>
     </view>
 
     <view class="cat {{item.negative ? 'negative' : ''}}" wx:for="{{cats}}" wx:key="name" data-name="{{item.name}}" bindtap="tapCat">

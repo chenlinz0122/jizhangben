@@ -21,7 +21,7 @@ storage.shared_book_v1 = {
     { nickname: '我', role: 'member', isMe: true },
     { nickname: '老王', role: 'owner', isMe: false }
   ],
-  joinedAt: now, lastSync: 0
+  joinedAt: now, lastSync: 0, shareSince: 0
 }
 
 const noop = () => {}
@@ -36,13 +36,13 @@ global.wx = {
       const data = (opt && opt.data) || {}
       let result = { ok: true }
       if (data.action === 'push') {
-        result = { ok: true, pushed: 0 }
+        result = { ok: true, pushed: (data.txs || []).length }
       } else if (data.action === 'pull') {
         /* 2) 云端那条也没带 ym/day —— 模拟对方旧版本推上去的 */
         result = {
-          ok: true,
+          ok: true, protocol: 2, hasMore: false, cursor: '',
           txs: [
-            { id: 'fromCloud', time: now - 60000, type: 'expense', amount: 5.5, category: '餐饮', merchant: '云朵咖啡', byName: '小李', isMe: false }
+            { id: 'fromCloud', sharedId: 'cloud-row', ownerKey: 'member-key', version: 1, time: now - 60000, type: 'expense', amount: 5.5, category: '餐饮', merchant: '云朵咖啡', byName: '小李', isMe: false }
           ],
           members: 2,
           memberList: storage.shared_book_v1.memberList
@@ -99,7 +99,7 @@ const storeMod = require(path.join(__dirname, '..', 'utils', 'store.js'))
   await new Promise((res) => sharedMod.sync(() => res()))
 
   const all = storeMod.all()
-  const cloud = all.filter((t) => t.id === 'fromCloud')[0]
+  const cloud = all.filter((t) => t.shareSourceId === 'fromCloud')[0]
   check('云端记录落库了', !!cloud, all.map((t) => t.id))
   check('云端记录补上了 ym', !!cloud && cloud.ym === String(cloud.day || '').slice(0, 7), cloud && cloud.ym)
   check('云端记录补上了 day', !!cloud && /^\d{4}-\d{2}-\d{2}$/.test(String(cloud.day || '')), cloud && cloud.day)
@@ -107,14 +107,14 @@ const storeMod = require(path.join(__dirname, '..', 'utils', 'store.js'))
 
   page.refresh()
   const list = rows().map((r) => r.id)
-  check('看双方时能看见云端那条', list.indexOf('fromCloud') >= 0, list)
+  check('看双方时能看见云端那条', list.indexOf('shared:TESTBOOK:cloud-row') >= 0, list)
   check('看双方时两条都在', list.length === 2, list)
 
   /* 只看对方 / 只看自己 也要跟着对上 */
   page.setData({ scope: 'peer' })
   page.refresh()
   const peerIds = rows().map((r) => r.id).sort()
-  check('只看对方时只剩两条别人的记录', peerIds.join(',') === 'fromCloud,otherNoYmd', peerIds)
+  check('只看对方时只剩两条别人的记录', peerIds.join(',') === 'otherNoYmd,shared:TESTBOOK:cloud-row', peerIds)
 
   page.setData({ scope: 'mine' })
   page.refresh()

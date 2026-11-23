@@ -50,6 +50,13 @@ function shareToken(a, b) {
 
 /* 给「支出 e」和「退款 r」打分；返回 -1 表示这对不允许匹配 */
 function scoreOf(e, r) {
+  var a = e.tx
+  if ((a.byMe === false) !== (r.byMe === false)) return -1
+  if (a.byMe === false) {
+    if (a.ownerKey || r.ownerKey) {
+      if (a.ownerKey !== r.ownerKey || a.shareBook !== r.shareBook) return -1
+    } else if (a.by !== r.by) return -1
+  }
   var days = (r.time - e.time) / 86400000
   if (days < -1 || days > WINDOW_DAYS) return -1
 
@@ -97,9 +104,9 @@ function pair(txs) {
   /* 退款按时间从早到晚处理，先发生的先配，减少「配错到后面那笔」的概率 */
   ref.sort(function (a, b) { return a.time - b.time })
 
-  var leftOf = {}
-  var refundedOf = {}
-  var hideId = {}
+  var leftOf = Object.create(null)
+  var refundedOf = Object.create(null)
+  var hideId = Object.create(null)
   var pairs = []
   var unmatched = []
   var unmatchedAmount = 0

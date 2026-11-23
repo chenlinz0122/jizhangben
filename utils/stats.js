@@ -1,124 +1,198 @@
 var format = require('./format')
 var category = require('./category')
 var prefs = require('./prefs')
+var refundpair = require('./refundpair')
 
-function emptyCatMap() {
-  return {}
+function emptyMap() {
+  return Object.create(null)
 }
 
-function bump(map, name, amount) {
-  if (!map[name]) map[name] = { name: name, amount: 0, count: 0 }
-  map[name].amount += amount
-  map[name].count++
+function cents(value) {
+  var n = Number(value) || 0
+  if (!isFinite(n)) return 0
+  return ((n < 0 ? -1 : 1) * Math.round(Math.abs(n) * 100 + 1e-8)) || 0
 }
 
-function toList(map, total) {
-  var list = Object.keys(map).map(function (k) { return map[k] })
+function clone(t) {
+  var row = {}
+  Object.keys(t).forEach(function (key) { row[key] = t[key] })
+  return row
+}
+
+/* 配对只借用付款的分类和商户，退款始终记在退款发生日。 */
+function ledger(txs, exclude) {
+  if (exclude === undefined) exclude = prefs.refundExcluded()
+  var raw = txs.map(function (t) {
+    var row = clone(t)
+    row.amount = cents(t.amount) / 100
+    return row
+  })
+  if (!exclude) {
+    raw.forEach(function (t) {
+      if (t.type === 'refund') {
+        if (t.category && t.category !== '退款') t.originalCategory = t.category
+        t.category = '退款'
+      }
+    })
+    return raw
+  }
+
+  var byRefund = emptyMap()
+  refundpair.pair(raw).pairs.forEach(function (p) {
+    var key = String(p.refund.id)
+    if (!byRefund[key]) byRefund[key] = []
+    byRefund[key].push(p)
+  })
+
+  var rows = []
+  raw.forEach(function (t, index) {
+    if (t.type !== 'refund') { rows.push(t); return }
+    var remain = cents(t.amount)
+    var allocations = byRefund[String(t.id)] || []
+    var part = 0
+    function adjustment(amount, expense) {
+      var row = clone(t)
+      row.type = 'expense'
+      row.amount = (-amount / 100) || 0
+      row.originalCategory = t.originalCategory || t.category || '退款'
+      row.originalMerchant = t.merchant || ''
+      row.category = expense ? (expense.category || '未分类') : '未配对退款'
+      if (expense) row.merchant = expense.merchant
+      row.refundAdjustment = true
+      row.refundMatched = !!expense
+      row.entryId = 'refund:' + JSON.stringify([t.id, index, part++])
+      rows.push(row)
+    }
+    allocations.forEach(function (p) {
+      if (p.refund !== t) return
+      var amount = Math.min(remain, cents(p.amount))
+      if (amount <= 0) return
+      adjustment(amount, p.expense)
+      remain -= amount
+    })
+    if (remain !== 0 || part === 0) adjustment(remain, null)
+  })
+  return rows
+}
+
+/* 输入必须已经投影；拆分退款按原始 id 只计一笔。 */
+function totals(rows) {
+  var expense = 0
+  var income = 0
+  var refundAdjustment = 0
+  var ids = emptyMap()
+  rows.forEach(function (t) {
+    ids[String(t.id)] = true
+    var amount = cents(t.amount)
+    if (t.type === 'expense') expense += amount
+    else if (t.type === 'income' || t.type === 'refund') income += amount
+    if (t.refundAdjustment) refundAdjustment += Math.abs(amount)
+  })
+  return {
+    expense: expense / 100,
+    income: income / 100,
+    count: Object.keys(ids).length,
+    refundAdjustment: refundAdjustment / 100
+  }
+}
+
+function bump(map, name, amount, id) {
+  if (!map[name]) map[name] = { name: name, amount: 0, count: 0, ids: emptyMap() }
+  map[name].amount = (cents(map[name].amount) + cents(amount)) / 100
+  var key = String(id)
+  if (!map[name].ids[key]) { map[name].ids[key] = true; map[name].count++ }
+}
+
+function toList(map) {
+  var list = Object.keys(map).map(function (k) { return { name: map[k].name, amount: map[k].amount, count: map[k].count } })
   list.sort(function (a, b) { return b.amount - a.amount })
-  if (!total) total = list.reduce(function (s, c) { return s + c.amount }, 0) || 1
+  var positive = list.reduce(function (sum, c) { return sum + Math.max(cents(c.amount), 0) }, 0)
   list.forEach(function (c) {
-    c.pct = Math.round((c.amount / total) * 1000) / 10
-    c.amountText = format.money(c.amount)
-    c.color = category.colorOf(c.name)
+    c.pct = c.amount > 0 && positive > 0 ? Math.round(cents(c.amount) / positive * 1000) / 10 : 0
+    c.amountText = format.signedMoney(c.amount)
+    var color = category.colorOf(c.name)
+    c.color = typeof color === 'string' ? color : category.colorOf('未分类')
   })
   return list
 }
 
-/**
- * 某个月的汇总
- */
-function summary(txs, ym) {
-  var outRefund = prefs.refundExcluded()
+function aggregate(raw, rows) {
+  var total = totals(rows)
   var income = 0
   var expense = 0
   var refund = 0
   var transfer = 0
-  var count = 0
   var uncatCount = 0
-  var expMap = emptyCatMap()
-  var incMap = emptyCatMap()
-  var trMap = emptyCatMap()
-
-  for (var i = 0; i < txs.length; i++) {
-    var t = txs[i]
-    if (t.ym !== ym) continue
-    count++
-    if (t.type === 'income') {
-      income += t.amount
-      bump(incMap, t.category, t.amount)
-    } else if (t.type === 'expense') {
-      expense += t.amount
+  var expMap = emptyMap()
+  var incMap = emptyMap()
+  var trMap = emptyMap()
+  raw.forEach(function (t) {
+    if (t.type === 'expense') {
+      expense += cents(t.amount)
       if (t.category === '未分类') uncatCount++
-      bump(expMap, t.category, t.amount)
-    } else if (t.type === 'refund') {
-      refund += t.amount
-      /* 抵消口径下退款不进收入构成；金额仍留在 refund 字段，报表顶部单独显示 */
-      if (!outRefund) bump(incMap, '退款', t.amount)
-    } else {
-      transfer += t.amount
-      bump(trMap, t.category || '转账', t.amount)
+    } else if (t.type === 'refund') refund += cents(t.amount)
+    else if (t.type === 'income') income += cents(t.amount)
+  })
+  rows.forEach(function (t) {
+    if (t.type === 'expense') bump(expMap, t.category || '未分类', t.amount, t.id)
+    else if (t.type === 'income' || t.type === 'refund') bump(incMap, t.category || '未分类', t.amount, t.id)
+    else {
+      transfer += cents(t.amount)
+      bump(trMap, t.category || '转账', t.amount, t.id)
     }
-  }
+  })
 
-  /* 口径（默认「退款抵消」）
-   *   抵消（默认）：退款那笔既不进收入、也不进支出，等于这笔钱没花也没赚 ——
-   *                 支出 = 花的原价 - 退款，进账 = 收入，结余 = 进账 - 支出
-   *   计入        ：退款算进账、支出按原价；结余数值与抵消相同，只是展示方式不同
-   *                  （两种口径结余一致：收入 + 退款 - 原价 = 收入 - (原价 - 退款)） */
-  var expenseNet = Math.max(expense - refund, 0)
-  var expenseTotal = outRefund ? expenseNet : expense
-  var incomeTotal = outRefund ? income : income + refund
-  var net = incomeTotal - expenseTotal
-  var expList = toList(expMap)
-  var incList = toList(incMap)
   var trList = toList(trMap)
-
-  /* 不计收支的三类分项（对齐官方：理财 / 借还款 / 账户转移） */
   var invest = 0
   var loan = 0
   var acct = 0
-  for (var x = 0; x < trList.length; x++) {
-    if (trList[x].name === '理财') invest += trList[x].amount
-    else if (trList[x].name === '借还款') loan += trList[x].amount
-    else acct += trList[x].amount
-  }
-
+  trList.forEach(function (t) {
+    if (t.name === '理财') invest += cents(t.amount)
+    else if (t.name === '借还款') loan += cents(t.amount)
+    else acct += cents(t.amount)
+  })
   return {
-    ym: ym,
-    count: count,
-    income: income,
-    incomeTotal: incomeTotal,
-    expenseGross: expense,
-    refund: refund,
-    expense: expenseTotal,
-    expenseNet: expenseNet,
-    transfer: transfer,
-    invest: invest,
-    loan: loan,
-    acct: acct,
-    net: net,
-    byCat: expList,
-    byIncome: incList,
+    count: total.count,
+    income: income / 100,
+    incomeTotal: total.income,
+    expenseGross: expense / 100,
+    refund: refund / 100,
+    expense: total.expense,
+    expenseNet: (expense - refund) / 100,
+    transfer: transfer / 100,
+    invest: invest / 100,
+    loan: loan / 100,
+    acct: acct / 100,
+    net: (cents(total.income) - cents(total.expense)) / 100,
+    byCat: toList(expMap),
+    byIncome: toList(incMap),
     byTransfer: trList,
-    uncatCount: uncatCount,
-    refundOut: outRefund
+    uncatCount: uncatCount
   }
 }
 
-/**
- * 近 n 个月趋势（含当前月）
- */
+function summary(txs, ym) {
+  var outRefund = prefs.refundExcluded()
+  function inMonth(t) { return t.ym === ym }
+  var out = aggregate(txs.filter(inMonth), ledger(txs, outRefund).filter(inMonth))
+  out.ym = ym
+  out.refundOut = outRefund
+  return out
+}
+
+/* 近 n 个月趋势（含当前月）。 */
 function trend(txs, ym, n) {
   var out = []
+  var rows = ledger(txs)
   for (var i = n - 1; i >= 0; i--) {
     var m = format.shiftMonth(ym, -i)
-    var s = summary(txs, m)
+    var s = totals(rows.filter(function (t) { return t.ym === m }))
     out.push({
       ym: m,
       label: m.split('-')[1] + '月',
-      income: s.incomeTotal,
+      income: s.income,
       expense: s.expense,
-      net: s.net
+      net: (cents(s.income) - cents(s.expense)) / 100
     })
   }
   return out
@@ -129,151 +203,116 @@ function daysInMonth(ym) {
   return new Date(parseInt(p[0], 10), parseInt(p[1], 10), 0).getDate()
 }
 
-/* 本月每天的支出与入账热力（默认口径下退款抵在当天支出上，不计入入账） */
+/* 金额保留负数，热力只画正支出。 */
 function calendar(txs, ym) {
-  var outRefund = prefs.refundExcluded()
   var p = ym.split('-')
   var y = parseInt(p[0], 10)
   var m = parseInt(p[1], 10)
-  var days = new Date(y, m, 0).getDate()
+  var days = daysInMonth(ym)
   var firstWeekday = new Date(y, m - 1, 1).getDay()
-
   var arr = []
-  for (var d = 1; d <= days; d++) {
-    arr.push({ d: d, amount: 0, income: 0, level: 0 })
-  }
+  for (var d = 1; d <= days; d++) arr.push({ d: d, amount: 0, income: 0, level: 0 })
 
-  for (var i = 0; i < txs.length; i++) {
-    var t = txs[i]
-    if (t.ym !== ym) continue
+  ledger(txs).forEach(function (t) {
+    if (t.ym !== ym) return
     var dd = parseInt(String(t.day).split('-')[2], 10)
     var cell = arr[dd - 1]
-    if (!cell) continue
-    if (t.type === 'expense') cell.amount += t.amount
-    else if (t.type === 'refund') {
-      /* 抵消：退款冲减当天的支出；计入：算当天的入账 */
-      if (outRefund) cell.amount -= t.amount
-      else cell.income += t.amount
-    } else if (t.type === 'income') cell.income += t.amount
-  }
+    if (!cell) return
+    if (t.type === 'expense') cell.amount += cents(t.amount)
+    else if (t.type === 'income' || t.type === 'refund') cell.income += cents(t.amount)
+  })
 
   var max = 0
-  for (var k = 0; k < arr.length; k++) {
-    if (arr[k].amount > 0 && arr[k].amount > max) max = arr[k].amount
-  }
-  for (var j = 0; j < arr.length; j++) {
-    var a = arr[j].amount
-    if (a < 0) { arr[j].amount = 0; a = 0 }
-    if (a > 0.01) {
-      arr[j].level = Math.min(4, Math.max(1, Math.ceil((a / (max || 1)) * 4)))
-    }
-    arr[j].amountText = format.money(arr[j].amount)
-    arr[j].incomeText = format.money(arr[j].income)
-  }
+  arr.forEach(function (cell) {
+    cell.amount /= 100
+    cell.income /= 100
+    if (cell.amount > max) max = cell.amount
+  })
+  arr.forEach(function (cell) {
+    if (cell.amount > 0) cell.level = Math.min(4, Math.max(1, Math.ceil(cell.amount / max * 4)))
+    cell.amountText = format.signedMoney(cell.amount)
+    cell.incomeText = format.signedMoney(cell.income)
+  })
 
-  /* 前面补空格子，让 1 号落在正确的星期几 */
   var lead = []
   for (var b = 0; b < firstWeekday; b++) lead.push({ blank: true })
-  var cells = lead.concat(arr)
-
-  return { cells: cells, days: arr, firstWeekday: firstWeekday, max: max, dim: days }
+  return { cells: lead.concat(arr), days: arr, firstWeekday: firstWeekday, max: max, dim: days }
 }
 
-/* 日均、最大一笔、工作日 vs 周末、有消费的天数 */
+/* 净支出按现金流日期；最大一笔和消费天数仍看原始付款。 */
 function insights(txs, ym) {
   var nowYm = format.ymOf(Date.now())
   var elapsed = ym === nowYm ? new Date().getDate() : daysInMonth(ym)
-
-  var expense = 0
-  var refund = 0
-  var count = 0
+  var rows = ledger(txs, true).filter(function (t) { return t.ym === ym })
+  var net = totals(rows).expense
   var maxTx = null
   var weekday = 0
   var weekend = 0
-  var daySet = {}
+  var daySet = emptyMap()
+  var paymentIds = emptyMap()
 
-  for (var i = 0; i < txs.length; i++) {
-    var t = txs[i]
-    if (t.ym !== ym) continue
-    if (t.type === 'refund') { refund += t.amount; continue }
-    if (t.type !== 'expense') continue
-
-    expense += t.amount
-    count++
+  rows.forEach(function (t) {
+    if (t.type !== 'expense') return
+    var wd = new Date(t.day ? t.day + 'T12:00:00' : t.time).getDay()
+    if (wd === 0 || wd === 6) weekend += cents(t.amount)
+    else weekday += cents(t.amount)
+  })
+  txs.forEach(function (t) {
+    if (t.ym !== ym || t.type !== 'expense') return
+    paymentIds[String(t.id)] = true
+    if (cents(t.amount) <= 0) return
     daySet[t.day] = true
-    var wd = new Date(t.time).getDay()
-    if (wd === 0 || wd === 6) weekend += t.amount
-    else weekday += t.amount
-
-    if (!maxTx || t.amount > maxTx.amount) maxTx = t
-  }
-
-  /* 洞察看的是「实际花了多少」，退款回来了就不算花，两种口径都按净额算 */
-  var net = Math.max(expense - refund, 0)
+    if (!maxTx || cents(t.amount) > cents(maxTx.amount)) maxTx = t
+  })
 
   return {
     net: net,
-    avgDaily: elapsed > 0 ? net / elapsed : 0,
+    avgDaily: elapsed > 0 ? cents(net / elapsed) / 100 : 0,
     elapsed: elapsed,
     maxTx: maxTx,
-    weekday: weekday,
-    weekend: weekend,
+    weekday: weekday / 100,
+    weekend: weekend / 100,
     spentDays: Object.keys(daySet).length,
-    count: count
+    count: Object.keys(paymentIds).length
   }
 }
 
-/* 分类环比：这个类目比上个月多了还是少了 */
 function compareCats(txs, ym) {
   var prev = summary(txs, format.shiftMonth(ym, -1))
-  var map = {}
-  for (var i = 0; i < prev.byCat.length; i++) {
-    map[prev.byCat[i].name] = prev.byCat[i].amount
-  }
-  map.__total = prev.expense
-
+  var map = emptyMap()
+  prev.byCat.forEach(function (c) { map[c.name] = c.amount })
   return {
     prevTotal: prev.expense,
-    amountOf: function (name) {
-      return map[name] || 0
-    }
+    amountOf: function (name) { return map[name] || 0 }
   }
 }
 
-/* 花得最多的商户 */
 function topMerchants(txs, ym, n) {
-  var map = {}
-  for (var i = 0; i < txs.length; i++) {
-    var t = txs[i]
-    if (t.ym !== ym || t.type !== 'expense') continue
-    var key = String(t.merchant || '未知').trim()
-    if (!map[key]) map[key] = { name: key, amount: 0, count: 0 }
-    map[key].amount += t.amount
-    map[key].count++
-  }
-  var list = Object.keys(map).map(function (k) { return map[k] })
+  var map = emptyMap()
+  ledger(txs).forEach(function (t) {
+    if (t.ym !== ym || t.type !== 'expense') return
+    bump(map, String(t.merchant || '未知').trim(), t.amount, t.id)
+  })
+  var list = Object.keys(map).map(function (k) { return { name: map[k].name, amount: map[k].amount, count: map[k].count } })
   list.sort(function (a, b) { return b.amount - a.amount })
   var top = list.slice(0, n || 5)
-  for (var j = 0; j < top.length; j++) {
-    top[j].amountText = format.money(top[j].amount)
-  }
+  top.forEach(function (t) { t.amountText = format.signedMoney(t.amount) })
   return top
 }
 
-/* 数据体检：查本地流水有没有重复、是哪条路进来的
- * 判重口径只用于「提示」，不自动删数据 —— 同日同额同商户也可能是真两笔 */
+/* 判重只用于提示；无法识别归属的旧成员记录不互相判重。 */
 function audit(txs) {
   var out = {
     total: txs.length,
-    bySource: {},
-    byIdKind: { bill: 0, shot: 0 },   /* b = 账单文件（有交易单号），h = 截图 */
+    bySource: emptyMap(),
+    byIdKind: { bill: 0, shot: 0 },
     dupGroups: 0,
     dupExtra: 0,
     trimZero: 0,
     list: []
   }
 
-  var groups = {}
+  var groups = emptyMap()
   for (var i = 0; i < txs.length; i++) {
     var t = txs[i]
     var src = t.source || '未知'
@@ -282,196 +321,123 @@ function audit(txs) {
     else out.byIdKind.shot++
     if (!(t.amount > 0)) out.trimZero++
 
-    var k = t.day + '|' + Math.round(Number(t.amount) * 100) + '|' + (t.merchant || '') + '|' + (t.type || '')
+    var owner = t.ownerKey ? ['owner', t.ownerKey] : ['self']
+    if (!t.ownerKey && t.byMe === false) owner = ['legacy', t.shareId || t.id || i]
+    var k = JSON.stringify([t.byMe === false, owner, t.shareBook || '', t.day,
+      cents(t.amount), t.merchant || '', t.type || ''])
     if (!groups[k]) groups[k] = []
     groups[k].push(t)
   }
 
-  for (var k2 in groups) {
-    if (!Object.prototype.hasOwnProperty.call(groups, k2)) continue
-    var g = groups[k2]
-    if (g.length < 2) continue
+  Object.keys(groups).forEach(function (key) {
+    var g = groups[key]
+    if (g.length < 2) return
     out.dupGroups++
     out.dupExtra += g.length - 1
     if (out.list.length < 5) {
+      var sources = []
+      g.forEach(function (t) {
+        var v = (t.source || '?') + '(' + String(t.id || '').charAt(0) + ')'
+        if (sources.indexOf(v) < 0) sources.push(v)
+      })
       out.list.push({
         merchant: g[0].merchant,
         day: g[0].day,
         count: g.length,
-        amountText: format.money(g[0].amount),
-        sources: (function () {
-          var s = []
-          for (var i = 0; i < g.length; i++) {
-            var v = (g[i].source || '?') + '(' + String(g[i].id || '').charAt(0) + ')'
-            if (s.indexOf(v) < 0) s.push(v)
-          }
-          return s.join(' ')
-        })()
+        amountText: format.signedMoney(g[0].amount),
+        sources: sources.join(' ')
       })
     }
-  }
-
+  })
   return out
 }
 
-/* 排行条目：条形长度用真实占比（跟月度构成那行一样），
- * 小到看不见的给 4% 的底，不然 21 个类目里靠后的几类条就没了 */
 function rankList(list) {
   return list.map(function (c) {
-    var bar = Math.round(c.pct)
+    var bar = Math.max(Math.round(c.pct), 0)
     if (bar > 0 && bar < 4) bar = 4
+    var icon = category.iconOf(c.name)
     return {
       name: c.name,
+      amount: c.amount,
       amountText: c.amountText,
-      icon: category.iconOf(c.name),
+      icon: typeof icon === 'string' ? icon : category.iconOf('其他支出'),
       color: c.color,
       count: c.count,
       pct: c.pct,
-      barPct: bar
+      barPct: bar,
+      negative: c.amount < 0
     }
   })
 }
 
-/* 年度汇总：当前自然年的支出 / 入账 / 结余 + 支出、入账两个排行 */
 function yearSummary(txs, year) {
   var outRefund = prefs.refundExcluded()
-  var expense = 0
-  var income = 0
-  var refund = 0
-  var count = 0
-  var expMap = emptyCatMap()
-  var incMap = emptyCatMap()
-
-  for (var i = 0; i < txs.length; i++) {
-    var t = txs[i]
-    if (String(t.ym || '').indexOf(year) !== 0) continue
-    count++
-    if (t.type === 'expense') {
-      expense += t.amount
-      bump(expMap, t.category, t.amount)
-    } else if (t.type === 'income') {
-      income += t.amount
-      bump(incMap, t.category, t.amount)
-    } else if (t.type === 'refund') {
-      refund += t.amount
-      if (!outRefund) bump(incMap, '退款', t.amount)
-    }
-  }
-
-  var expenseTotal = outRefund ? Math.max(expense - refund, 0) : expense
-  var incomeTotal = outRefund ? income : income + refund
-  var net = incomeTotal - expenseTotal
-  var topAll = rankList(toList(expMap, expense))
-  var topAllIn = rankList(toList(incMap, incomeTotal))
-  var top = topAll.slice(0, 3)
-
+  function inYear(t) { return String(t.ym || '').split('-')[0] === String(year) }
+  var s = aggregate(txs.filter(inYear), ledger(txs, outRefund).filter(inYear))
+  var topAll = rankList(s.byCat)
   return {
     year: year,
-    count: count,
-    expense: expenseTotal,
-    expenseGross: expense,
-    incomeTotal: incomeTotal,
-    net: net,
-    expenseText: format.money(expenseTotal),
-    incomeText: format.money(incomeTotal),
-    netText: format.money(Math.abs(net)),
-    netSign: net < 0 ? '-' : '',
-    top: top,
+    count: s.count,
+    expense: s.expense,
+    expenseGross: s.expenseGross,
+    expenseNet: s.expenseNet,
+    income: s.income,
+    refund: s.refund,
+    incomeTotal: s.incomeTotal,
+    net: s.net,
+    expenseText: format.signedMoney(s.expense),
+    incomeText: format.signedMoney(s.incomeTotal),
+    netText: format.money(Math.abs(s.net)),
+    netSign: s.net < 0 ? '-' : '',
+    top: topAll.slice(0, 3),
     topAll: topAll,
-    topAllIn: topAllIn
+    topAllIn: rankList(s.byIncome),
+    refundOut: outRefund
   }
 }
 
-/* 预算口径：退款要扣掉，不能按原价算
- *
- *   月度预算   = 本月支出 - 本月全部退款（不小于 0）
- *   分类预算   = 该分类的原价支出 - 能追回该分类的退款
- *
- * 退款单本身没有类目（category 固定是「退款」），所以只能按「交易对方」回追：
- * 商户名对得上的，就从那个类目的支出里扣；对不上的，只从月度预算里扣，
- * 分类预算不动（宁可少扣，也不要瞎猜类目）。
- * 这样月末对账是一致的：月度净额 = Σ分类净额 − 对不上类目的退款
- * （也就是没追上商户的那部分退款只从总预算里扣，不动任何分类）。
- */
-function normMerchant(s) {
-  return String(s || '').replace(/\s+/g, '').toLowerCase()
-}
-
-function sameMerchant(a, b) {
-  if (!a || !b) return false
-  if (a === b) return true
-  if (a.length < 2 || b.length < 2) return false
-  return a.indexOf(b) >= 0 || b.indexOf(a) >= 0
-}
-
-/**
- * 某个月预算口径的已花金额（退款已扣）
- * @returns {{expense:number, refund:number, net:number, matched:number, unmatched:number, byCat:Object}}
- */
+/* 仅预算消耗总额夹到零，分类净额保留负数。 */
 function budgetSpent(txs, ym) {
   var expense = 0
   var refund = 0
-  var expRows = []
-  var refunds = []
-
-  for (var i = 0; i < txs.length; i++) {
-    var t = txs[i]
-    if (t.ym !== ym) continue
-    if (t.type === 'expense') {
-      expense += t.amount
-      expRows.push({ cat: t.category || '未分类', m: normMerchant(t.merchant), left: t.amount })
-    } else if (t.type === 'refund') {
-      refund += t.amount
-      refunds.push({ m: normMerchant(t.merchant), left: t.amount })
-    }
-  }
-
-  var byCat = {}
-  for (var a = 0; a < expRows.length; a++) {
-    byCat[expRows[a].cat] = (byCat[expRows[a].cat] || 0) + expRows[a].left
-  }
-
   var matched = 0
-  for (var r = 0; r < refunds.length; r++) {
-    var rf = refunds[r]
-    if (!rf.m || rf.left <= 0) continue
-    for (var k = 0; k < expRows.length; k++) {
-      var e = expRows[k]
-      if (e.left <= 0) continue
-      if (!sameMerchant(e.m, rf.m)) continue
-      var d = Math.min(e.left, rf.left)
-      e.left = Math.round((e.left - d) * 100) / 100
-      rf.left = Math.round((rf.left - d) * 100) / 100
-      byCat[e.cat] = Math.round((byCat[e.cat] - d) * 100) / 100
-      matched = Math.round((matched + d) * 100) / 100
-      if (rf.left <= 0) break
-    }
-  }
-
+  var byCat = emptyMap()
+  txs.forEach(function (t) {
+    if (t.ym !== ym) return
+    if (t.type === 'expense') expense += cents(t.amount)
+    else if (t.type === 'refund') refund += cents(t.amount)
+  })
+  ledger(txs, true).forEach(function (t) {
+    if (t.ym !== ym || t.type !== 'expense') return
+    var cat = t.category || '未分类'
+    byCat[cat] = (byCat[cat] || 0) + cents(t.amount)
+    if (t.refundAdjustment && t.refundMatched) matched -= cents(t.amount)
+  })
+  Object.keys(byCat).forEach(function (cat) { byCat[cat] /= 100 })
   return {
-    expense: expense,
-    refund: refund,
-    net: Math.max(expense - refund, 0),
-    matched: matched,
-    unmatched: Math.max(Math.round((refund - matched) * 100) / 100, 0),
+    expense: expense / 100,
+    refund: refund / 100,
+    net: Math.max(expense - refund, 0) / 100,
+    matched: matched / 100,
+    unmatched: (refund - matched) / 100,
     byCat: byCat
   }
 }
 
-/* 未分类的支出按商户归组，给 AI 补分类用
- * 只取商户名够长的：商户名太短或为空没法沉淀成规则，补了下次还是未分类 */
+/* AI 只处理本人可编辑的未分类付款。 */
 function uncatGroups(txs, limit) {
   var cap = limit || 60
-  var map = {}
+  var map = emptyMap()
   var noMerchant = 0
   for (var i = 0; i < txs.length; i++) {
     var t = txs[i]
-    if (t.type !== 'expense' || t.category !== '未分类') continue
+    if (t.byMe === false || t.type !== 'expense' || t.category !== '未分类') continue
     var key = String(t.merchant || '').trim()
     if (key.length < 2) { noMerchant++; continue }
     if (!map[key]) map[key] = { key: key, count: 0, amount: 0, desc: '' }
     map[key].count++
-    map[key].amount += Number(t.amount || 0)
+    map[key].amount += cents(t.amount)
     if (!map[key].desc && t.desc) map[key].desc = String(t.desc).slice(0, 24)
   }
 
@@ -485,7 +451,7 @@ function uncatGroups(txs, limit) {
         d: map[k].desc,
         key: map[k].key,
         count: map[k].count,
-        amountText: format.money(map[k].amount)
+        amountText: format.signedMoney(map[k].amount / 100)
       }
     }),
     total: keys.length,
@@ -495,6 +461,8 @@ function uncatGroups(txs, limit) {
 }
 
 module.exports = {
+  ledger: ledger,
+  totals: totals,
   summary: summary,
   trend: trend,
   calendar: calendar,

@@ -15,36 +15,46 @@
     "pages/feedback/feedback"
   ],
   "window": {
-    "backgroundTextStyle": "dark",
-    "navigationBarBackgroundColor": "#f4f5f7",
+    "backgroundTextStyle": "@backgroundText",
+    "navigationBarBackgroundColor": "@navBackground",
     "navigationBarTitleText": "通用记账Book",
-    "navigationBarTextStyle": "black",
-    "backgroundColor": "#f4f5f7"
+    "navigationBarTextStyle": "@navText",
+    "backgroundColor": "@pageBackground"
   },
   "tabBar": {
     "color": "#8b9198",
     "selectedColor": "#17806b",
-    "backgroundColor": "#ffffff",
-    "borderStyle": "white",
+    "backgroundColor": "@tabBackground",
+    "borderStyle": "@tabBorder",
     "list": [
       {
         "pagePath": "pages/home/home",
-        "text": "首页"
-      },
-      {
-        "pagePath": "pages/index/index",
-        "text": "总览"
+        "text": "首页",
+        "iconPath": "assets/tabbar/home.png",
+        "selectedIconPath": "assets/tabbar/home-active.png"
       },
       {
         "pagePath": "pages/list/list",
-        "text": "流水"
+        "text": "流水",
+        "iconPath": "assets/tabbar/list.png",
+        "selectedIconPath": "assets/tabbar/list-active.png"
       },
       {
         "pagePath": "pages/report/report",
-        "text": "报表"
+        "text": "报表",
+        "iconPath": "assets/tabbar/report.png",
+        "selectedIconPath": "assets/tabbar/report-active.png"
+      },
+      {
+        "pagePath": "pages/index/index",
+        "text": "我的",
+        "iconPath": "assets/tabbar/mine.png",
+        "selectedIconPath": "assets/tabbar/mine-active.png"
       }
     ]
   },
+  "darkmode": true,
+  "themeLocation": "theme.json",
   "style": "v2",
   "lazyCodeLoading": "requiredComponents",
   "sitemapLocation": "sitemap.json"

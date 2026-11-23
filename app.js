@@ -1,5 +1,3 @@
-var store = require('./utils/store')
-
 App({
   globalData: {
     filterUncat: false,
@@ -33,8 +31,7 @@ App({
       }
     } catch (e) {}
 
-    /* 云开发只用于「截图识别」的 OCR，流水仍然存在手机本地。
-       没用云环境也不影响记账，只是截图识别不可用。 */
+    /* 本地记账不依赖云环境，共同账本会同步流水。 */
     if (wx.cloud) {
       /* 云开发环境要写死：不写 env 时用「账号下的默认环境」，
          一个账号建过好几个环境（或换了环境）就会指到空的那一个，
@@ -59,19 +56,5 @@ App({
         }
       } catch (e) {}
     }
-
-    /* 账本只留最近一年：存量数据在这里截一次，以后每次导入/手记也会自动截 */
-    try {
-      var trimmed = store.trimExisting()
-      if (trimmed > 0) {
-        setTimeout(function () {
-          wx.showToast({
-            title: '已清理 ' + trimmed + ' 笔超过一年的旧流水',
-            icon: 'none',
-            duration: 2500
-          })
-        }, 800)
-      }
-    } catch (e) {}
   }
 })

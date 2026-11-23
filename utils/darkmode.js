@@ -6,7 +6,7 @@
 
 function info() {
   try {
-    return (wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync()) || {}
+    return (wx.getAppBaseInfo ? wx.getAppBaseInfo() : wx.getSystemInfoSync()) || {}
   } catch (e) {
     return {}
   }
@@ -20,9 +20,11 @@ function isDark() {
 /* 系统主题切换时回调（没有这个 API 的旧版本就静默） */
 function watch(cb) {
   if (!wx.onThemeChange || typeof cb !== 'function') return
-  wx.onThemeChange(function (res) {
+  var listener = function (res) {
     cb(String((res && res.theme) || 'light') === 'dark')
-  })
+  }
+  wx.onThemeChange(listener)
+  return function () { if (wx.offThemeChange) wx.offThemeChange(listener) }
 }
 
 module.exports = {

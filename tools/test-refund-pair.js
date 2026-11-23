@@ -167,5 +167,17 @@ function tx(id, type, merchant, amount, day) {
   ok(r.unmatchedAmount === 100, '只配一半：整笔记未配对 100')
 })()
 
+;(function () {
+  var mine = tx('mine-exp', 'expense', '同一家店', 30, '2026-11-20')
+  var refund = Object.assign(tx('peer-ref', 'refund', '同一家店', 30, '2026-11-21'), { by: '同名', byMe: false, ownerKey: 'member-b', shareBook: 'book' })
+  ok(rp.pair([mine, refund]).pairs.length === 0, '他人退款不能冲掉我的支出')
+  var peer = Object.assign({}, mine, { by: '同名', byMe: false, ownerKey: 'member-a', shareBook: 'book' })
+  ok(rp.pair([peer, refund]).pairs.length === 0, '同昵称的不同成员不能互相退款配对')
+  peer.ownerKey = 'member-b'
+  ok(rp.pair([peer, refund]).pairs.length === 1, '同一成员的退款仍能正常配对')
+  peer.shareBook = 'another-book'
+  ok(rp.pair([peer, refund]).pairs.length === 0, '不同共同账本记录不能混合配对')
+})()
+
 console.log('通过 ' + pass + ' 项，失败 ' + fail + ' 项')
 process.exit(fail ? 1 : 0)

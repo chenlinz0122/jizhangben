@@ -13,11 +13,17 @@ function ymOf(ts) {
 }
 
 function money(n) {
-  var v = Math.round(Math.abs(Number(n) || 0) * 100) / 100
+  var v = Math.round(Math.abs(Number(n) || 0) * 100 + 1e-8) / 100
   var s = v.toFixed(2)
   var p = s.split('.')
   p[0] = p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',')
   return p.join('.')
+}
+
+function signedMoney(n) {
+  var value = Number(n) || 0
+  var cents = Math.round(Math.abs(value) * 100 + 1e-8)
+  return (value < 0 && cents > 0 ? '-' : '') + money(cents / 100)
 }
 
 function shortTime(ts) {
@@ -50,6 +56,7 @@ module.exports = {
   dayOf: dayOf,
   ymOf: ymOf,
   money: money,
+  signedMoney: signedMoney,
   shortTime: shortTime,
   monthLabel: monthLabel,
   shiftMonth: shiftMonth

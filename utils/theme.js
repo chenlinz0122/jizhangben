@@ -2,6 +2,7 @@
  * 三套：青绿（默认）/ 墨蓝 / 暖橘
  */
 
+var darkmode = require('./darkmode')
 var KEY = 'theme_v1'
 
 var THEMES = [
@@ -35,13 +36,20 @@ function set(key) {
 }
 
 function applyTabBar(t) {
+  var dark = darkmode.isDark()
+  if (wx.setTabBarItem) {
+    var suffix = dark ? '-dark' : (t.key === 'green' ? '-active' : '-' + t.key)
+    ;['home', 'list', 'report', 'mine'].forEach(function (name, index) {
+      wx.setTabBarItem({ index: index, selectedIconPath: 'assets/tabbar/' + name + suffix + '.png', fail: function () {} })
+    })
+  }
   if (!wx.setTabBarStyle) return
   try {
     wx.setTabBarStyle({
-      selectedColor: t.color,
-      color: '#8b9198',
-      backgroundColor: '#ffffff',
-      borderStyle: 'white',
+      selectedColor: dark ? '#93cdb8' : t.color,
+      color: dark ? '#a0b0a7' : '#7a8882',
+      backgroundColor: dark ? '#1b2421' : '#ffffff',
+      borderStyle: dark ? 'black' : 'white',
       fail: function () {}
     })
   } catch (e) {}

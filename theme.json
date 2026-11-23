@@ -1,0 +1,18 @@
+{
+  "light": {
+    "navBackground": "#f4f6f5",
+    "navText": "black",
+    "pageBackground": "#f4f6f5",
+    "backgroundText": "dark",
+    "tabBackground": "#ffffff",
+    "tabBorder": "white"
+  },
+  "dark": {
+    "navBackground": "#111916",
+    "navText": "white",
+    "pageBackground": "#111916",
+    "backgroundText": "light",
+    "tabBackground": "#1b2421",
+    "tabBorder": "black"
+  }
+}

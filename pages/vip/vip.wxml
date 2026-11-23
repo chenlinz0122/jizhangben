@@ -1,5 +1,5 @@
 <!-- pages/vip/vip - 会员 · 卡密开通 -->
-<view class="theme-{{themeKey}} page">
+<view class="theme-{{themeKey}} page {{dark ? 'dark' : ''}}">
 
   <!-- 头图：状态 + 一句卖点 -->
   <view class="hero {{isVip ? 'on' : ''}}">

@@ -17,10 +17,11 @@ function withInitial(list) {
   for (var i = 0; i < (list || []).length; i++) {
     var m = list[i] || {}
     var nick = m.nickname || '成员'
-    var remark = shared.remarkOf(nick)
+    var remark = shared.remarkOf(nick, m.ownerKey)
     var label = remark || nick
     out.push({
       nickname: nick,
+      ownerKey: m.ownerKey || '',
       remark: remark,
       label: label,
       role: m.role === 'owner' ? 'owner' : 'member',
@@ -32,6 +33,22 @@ function withInitial(list) {
 }
 
 var theme = require('../../utils/theme')
+
+function errorText(res, fallback) {
+  var msg = (res && res.msg) || fallback
+  if (res && res.code === 'UPGRADE_REQUIRED') msg += '；请上传并部署新版云函数 book 后重试'
+  return msg + (res && res.code ? '（' + res.code + '）' : '')
+}
+
+function ownerOf(book) {
+  if (typeof book.owner === 'boolean') return book.owner
+  if (book.role) return book.role === 'owner'
+  var list = book.memberList || []
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].isMe) return list[i].role === 'owner'
+  }
+  return false
+}
 
 Page({
   data: {
@@ -50,6 +67,11 @@ Page({
     nickInput: '',
     codeInput: '',
     busy: false,
+    loading: false,
+    membershipKnown: false,
+    hasConflict: false,
+    shareScope: '',
+    scopeText: '未确认，请选择共享范围',
     msg: '',
     dark: false
   },
@@ -60,18 +82,17 @@ Page({
     darkmode.watch(function (d) { self.setData({ dark: d }) })
 
     /* 分享链接带 code：填进输入框，让用户确认一下再加入（不偷偷加入） */
-    var q = opts && (opts.code || opts.share)
+    var q = (opts && (opts.code || opts.share)) || shared.pendingShare()
     if (q) this.setData({ codeInput: String(q).toUpperCase() })
     /* 上次填过的名字回填一次，省得每次都敲 */
     var saved = ''
     try { saved = String(wx.getStorageSync('share_nick_v1') || '') } catch (e) { saved = '' }
     if (saved) this.setData({ nickInput: saved })
-    this.load()
   },
 
   onShow: function () {
     this.setData({ themeKey: theme.get().key })
-    if (this.data.joined) this.load()
+    this.load()
   },
 
   onNick: function (e) {
@@ -87,55 +108,138 @@ Page({
   },
 
   load: function () {
+    if (this.data.loading || this.data.busy) return
     var self = this
     var b = shared.current()
-    if (!b) { this.setData({ joined: false }); return }
+    if (b && b.bookId) this.apply(b)
+    if (shared.busy()) {
+      this.setData({ msg: '共同账本正在处理其他操作，请稍后重试' })
+      return
+    }
+    this.setData({ loading: true, msg: '' })
+    // 没有本机缓存也查询云端；只有明确返回未加入，才显示创建/加入表单。
     shared.info(function (res) {
-      if (!res || !res.ok) { self.setData({ joined: false }); return }
-      if (!res.joined) { this.setData({ joined: false }); return }
+      self.setData({ loading: false })
+      if (!res || !res.ok) {
+        var cached = shared.current() || b
+        if (cached && cached.bookId) self.apply(cached)
+        self.setData({
+          membershipKnown: self.data.joined,
+          msg: errorText(res, '无法确认账本状态，请检查网络后重试') + (self.data.joined ? '；当前显示本机缓存' : '')
+        })
+        return
+      }
+      if (!res.joined) {
+        self.resetBook()
+        return
+      }
       self.apply(res)
     })
   },
 
+  resetBook: function () {
+    this.setData({
+      joined: false, membershipKnown: true, hasConflict: false, name: '', code: '', codeText: '',
+      members: 0, memberList: [], myName: '', isOwner: false,
+      shareScope: '', scopeText: '未确认，请选择共享范围', lastSyncText: '还没同步过', msg: ''
+    })
+  },
+
   apply: function (res) {
-    var code = String(res.code || '')
+    var b = shared.current() || {}
+    var book = Object.assign({}, b, res)
+    var code = String(book.code || '')
     this.setData({
       joined: true,
-      name: res.name || '共同账本',
+      membershipKnown: true,
+      name: book.name || '共同账本',
       code: code,
       codeText: code ? code.slice(0, 3) + ' ' + code.slice(3) : '',
-      members: res.members || 1,
-      memberLimit: res.memberLimit || 10,
-      memberList: withInitial(res.memberList),
-      myName: res.nickname || shared.myName() || '',
-      isOwner: !!res.owner
+      members: book.members || 1,
+      memberLimit: book.memberLimit || 10,
+      memberList: withInitial(book.memberList),
+      myName: book.nickname || shared.myName() || '',
+      isOwner: ownerOf(book),
+      lastSyncText: timeText(b.lastSync),
+      shareScope: b.shareSince == null ? '' : (b.shareSince === 0 ? 'all' : 'recent'),
+      scopeText: shared.scopeText()
     })
-    var b = shared.current()
-    this.setData({ lastSyncText: timeText(b && b.lastSync) })
+  },
+
+  blocked: function () {
+    if (!this.data.busy && !this.data.loading && !shared.busy()) return false
+    this.setData({ msg: '正在处理共同账本，请稍后再试' })
+    return true
+  },
+
+  chooseScope: function (e) {
+    this.confirmScope(e.currentTarget.dataset.scope, false)
+  },
+
+  promptScope: function () {
+    if (this.blocked()) return
+    var self = this
+    this.setData({ busy: true, msg: '请先确认共享范围，再开始同步' })
+    wx.showActionSheet({
+      itemList: ['加入当天起的本人流水', '全部本人流水（含历史）'],
+      success: function (r) {
+        self.setData({ busy: false })
+        self.confirmScope(r.tapIndex === 0 ? 'recent' : 'all', true)
+      },
+      fail: function () { self.setData({ busy: false }) }
+    })
+  },
+
+  confirmScope: function (scope, syncAfter) {
+    if (scope !== 'recent' && scope !== 'all') return
+    if (this.blocked()) return
+    if (!shared.current()) { this.setData({ msg: '请先确认已加入共同账本' }); return }
+    var self = this
+    this.setData({ busy: true })
+    wx.showModal({
+      title: scope === 'all' ? '共享全部本人流水？' : '共享加入当天起的流水？',
+      content: (scope === 'all'
+        ? '将上传你自己的全部流水，包含加入前的历史账目。'
+        : '按流水日期筛选：从加入账本当天的本地零点起，共享你自己的流水；之后补录的更早账目不包含。') +
+        '\n金额、商户、流水备注等账目内容会上传云端，对账本成员可见。确认后，首页可自动同步。\n「只看自己 / 看双方 / 只看对方」只改变显示，不限制上传。更改范围不会删除已在云端的记录，也不能远程擦除成员已保存的本机副本。',
+      confirmText: '同意共享',
+      success: function (r) {
+        self.setData({ busy: false })
+        if (!r.confirm) return
+        if (shared.busy()) { self.setData({ msg: '同步正在进行，请结束后重新选择范围' }); return }
+        if (!shared.setShareScope(scope)) {
+          self.setData({ msg: '共享范围未保存，尚未开始同步，请重试' })
+          return
+        }
+        self.apply(shared.current())
+        self.setData({ msg: '共享范围已确认；首页可自动同步。更改范围不会删除已有云端记录。' })
+        if (syncAfter) self.doSync()
+      },
+      fail: function () { self.setData({ busy: false, msg: '未能打开确认窗口，请重新选择共享范围' }) }
+    })
   },
 
   createBook: function () {
     var self = this
-    if (this.data.busy) return
+    if (this.blocked()) return
+    if (!this.data.membershipKnown || this.data.joined) return
     this.setData({ busy: true, msg: '' })
     shared.createBook(this.data.nameInput, this.data.nickInput, function (res) {
       if (res && res.ok) {
         self.setData({ busy: false, joined: true })
-        self.apply({
-          name: res.name, code: res.code, members: res.members || 1,
-          memberLimit: res.memberLimit || 10, memberList: res.memberList,
-          nickname: res.nickname, owner: true
-        })
+        self.apply(res)
+        self.setData({ msg: '账本已创建，请先选择并确认共享范围' })
         wx.showToast({ title: '账本建好了', icon: 'success' })
         return
       }
-      self.setData({ busy: false, msg: (res && res.msg) || '建账本失败，稍后再试' })
+      self.setData({ busy: false, msg: errorText(res, '建账本失败，稍后再试') })
     })
   },
 
   joinBook: function () {
     var self = this
-    if (this.data.busy) return
+    if (this.blocked()) return
+    if (!this.data.membershipKnown || this.data.joined) return
     if (this.data.codeInput.length !== 6) {
       this.setData({ msg: '邀请码是 6 位，问 TA 再要一次' })
       return
@@ -145,52 +249,54 @@ Page({
       if (res && res.ok) {
         self.setData({ busy: false, joined: true, codeInput: '' })
         shared.clearPendingShare()
-        self.apply({
-          name: res.name, code: res.code, members: res.members || 2,
-          memberLimit: res.memberLimit || 10, memberList: res.memberList,
-          nickname: res.nickname
-        })
+        self.apply(res)
+        self.setData({ msg: '已加入，请先选择并确认共享范围' })
         wx.showToast({ title: '已加入共同账本', icon: 'success' })
         return
       }
-      self.setData({ busy: false, msg: (res && res.msg) || '加入失败，稍后再试' })
+      self.setData({ busy: false, msg: errorText(res, '加入失败，稍后再试') })
     })
   },
 
-  /* 改自己的名字：只影响以后记的账，别人已经同步走的旧记录还是旧名字 */
+  /* 账本昵称会共享给成员；个人成员备注才只保存在本机。 */
   editNick: function () {
+    if (this.blocked()) return
     var self = this
+    this.setData({ busy: true, msg: '' })
     wx.showModal({
-      title: '我在这个账本里叫什么',
+      title: '账本昵称（成员可见）',
       editable: true,
       placeholderText: '比如「小王」',
       content: this.data.myName || '',
       success: function (r) {
-        if (!r.confirm) return
         var v = String(r.content || '').trim().slice(0, 10)
-        if (!v) return
+        if (!r.confirm || !v) { self.setData({ busy: false }); return }
         shared.setNick(v, function (res) {
+          self.setData({ busy: false })
           if (res && res.ok) {
-            self.setData({ myName: res.nickname || v, memberList: withInitial(res.memberList) })
+            self.apply(Object.assign({}, shared.current(), { nickname: res.nickname || v, memberList: res.memberList || self.data.memberList }))
             wx.showToast({ title: '改好了', icon: 'none' })
             return
           }
-          self.setData({ msg: (res && res.msg) || '改名字失败，稍后再试' })
+          self.setData({ msg: errorText(res, '改名字失败，稍后再试') })
         })
-      }
+      },
+      fail: function () { self.setData({ busy: false, msg: '未能打开昵称编辑，请重试' }) }
     })
   },
 
   /* 给账本里的人起备注：只在我这台手机上生效，不改他本人填的昵称 */
   editRemark: function (e) {
+    if (this.blocked()) return
     var self = this
     var nick = String(e.currentTarget.dataset.nick || '')
     if (!nick) return
-    if (this.data.myName && nick === this.data.myName) {
+    if (e.currentTarget.dataset.me) {
       this.editNick()
       return
     }
-    var cur = shared.remarkOf(nick)
+    var ownerKey = e.currentTarget.dataset.owner || ''
+    var cur = shared.remarkOf(nick, ownerKey)
     wx.showModal({
       title: '「' + nick + '」在你手机上叫什么',
       editable: true,
@@ -198,11 +304,15 @@ Page({
       content: cur,
       success: function (r) {
         if (!r.confirm) return
-        var v = shared.setRemark(nick, r.content)
+        var v = shared.setRemark(nick, r.content, ownerKey)
+        if (v === null) {
+          self.setData({ msg: '个人备注未保存，请稍后重试' })
+          return
+        }
         var raw = []
         for (var i = 0; i < self.data.memberList.length; i++) {
           var m = self.data.memberList[i]
-          raw.push({ nickname: m.nickname, role: m.role, isMe: m.isMe })
+          raw.push({ nickname: m.nickname, role: m.role, isMe: m.isMe, ownerKey: m.ownerKey })
         }
         self.setData({ memberList: withInitial(raw) })
         wx.showToast({ title: v ? '备注已保存' : '已恢复原名', icon: 'none' })
@@ -219,50 +329,85 @@ Page({
     })
   },
 
-  doSync: function () {
+  doSync: function (resolution) {
+    if (resolution !== 'local' && resolution !== 'cloud') resolution = ''
     var self = this
-    if (this.data.busy) return
-    this.setData({ busy: true, msg: '' })
+    if (this.blocked()) return
+    var b = shared.current()
+    if (!b) { this.setData({ msg: '请先确认已加入共同账本' }); return }
+    if (b.shareSince == null) { this.promptScope(); return }
+    this.setData({ busy: true, hasConflict: false, msg: '同步中，请稍候' })
     shared.sync(function (res) {
       self.setData({ busy: false })
-      var b = shared.current()
-      self.setData({ lastSyncText: timeText(b && b.lastSync) })
+      var book = shared.current()
+      self.setData({ lastSyncText: timeText(book && book.lastSync) })
       if (res && res.ok) {
-        var n = res.added || 0
-        wx.showToast({
-          title: n > 0 ? ('同步完成，新增 ' + n + ' 条') : '同步完成，没有新记录',
-          icon: 'none',
-          duration: 1600
-        })
-        if (res.members) self.setData({ members: res.members })
-        if (res.memberList) self.setData({ memberList: withInitial(res.memberList) })
+        var next = Object.assign({}, book)
+        if (res.members != null) next.members = res.members
+        if (res.memberList) next.memberList = res.memberList
+        self.apply(next)
+        self.setData({ msg: shared.syncSummary(res) })
         return
       }
-      self.setData({ msg: (res && res.msg) || '同步失败，检查网络后再试' })
+      if (!book) self.resetBook()
+      self.setData({ msg: errorText(res, '同步失败，检查网络后再试'),
+        hasConflict: !!(res && (res.code === 'CONFLICT' || res.code === 'VERSION_CONFLICT')) })
+      if (res && res.code === 'SCOPE_REQUIRED') self.promptScope()
+    }, resolution)
+  },
+
+  resolveConflict: function () {
+    if (this.blocked() || !this.data.hasConflict) return
+    var self = this
+    this.setData({ busy: true })
+    wx.showActionSheet({
+      itemList: ['冲突记录保留本机版本', '冲突记录采用云端版本'],
+      success: function (r) {
+        var local = r.tapIndex === 0
+        wx.showModal({
+          title: local ? '保留本机修改？' : '采用云端修改？',
+          content: '仅处理当前有冲突的记录，包含冲突的删除操作。另一份修改将被替换，建议先在报表页导出备份。',
+          confirmText: '确认处理',
+          success: function (answer) {
+            self.setData({ busy: false })
+            if (answer.confirm) self.doSync(local ? 'local' : 'cloud')
+          },
+          fail: function () { self.setData({ busy: false }) }
+        })
+      },
+      fail: function () { self.setData({ busy: false }) }
     })
   },
 
   quit: function () {
+    if (this.blocked() || !this.data.joined) return
     var self = this
     var owner = this.data.isOwner
+    this.setData({ busy: true, msg: '' })
     wx.showModal({
       title: owner ? '解散共同账本？' : '退出共同账本？',
-      content: owner
-        ? '你是账主，退出会把整本拆掉：其他人也会被移出，云端的共享记录会被清空（你们本地账目不受影响）。'
-        : '退出后你就看不到别人新记的账了，本地已有的记录会保留。',
+      content: (owner
+        ? '你是账主，解散会移出所有成员并清空云端共享记录，本机已有账目保留。'
+        : '退出后不再同步，本机已有账目保留。') + '无法远程擦除其他成员已同步到手机上的副本。建议先导出备份。',
       confirmText: owner ? '解散' : '退出',
       confirmColor: '#d0563f',
       success: function (r) {
-        if (!r.confirm) return
+        if (!r.confirm) { self.setData({ busy: false }); return }
+        if (shared.busy()) {
+          self.setData({ busy: false, msg: '同步正在进行，请结束后再退出' })
+          return
+        }
         shared.leave(function (res) {
+          self.setData({ busy: false })
           if (res && res.ok) {
-            self.setData({ joined: false, name: '', code: '', codeText: '', members: 0, memberList: [] })
+            self.resetBook()
             wx.showToast({ title: owner ? '已解散' : '已退出', icon: 'none' })
             return
           }
-          self.setData({ msg: (res && res.msg) || '操作失败，稍后再试' })
+          self.setData({ msg: errorText(res, '操作失败，稍后再试') })
         })
-      }
+      },
+      fail: function () { self.setData({ busy: false, msg: '未能打开退出确认，请重试' }) }
     })
   },
 

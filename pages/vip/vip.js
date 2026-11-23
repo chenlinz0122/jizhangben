@@ -1,3 +1,4 @@
+var darkmode = require('../../utils/darkmode')
 var vip = require('../../utils/vip')
 var config = require('../../utils/config')
 
@@ -5,6 +6,7 @@ var theme = require('../../utils/theme')
 
 Page({
   data: {
+    dark: false,
     themeKey: 'green',
     code: '',
     busy: false,
@@ -68,7 +70,7 @@ Page({
   },
 
   onShow: function () {
-    this.setData({ themeKey: theme.get().key })
+    this.setData({ themeKey: theme.get().key, dark: darkmode.isDark() })
     this.syncLocal()
     this.loadInvite()
   },

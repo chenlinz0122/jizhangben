@@ -1,47 +1,60 @@
-<view class="theme-{{themeKey}} page">
+<view class="theme-{{themeKey}} page {{dark ? 'dark' : ''}}">
   <view class="bar">
     <view class="search">
-      <text class="sicon">🔍</text>
+      <view class="ui-icon icon-search sicon"></view>
       <input class="sinput" value="{{kw}}" placeholder="搜商户 / 备注 / 分类" placeholder-class="sph"
              bindinput="onSearch" confirm-type="search" />
       <text class="sclear" wx:if="{{kw}}" bindtap="clearKw">×</text>
     </view>
     <view class="month">
       <text class="nav" bindtap="prevMonth" wx:if="{{!searching}}">‹</text>
-      <text class="mtext">{{monthText}}</text>
+      <picker wx:if="{{!searching}}" mode="date" fields="month" value="{{ym}}" end="{{maxYm}}" bindchange="pickMonth"><text class="mtext">{{monthText}} ⌄</text></picker>
+      <text wx:else class="mtext">全部流水</text>
       <text class="nav {{canNext ? '' : 'off'}}" bindtap="nextMonth" wx:if="{{!searching}}">›</text>
     </view>
     <view class="sumrow">
-      <text class="sumi">支出 ¥{{s.expenseText}}</text>
+      <text class="sumi">{{s.refundOut ? '净支出' : '支出'}} ¥{{s.expenseText}}</text>
       <text class="sumi">收入 ¥{{s.incomeText}}</text>
       <text class="sumi">{{s.count}} 笔</text>
     </view>
     <text class="refnote" wx:if="{{refundNote}}">{{refundNote}}</text>
-    <view class="chips">
-      <text class="chip back" wx:if="{{backTab}}" bindtap="goBack">‹ 返回{{backLabel}}</text>
+    <view class="scope-line" wx:if="{{sharedOn}}">
+      <text class="scope-caption" bindtap="goShare">共同账本 ›</text>
+      <view class="scope-segment">
+        <text class="chip {{scope === 'mine' ? 'on' : ''}}" data-k="mine" bindtap="setScope">自己</text>
+        <text class="chip {{scope === 'both' ? 'on' : ''}}" data-k="both" bindtap="setScope">全部成员</text>
+        <text class="chip {{scope === 'peer' ? 'on' : ''}}" data-k="peer" bindtap="setScope">其他成员</text>
+      </view>
+    </view>
+    <view class="chips toolbar">
+      <text class="chip {{onlyUncat ? 'on' : ''}}" bindtap="toggleUncat">未分类</text>
+      <text class="toolbar-spacer"></text>
+      <text class="toolbar-action" bindtap="goImport">导入</text>
+      <text class="toolbar-action" bindtap="moreActions">管理</text>
+    </view>
+    <view class="chips active-filters" wx:if="{{backTab || filterCat || filterDay || filterKind}}">
+      <text class="chip back" wx:if="{{backTab}}" bindtap="goBack">‹ {{backLabel}}</text>
       <text class="chip on" wx:if="{{filterCat}}" bindtap="clearFilter">× {{filterCat}}</text>
       <text class="chip on" wx:if="{{filterDay}}" bindtap="clearFilter">× {{filterDay}}</text>
-      <text class="chip {{onlyUncat ? 'on' : ''}}" bindtap="toggleUncat">只看未分类</text>
-      <block wx:if="{{sharedOn}}">
-        <text class="chip {{scope === 'mine' ? 'on' : ''}}" data-k="mine" bindtap="setScope">只看自己</text>
-        <text class="chip {{scope === 'both' ? 'on' : ''}}" data-k="both" bindtap="setScope">看双方{{sharedMembers > 1 ? ' ·' + sharedMembers + '人' : ''}}</text>
-        <text class="chip {{scope === 'peer' ? 'on' : ''}}" data-k="peer" bindtap="setScope">只看对方</text>
-      </block>
-      <text class="chip" bindtap="goImport">＋ 导入</text>
-      <text class="chip" bindtap="moreActions">⋯ 管理</text>
+      <text class="chip on" wx:if="{{filterKind}}" bindtap="clearFilter">× {{filterKind === 'income' ? '入账' : '支出'}}</text>
     </view>
   </view>
 
   <view class="empty" wx:if="{{groups.length === 0}}">
-    <text>{{searching ? '没找到匹配的流水，换个关键词试试' : '这个月没有流水'}}</text>
+    <text>{{searching || filterCat || filterDay || filterKind || onlyUncat ? '没有符合筛选条件的记录' : '这个月还没有流水'}}</text>
+    <view class="empty-link" wx:if="{{searching}}" bindtap="clearKw">清除关键词 ›</view>
+    <view class="empty-link" wx:if="{{filterCat || filterDay || filterKind}}" bindtap="clearFilter">清除筛选 ›</view>
+    <view class="empty-link" wx:if="{{onlyUncat}}" bindtap="toggleUncat">查看已分类记录 ›</view>
+    <view class="empty-link" wx:if="{{!searching && !filterCat && !filterDay && !filterKind && !onlyUncat}}" bindtap="goImport">导入账单 ›</view>
   </view>
 
   <view class="group" wx:for="{{groups}}" wx:key="day" wx:for-item="g">
     <view class="ghead">
       <text class="gday">{{g.label}}</text>
-      <text class="gspend">支出 ¥{{g.spendText}}</text>
+      <text class="gspend">{{s.refundOut ? '净支出' : '支出'}} ¥{{g.spendText}}</text>
     </view>
-    <view class="items">
+    <view class="tip" wx:if="{{g.refundText}}">当日退款抵减 ¥{{g.refundText}}，已计入上方净支出；原付款不变。</view>
+    <view class="items" wx:if="{{g.items.length}}">
       <view class="item" wx:for="{{g.items}}" wx:key="id"
             data-id="{{item.id}}" bindtap="openSheet" bindlongpress="onLongPress">
         <view class="ic" style="background:{{item.tint}}"><text class="ic-em">{{item.icon}}</text></view>
@@ -51,7 +64,6 @@
             <text class="bytag" wx:if="{{item.byLabel}}">{{item.byLabel}} 标记的</text>
           </view>
           <text class="isub">{{item.category}} · {{item.timeText}}<text class="notedot" wx:if="{{item.note}}"> · 有备注</text></text>
-          <text class="irefund" wx:if="{{item.refundedText}}">已退 ¥{{item.refundedText}}</text>
           <text class="idesc" wx:if="{{item.desc}}">{{item.desc}}</text>
         </view>
         <text class="iamt {{item.type === 'income' || item.type === 'refund' ? 'inc' : (item.type === 'transfer' ? 'muted' : 'exp')}}">{{item.sign}}{{item.amountText}}</text>
@@ -59,8 +71,7 @@
     </view>
   </view>
 
-  <view class="tip">点一笔看明细：时间、说明、来源、备注都在里面，顺手能改分类、加备注、删除；右上「⋯ 管理」能删整个月、清空全部</view>
-</view>
+  <view class="tip">点一笔看明细；只有自己记的账能改分类、流水备注或删除。他人记录只读，但可给记账人设本机个人备注。「⋯ 管理」可删本月本人流水或清空本机数据。</view>
 
 <view class="mask" wx:if="{{sheetVisible}}" bindtap="closeSheet"></view>
 <view class="sheet {{sheetVisible ? 'up' : ''}}">
@@ -89,7 +100,7 @@
     </view>
     <view class="srow" wx:if="{{sheetItem.byLabel}}" bindtap="editByRemark">
       <text class="sl">记账人</text>
-      <text class="sv">{{sheetItem.byLabel}} 标记的<text class="sv-dim"> · 点这里改备注</text></text>
+      <text class="sv">{{sheetItem.byLabel}} 标记的<text class="sv-dim"> · 设个人备注（仅本机）</text></text>
     </view>
     <view class="srow" wx:if="{{sheetItem.desc}}">
       <text class="sl">说明</text>
@@ -108,23 +119,26 @@
       <text class="sv">{{sheetItem.source || '—'}}<text class="sv-dim" wx:if="{{sheetItem.account}}"> · {{sheetItem.account}}</text></text>
     </view>
     <view class="srow">
-      <text class="sl">备注</text>
-      <text class="sv {{sheetItem.note ? '' : 'sv-dim'}}" bindtap="editNote">{{sheetItem.note || '点这里添加'}}</text>
+      <text class="sl">流水备注</text>
+      <text wx:if="{{sheetItem.canEdit}}" class="sv {{sheetItem.note ? '' : 'sv-dim'}}" bindtap="editNote">{{sheetItem.note || '点这里添加（随记录共享）'}}</text>
+      <text wx:else class="sv {{sheetItem.note ? '' : 'sv-dim'}}">{{sheetItem.note || '无备注'}}</text>
     </view>
   </view>
 
   <!-- 操作 -->
-  <view class="shacts">
+  <view class="tip" wx:if="{{sheetItem && !sheetItem.canEdit}}">这是其他成员的流水，只能查看，不能修改或删除；记账人的个人备注仅在本机生效。</view>
+  <view class="shacts" wx:if="{{sheetItem.canEdit}}">
     <view class="act {{catMode ? 'on' : ''}}" bindtap="toggleCatMode">{{catMode ? '收起类目' : '改分类'}}</view>
     <view class="act" bindtap="editNote">改备注</view>
     <view class="act danger" bindtap="deleteSheetItem">删除</view>
   </view>
 
-  <scroll-view scroll-y class="shlist" wx:if="{{catMode}}">
+  <scroll-view scroll-y class="shlist" wx:if="{{catMode && sheetItem.canEdit}}">
     <view class="shcat {{sheetItem.category === item ? 'on' : ''}}"
           wx:for="{{sheetCats}}" wx:key="*this" data-cat="{{item}}" bindtap="pickCat">
       <text>{{item}}</text>
       <text class="shcheck" wx:if="{{sheetItem.category === item}}">✓</text>
     </view>
   </scroll-view>
+</view>
 </view>

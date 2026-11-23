@@ -1,3 +1,4 @@
+var darkmode = require('../../utils/darkmode')
 var store = require('../../utils/store')
 var ocrbill = require('../../utils/ocrbill')
 var format = require('../../utils/format')
@@ -7,9 +8,10 @@ var theme = require('../../utils/theme')
 
 Page({
   onShow: function () {
-    this.setData({ themeKey: theme.get().key })
+    this.setData({ themeKey: theme.get().key, dark: darkmode.isDark() })
   },
   data: {
+    dark: false,
     themeKey: 'green',
     busy: false,
     stepText: '',
@@ -281,8 +283,7 @@ Page({
         source: source,
         photos: total,
         fails: fails,
-        sample: sample,
-        trim: plan.trimmed || 0
+        sample: sample
       }
     })
   },
@@ -290,16 +291,27 @@ Page({
   doImport: function () {
     if (!this._parsed) return
     var res = store.addMany(this._parsed)
-    store.learnFromItems(this._parsed)
+    if (!res || res.saved !== true || res.partial) {
+      this.setData({ result: null })
+      wx.showModal({
+        title: '没能保存',
+        content: res && res.partial
+          ? '本次未能完整保存，可能已有部分写入且回滚未完成。识别结果和预览已保留，请先核对实际账本、导出备份，再决定是否重试。'
+          : '本次未保存，识别结果和预览已保留。可以重试，或先去「报表 → 数据工具」导出备份。',
+        showCancel: false
+      })
+      return
+    }
+    var learned = store.learnFromItems(this._parsed)
     this._parsed = null
     this.setData({
       preview: null,
-      result: { added: res.added, dup: res.dup, merged: res.merged || 0, trim: res.trimmed || 0 }
+      result: { added: res.added, dup: res.dup, merged: res.merged || 0 }
     })
-    if (res.saved === false) {
+    if (learned === false) {
       wx.showModal({
-        title: '没能保存',
-        content: '本地存储空间已满，这次识别的流水没有存进去。建议先导出备份，再清掉一些旧流水后重试。',
+        title: '流水已保存',
+        content: '本次流水已保存，但分类规则未保存，不影响本次导入结果，无需重新导入。稍后可在流水页修改分类来学习规则。',
         showCancel: false
       })
     }

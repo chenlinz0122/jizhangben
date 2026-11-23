@@ -1,4 +1,4 @@
-<view class="theme-{{themeKey}} page">
+<view class="theme-{{themeKey}} page {{dark ? 'dark' : ''}}">
   <view class="card">
     <view class="title">怎么拿到账单</view>
     <view class="step"><text class="sn">最省事</text><text>在账单列表页截一张长图，用「截图识别」，不用导出、不用复制</text></view>
@@ -44,7 +44,6 @@
       <view class="sitem"><text class="sv">{{preview.dup}}</text><text class="sl">跳重复</text></view>
     </view>
     <view class="dupnote" wx:if="{{preview.skipped}}">另有 {{preview.skipped}} 行读不出时间或金额，已跳过</view>
-    <view class="dupnote" wx:if="{{preview.trim}}">另有 {{preview.trim}} 条超出一年，导入后会被自动清理（账本只保留最近 12 个月）</view>
     <view class="divider"></view>
     <view class="muted">前几条长这样，看对不对：</view>
     <view class="sample" wx:for="{{preview.sample}}" wx:key="merchant">
@@ -61,10 +60,10 @@
 
   <view class="card" wx:if="{{result}}">
     <view class="done">
-      <text class="dtxt">导入完成：新增 {{result.added}} 条{{result.merged ? '，合并 ' + result.merged + ' 条' : ''}}{{result.dup ? '，跳过重复 ' + result.dup + ' 条' : ''}}{{result.trim ? '，清理超一年 ' + result.trim + ' 条' : ''}}</text>
+      <text class="dtxt">导入完成：新增 {{result.added}} 条{{result.merged ? '，合并 ' + result.merged + ' 条' : ''}}{{result.dup ? '，跳过重复 ' + result.dup + ' 条' : ''}}</text>
     </view>
     <view class="btn plain" bindtap="goList">去看流水</view>
   </view>
 
-  <view class="foot">数据只存在这台手机的小程序里，不会上传</view>
+  <view class="foot">历史流水不会自动清理，建议定期在「报表 → 数据工具」导出备份。账单文件解析会上传云端，共同账本会同步流水。</view>
 </view>

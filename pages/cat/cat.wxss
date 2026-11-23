@@ -284,3 +284,16 @@
   color: #a2a8ae;
   line-height: 1.6;
 }
+
+/* ---------- 系统深色 ---------- */
+.dark { background: #111916; color: #e5eee9; }
+.dark .card { background: #1b2421; border-color: #2c3831; }
+.dark .hint, .dark .muted, .dark .tip, .dark .li, .dark .foot, .dark .note, .dark .h2 { color: #9fb0a8; }
+.dark .title, .dark .ct, .dark .h1 { color: #e5eee9; }
+.dark .ipt, .dark .ta { background: #141b18; border-color: #2c3831; color: #e5eee9; }
+.dark .btn.plain { background: #1b2421; border-color: #2c3831; color: #e5eee9; }
+.dark .divider { background: #2c3831; }
+
+/* 深色：页面特有的底色 */
+.dark .items { background: #1b2421; }
+.dark .sheet { background: #1b2421; }

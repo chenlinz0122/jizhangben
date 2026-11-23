@@ -1291,3 +1291,8 @@
 .page.dark .tease .tc-bar {
   background: #2a3138;
 }
+/* 深色补充：金额、进度条、顶部卡片在暗底上的对比度 */
+.dark .hero { background: var(--hero-bg-dark); }
+.dark .camt { color: #e5eee9; }
+.dark .track { background: #2c3831; }
+.dark .cmeta { color: #93a19a; }

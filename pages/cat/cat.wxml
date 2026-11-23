@@ -1,4 +1,4 @@
-<view class="theme-{{themeKey}} page">
+<view class="theme-{{themeKey}} page {{dark ? 'dark' : ''}}">
   <view class="navback" bindtap="goBack">‹ 返回报表</view>
   <view class="hero">
     <view class="htop">
@@ -13,8 +13,8 @@
       <text class="hdot">·</text>
       <text>月均 ¥{{avgText}}</text>
     </view>
-    <view class="hfoot" wx:if="{{count > 0}}">
-      <text>最大一笔 ¥{{maxText}}</text>
+    <view class="hfoot" wx:if="{{maxText !== '0.00'}}">
+      <text>{{kind === 'income' ? '最大入账' : '最大付款'}} ¥{{maxText}}</text>
       <text class="hdot" wx:if="{{maxMerchant}}">·</text>
       <text class="hmerchant" wx:if="{{maxMerchant}}">{{maxMerchant}}</text>
     </view>
@@ -29,7 +29,8 @@
       <text class="mlabel">{{m.label}}</text>
       <text class="msub">¥{{m.totalText}} · {{m.count}} 笔</text>
     </view>
-    <view class="items">
+    <view class="tip" wx:for="{{m.adjustments}}" wx:for-item="adjustment" wx:key="day">{{adjustment.day}} 退款抵减 ¥{{adjustment.text}}，已计入本月合计。</view>
+    <view class="items" wx:if="{{m.items.length}}">
       <view class="item" wx:for="{{m.items}}" wx:key="id" data-id="{{item.id}}" bindtap="openDetail">
         <view class="ileft">
           <text class="im">{{item.merchant}}</text>
@@ -40,7 +41,7 @@
     </view>
   </view>
 
-  <view class="tip" wx:if="{{months.length > 0}}">按月分段，每段里从新到旧 · 点一笔看详情</view>
+  <view class="tip" wx:if="{{months.length > 0}}">按实际收付日期归入月份；退款抵减单列汇总，原付款保留。笔数包含退款，净支出可为负。</view>
 </view>
 
 <view class="mask" wx:if="{{sheetVisible}}" bindtap="closeDetail"></view>
@@ -74,5 +75,5 @@
       <text class="shv">{{sheet.desc}}</text>
     </view>
   </view>
-  <text class="shnote">这一页只看不动。要改金额、改分类或删单，去「流水」页点那一笔。</text>
+  <text class="shnote">这一页只看不动。要改分类、备注或删单，去「流水」页点那一笔。</text>
 </view>

@@ -1,12 +1,14 @@
 /* 意见反馈：不依赖登录态，云函数用 openid 认人（用于限频和回复） */
 
+var darkmode = require('../../utils/darkmode')
 var theme = require('../../utils/theme')
 
 Page({
   onShow: function () {
-    this.setData({ themeKey: theme.get().key })
+    this.setData({ themeKey: theme.get().key, dark: darkmode.isDark() })
   },
   data: {
+    dark: false,
     themeKey: 'green',
     types: [
       { key: 'bug', name: '算错了 / 有 bug' },

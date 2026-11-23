@@ -4,6 +4,7 @@
 // 但记账Book不需要手机号：个人主体小程序拿不到 getPhoneNumber，而且记账根本用不上手机号。
 // 所以「登录」= 在本机记一个昵称头像 + 向云函数要一次 openid（会员核销认这个 openid）。
 
+var darkmode = require('../../utils/darkmode')
 var account = require('../../utils/account')
 var vip = require('../../utils/vip')
 
@@ -11,9 +12,10 @@ var theme = require('../../utils/theme')
 
 Page({
   onShow: function () {
-    this.setData({ themeKey: theme.get().key })
+    this.setData({ themeKey: theme.get().key, dark: darkmode.isDark() })
   },
   data: {
+    dark: false,
     themeKey: 'green',
     avatar: '',
     nick: '',
@@ -30,7 +32,8 @@ Page({
     this.setData({
       avatar: a.avatar,
       nick: a.nick,
-      from: (opts && opts.from) || ''
+      from: (opts && opts.from) || '',
+      showPrivacy: !!(opts && opts.privacy === '1')
     })
 
     /* 从分享链接进来：先把邀请码存住，再核销（双方各 +7 天） */
@@ -143,6 +146,10 @@ Page({
   },
 
   goAfterLogin: function () {
+    if (this.data.from === 'mine') {
+      wx.switchTab({ url: '/pages/index/index' })
+      return
+    }
     if (this.data.from === 'vip') {
       wx.navigateBack({
         delta: 1,
@@ -156,6 +163,6 @@ Page({
   /* 先逛逛：只记一次，避免每次打开都弹登录 */
   skipLogin: function () {
     account.markSkip()
-    wx.switchTab({ url: '/pages/home/home' })
+    wx.switchTab({ url: this.data.from === 'mine' ? '/pages/index/index' : '/pages/home/home' })
   }
 })

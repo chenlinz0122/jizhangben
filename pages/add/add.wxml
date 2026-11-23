@@ -1,4 +1,4 @@
-<view class="theme-{{themeKey}} page">
+<view class="theme-{{themeKey}} page {{dark ? 'dark' : ''}}">
   <view class="seg">
     <text class="segi {{type === 'expense' ? 'on' : ''}}" data-t="expense" bindtap="switchType">支出</text>
     <text class="segi {{type === 'income' ? 'on' : ''}}" data-t="income" bindtap="switchType">收入</text>
@@ -23,7 +23,7 @@
   <view class="card">
     <view class="field">
       <text class="flabel">日期</text>
-      <picker mode="date" value="{{date}}" start="{{minDate}}" end="{{today}}" bindchange="onDate">
+      <picker mode="date" value="{{date}}" end="{{today}}" bindchange="onDate">
         <view class="fvalue">{{date}} ›</view>
       </picker>
     </view>

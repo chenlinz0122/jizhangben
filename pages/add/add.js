@@ -1,3 +1,4 @@
+var darkmode = require('../../utils/darkmode')
 var format = require('../../utils/format')
 var store = require('../../utils/store')
 var category = require('../../utils/category')
@@ -23,9 +24,10 @@ var theme = require('../../utils/theme')
 
 Page({
   onShow: function () {
-    this.setData({ themeKey: theme.get().key })
+    this.setData({ themeKey: theme.get().key, dark: darkmode.isDark() })
   },
   data: {
+    dark: false,
     themeKey: 'green',
     type: 'expense',
     cats: withIcons(category.catsOf('expense')),
@@ -35,16 +37,12 @@ Page({
     note: '',
     date: '',
     today: '',
-    minDate: '',
     suggestions: []
   },
 
   onLoad: function () {
     var today = format.dayOf(Date.now())
-    /* 账本只留最近一年，日期选择器就不让人往前挑超过一年 */
-    var d = new Date()
-    d.setMonth(d.getMonth() - 12)
-    this.setData({ date: today, today: today, minDate: format.dayOf(d.getTime()) })
+    this.setData({ date: today, today: today })
     this._merchants = knownMerchants()
   },
 
@@ -88,14 +86,27 @@ Page({
   },
 
   save: function () {
-    var amount = parseFloat(this.data.amount)
-    if (!amount || amount <= 0) {
-      wx.showToast({ title: '先填个金额', icon: 'none' })
+    var amountText = String(this.data.amount || '').trim()
+    var amount = Math.round(Number(amountText) * 100) / 100
+    if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(amountText) || !isFinite(amount) || amount <= 0) {
+      wx.showToast({ title: '请填有效正金额，按分取整后不能为 0', icon: 'none' })
       return
     }
 
-    var parts = this.data.date.split('-')
-    var ts = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10), 12, 0, 0).getTime()
+    var date = String(this.data.date || '')
+    var parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date)
+    var d = new Date(0)
+    if (parts) {
+      d.setFullYear(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]))
+      d.setHours(12, 0, 0, 0)
+    }
+    if (!parts || Number(parts[1]) < 1 ||
+        d.getFullYear() !== Number(parts[1]) || d.getMonth() + 1 !== Number(parts[2]) ||
+        d.getDate() !== Number(parts[3]) || date > format.dayOf(Date.now())) {
+      wx.showToast({ title: '请选择有效日期，不能晚于今天', icon: 'none' })
+      return
+    }
+    var ts = d.getTime()
     var type = this.data.type
     var cat = this.data.cat
     var merchant = this.data.merchant || this.data.note || '(手记)'
@@ -108,7 +119,7 @@ Page({
       time: ts,
       day: format.dayOf(ts),
       ym: format.ymOf(ts),
-      amount: Math.round(amount * 100) / 100,
+      amount: amount,
       type: type,
       merchant: merchant,
       desc: this.data.note,
@@ -121,31 +132,27 @@ Page({
     }
 
     var res = store.addOne(tx)
-    if (res && res.kept === false) {
-      wx.showModal({
-        title: '这条没记上',
-        content: '账本只保留最近一年，这条的日期超出范围，落库时被清掉了。换个一年内的日期再试。',
-        showCancel: false
-      })
-      return
-    }
-    if (res && res.saved === false) {
+    if (!res || res.saved !== true || res.partial) {
       wx.showModal({
         title: '没能保存',
-        content: '本地存储空间已满，这笔没有存进去。建议先导出备份，再清掉一些旧流水后重试。',
+        content: res && res.partial
+          ? '本次未能完整保存，可能已有部分写入且回滚未完成。输入已保留，请先核对实际账本、导出备份，再决定是否重试。'
+          : '本次未保存，输入已保留。可以重试，或先去「报表 → 数据工具」导出备份。',
         showCancel: false
       })
       return
     }
-    if (type !== 'transfer' && this.data.merchant) {
-      store.learn(this.data.merchant, cat)
+    if (type !== 'transfer' && this.data.merchant && store.learn(this.data.merchant, cat) === false) {
+      wx.showModal({
+        title: '流水已保存',
+        content: '这笔流水已保存，但分类规则未保存，无需再记一次。稍后可在流水页修改分类来学习规则。',
+        showCancel: false,
+        success: function () { wx.navigateBack() }
+      })
+      return
     }
 
-    if (res && res.trimmed) {
-      wx.showToast({ title: '已记上，清掉 ' + res.trimmed + ' 笔超一年旧流水', icon: 'none' })
-    } else {
-      wx.showToast({ title: '已记上', icon: 'success' })
-    }
+    wx.showToast({ title: '已记上', icon: 'success' })
     setTimeout(function () {
       wx.navigateBack()
     }, 500)

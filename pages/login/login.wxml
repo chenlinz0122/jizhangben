@@ -1,11 +1,11 @@
 <!-- pages/login/login - 登录 / 完善资料 -->
-<view class="theme-{{themeKey}} login-page">
+<view class="theme-{{themeKey}} login-page {{dark ? 'dark' : ''}}">
 
   <!-- Logo 区 -->
   <view class="logo-area">
     <view class="logo-icon">📒</view>
     <view class="logo-title">记账Book</view>
-    <view class="logo-sub">账本存在你自己手机上，登录只管昵称和会员</view>
+    <view class="logo-sub">账目先存本机，共同账本确认共享范围后可同步</view>
   </view>
 
   <view class="form-card">
@@ -60,11 +60,11 @@
         <view class="privacy-meta">适用于「记账Book」小程序</view>
 
         <view class="privacy-h2">一、这个账号是什么</view>
-        <view class="privacy-p">本小程序的「登录」不是注册账号，只是在这台手机上记一个昵称和一个头像，用来在首页打招呼。你的流水、分类、预算全部存在本机 Storage，不上传、不跨设备同步。</view>
+        <view class="privacy-p">首页昵称和头像保存在本机，用来打招呼。账目先保存在本机 Storage；共同账本是独立的共享功能，加入并明确确认共享范围后，范围内的本人流水会上传云端并同步给账本成员，首页也可自动同步。登录或加入本身不代表同意上传全部历史流水。</view>
 
         <view class="privacy-h2">二、会收集哪些信息</view>
-        <view class="privacy-list">1. 昵称、头像：你主动填写/选择，只存在本机，可随时清空。</view>
-        <view class="privacy-list">2. 微信 OpenID：仅在你使用会员功能时，由云函数用于识别「这张卡密属于谁」，不用于其他用途。</view>
+        <view class="privacy-list">1. 首页昵称、头像由你主动填写或选择，保存在本机。共同账本的昵称会上传并对成员可见；给成员设置的个人备注只在本机，不共享。流水备注不同于个人成员备注，会随流水共享。</view>
+        <view class="privacy-list">2. 微信 OpenID：云函数用于会员身份识别，以及共同账本的成员身份、本人记录归属和操作权限校验。</view>
         <view class="privacy-list">3. 不会收集：手机号、通讯录、位置、相册全量照片、微信好友关系。</view>
 
         <view class="privacy-h2">三、什么时候会把数据发出去</view>
@@ -72,11 +72,12 @@
         <view class="privacy-list">2. 账单导入：解析在云端完成，返回的是结构化流水，原始文件不留存。</view>
         <view class="privacy-list">3. AI 补分类：只发「商户名 + 金额 + 收支方向」，不发图片、不发你的昵称头像。</view>
         <view class="privacy-list">4. 会员核销：只发卡密和 OpenID。</view>
+        <view class="privacy-list">5. 共同账本：首次同步前需明确确认「加入当天起」或「全部本人流水」。前者按流水日期从加入当天本地零点起筛选，后者包含历史流水。共享内容包含金额、商户、流水备注等，对账本成员可见；确认后首页可自动同步，也可手动同步。「只看自己 / 看双方 / 只看对方」仅改变显示，不限制上传。更改共享范围不会删除已有云端记录。</view>
 
         <view class="privacy-h2">四、数据存在哪、怎么删</view>
-        <view class="privacy-list">1. 账本数据：仅本机。卸载小程序或在「报表 → 清空所有数据」都能删掉，删了不可恢复。</view>
+        <view class="privacy-list">1. 账本数据：本机保存账目，共同账本还在微信云开发存储共享记录。清空数据会删除本机流水、规则和预算；本人已共享记录的云端删除将在下次同步时提交，他人记录只清除本机副本，本机清除标记保留期间不会重新拉回。建议先导出备份；移除小程序或清理本机缓存不等于删除云端数据。</view>
         <view class="privacy-list">2. 会员记录：微信云开发数据库，只有「OpenID + 到期日 + 用过的卡密」，不含任何账目内容。</view>
-        <view class="privacy-list">3. 退出登录：在首页点头像可以退出，退出只清昵称头像，不动账本。</view>
+        <view class="privacy-list">3. 退出登录：在首页点头像可以退出，只清首页昵称头像，不退出共同账本，也不会停止已确认范围的同步。如需停止共享，请到共同账本管理页退出；账主解散会移出所有成员并清空云端共享记录，但退出或解散都无法远程擦除其他成员已保存到本机的副本。</view>
 
         <view class="privacy-h2">五、第三方</view>
         <view class="privacy-p">图片文字识别走微信云开发（腾讯云），可另配百度 OCR；AI 补分类走智谱 GLM。除上述能力外未接入其他 SDK，也不向任何第三方出售、共享你的数据。</view>

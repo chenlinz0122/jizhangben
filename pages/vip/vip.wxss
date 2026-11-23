@@ -395,3 +395,18 @@
   color: #b1b7bd;
   line-height: 1.6;
 }
+
+/* ---------- 系统深色 ---------- */
+.dark { background: #111916; color: #e5eee9; }
+.dark .card { background: #1b2421; border-color: #2c3831; }
+.dark .hint, .dark .muted, .dark .tip, .dark .li, .dark .foot, .dark .note, .dark .h2 { color: #9fb0a8; }
+.dark .title, .dark .ct, .dark .h1 { color: #e5eee9; }
+.dark .ipt, .dark .ta { background: #141b18; border-color: #2c3831; color: #e5eee9; }
+.dark .btn.plain { background: #1b2421; border-color: #2c3831; color: #e5eee9; }
+.dark .divider { background: #2c3831; }
+
+/* 深色：页面特有的底色 */
+.dark .status.on { background: linear-gradient(135deg, #17342c 0%, #1b2421 100%); border-color: #2c6b58; }
+.dark .code-input { background: #141b18; color: #e5eee9; }
+.dark .tier, .dark .cmp-row.alt, .dark .iv-code { background: #1b2421; }
+.dark .invite { background: linear-gradient(180deg, #1b2421 0%, #141b18 100%); }

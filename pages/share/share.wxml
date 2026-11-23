@@ -2,42 +2,56 @@
 <view class="theme-{{themeKey}} page {{dark ? 'dark' : ''}}">
   <view class="hero">
     <text class="h1">共同账本</text>
-    <text class="h2">一个账本最多 10 个人：谁记的都能看到，也能只看自己记的</text>
+    <text class="h2">一个账本最多 10 个人：确认共享范围后一起记账，也能只看自己记的</text>
   </view>
 
-  <!-- 已加入 -->
+  <view class="card" wx:if="{{loading || msg || !membershipKnown}}">
+    <text class="hint" wx:if="{{loading}}">正在查询云端账本状态…</text>
+    <text class="err" wx:if="{{msg}}">{{msg}}</text>
+    <view class="edit" wx:if="{{hasConflict && !busy}}" bindtap="resolveConflict">处理同步冲突 ›</view>
+    <text class="hint" wx:if="{{!membershipKnown && !loading}}">暂时无法确认是否已加入，不会因网络失败当作未加入。</text>
+    <view class="edit" wx:if="{{!loading && !busy}}" bindtap="load">重新查询账本状态 ›</view>
+  </view>
+
   <block wx:if="{{joined}}">
     <view class="card">
       <view class="between">
         <text class="bname">{{name}}</text>
         <text class="bmeta">{{members}} / {{memberLimit}} 人</text>
       </view>
-
       <view class="codebox">
         <text class="clab">邀请码</text>
         <text class="cval">{{codeText}}</text>
       </view>
-
       <view class="row2">
         <button class="btn main" open-type="share">转发邀请</button>
         <view class="btn plain" bindtap="copyCode">复制邀请码</view>
       </view>
-
       <view class="syncrow">
         <text class="sync-t">上次同步：{{lastSyncText}}</text>
-        <view class="sync-btn {{busy ? 'off' : ''}}" bindtap="doSync">立即同步</view>
+        <view class="sync-btn {{busy || loading ? 'off' : ''}}" bindtap="doSync">{{busy ? '处理中' : '立即同步'}}</view>
       </view>
-      <text class="err" wx:if="{{msg}}">{{msg}}</text>
     </view>
 
-    <!-- 成员：谁在这个账本里 -->
+    <view class="card">
+      <text class="ct">我的共享范围</text>
+      <text class="li">{{scopeText}}</text>
+      <view class="scope-options">
+        <button class="scope-option {{shareScope === 'recent' ? 'selected' : ''}}" data-scope="recent" bindtap="chooseScope" disabled="{{busy || loading}}">加入当天起</button>
+        <button class="scope-option {{shareScope === 'all' ? 'selected' : ''}}" data-scope="all" bindtap="chooseScope" disabled="{{busy || loading}}">全部本人流水</button>
+      </view>
+      <text class="hint">首次同步前必须明确确认。加入当天起：按流水日期，从加入当天的本地零点开始；全部：包含本人历史账目。</text>
+      <text class="hint">金额、商户、流水备注等会上传云端并对成员可见；确认后首页可自动同步。「只看自己 / 看双方 / 只看对方」只影响显示，不改变上传范围。</text>
+      <text class="hint">更改范围不会删除已有云端记录，也无法远程擦除成员手机上已有的副本。</text>
+    </view>
+
     <view class="card">
       <view class="between">
         <text class="ct">账本里的人</text>
         <text class="edit" bindtap="editNick">改我的名字</text>
       </view>
       <view class="mrow" wx:for="{{memberList}}" wx:key="index"
-            data-nick="{{item.nickname}}" bindtap="editRemark">
+            data-nick="{{item.nickname}}" data-me="{{item.isMe}}" data-owner="{{item.ownerKey}}" bindtap="editRemark">
         <view class="mava {{item.role === 'owner' ? 'own' : ''}}">{{item.initial}}</view>
         <view class="mnames">
           <text class="mname">{{item.label}}</text>
@@ -46,53 +60,49 @@
         <text class="mtag me" wx:if="{{item.isMe}}">我</text>
         <text class="mtag own" wx:if="{{item.role === 'owner' && !item.isMe}}">账主</text>
       </view>
-      <text class="hint">点一下成员能给他起备注，流水页就显示成「备注 标记的」；昵称和备注都在你手机上，别人看不到</text>
+      <text class="hint">账本昵称会共享给成员。点成员可设置个人备注，只有这个备注留在你手机上，不会共享；流水备注属于账目内容，会随记录同步。</text>
     </view>
 
     <view class="card">
       <text class="ct">怎么用</text>
-      <view class="li">· 平时照常记账，都先记在自己手机上</view>
-      <view class="li">· 点「立即同步」把新记的推上去、把别人记的拉下来</view>
-      <view class="li">· 流水页每条都写着「谁 标记的」，顶部还能切「只看我」</view>
-      <view class="li">· 同步按记录编号去重，不会重复不会翻倍</view>
+      <view class="li">· 平时照常记账，先保存到自己手机</view>
+      <view class="li">· 确认范围后，首页可自动同步，也可点「立即同步」</view>
+      <view class="li">· 流水页可切换查看视角；只能修改、删除自己记的账</view>
+      <view class="li">· 同步结果会显示上传、新增、更新和删除数量</view>
     </view>
 
     <view class="card">
       <text class="ct">注意</text>
-      <view class="li">· 这是「合并账本」，不是实时协作：没点同步前，别人看不到你刚记的账</view>
-      <view class="li">· 每个人的分类习惯各自保留，合到一起后按记录里的分类显示</view>
-      <view class="li">· {{isOwner ? '你是账主，退出等于解散，其他人也会被移出' : '退出后本地记录保留，只是不再同步'}}</view>
+      <view class="li">· 不是实时协作：账目变动在下一次成功同步后传递</view>
+      <view class="li">· 自己已共享的记录修改或删除后，会在后续同步时更新云端</view>
+      <view class="li">· {{isOwner ? '你是账主，解散会移出所有成员并清空云端共享记录' : '退出后本机记录保留，不再同步'}}</view>
+      <view class="li">· 退出或解散都无法远程擦除成员手机上已保存的副本</view>
     </view>
-
     <view class="quit" bindtap="quit">{{isOwner ? '解散这个账本' : '退出这个账本'}}</view>
   </block>
 
-  <!-- 未加入 -->
-  <block wx:else>
+  <block wx:elif="{{membershipKnown && !loading}}">
     <view class="card">
       <text class="ct">我先建一本</text>
-      <input class="ipt" placeholder="你的名字，比如「小王」（别人用这个认你记的账）" maxlength="10" value="{{nickInput}}" bindinput="onNick" />
+      <input class="ipt" placeholder="你的名字，比如「小王」（账本成员可见）" maxlength="10" value="{{nickInput}}" bindinput="onNick" />
       <input class="ipt" placeholder="账本名字，比如「我们的家」" maxlength="20" value="{{nameInput}}" bindinput="onName" />
-      <button class="btn main full" loading="{{busy}}" bindtap="createBook">创建共同账本</button>
+      <button class="btn main full" loading="{{busy}}" disabled="{{busy}}" bindtap="createBook">创建共同账本</button>
       <text class="hint">建好后会生成 6 位邀请码，发给家人 / 室友就能加入，最多 10 人</text>
     </view>
-
     <view class="card">
       <text class="ct">别人邀请我</text>
       <input class="ipt code" placeholder="输入 6 位邀请码" maxlength="7" value="{{codeInput}}" bindinput="onCode" />
-      <input class="ipt" placeholder="你的名字，比如「小李」" maxlength="10" value="{{nickInput}}" bindinput="onNick" />
-      <button class="btn plain full" loading="{{busy}}" bindtap="joinBook">加入共同账本</button>
-      <text class="err" wx:if="{{msg}}">{{msg}}</text>
+      <input class="ipt" placeholder="你的名字，比如「小李」（账本成员可见）" maxlength="10" value="{{nickInput}}" bindinput="onNick" />
+      <button class="btn plain full" loading="{{busy}}" disabled="{{busy}}" bindtap="joinBook">加入共同账本</button>
     </view>
-
     <view class="card">
-      <text class="ct">合在一起之后</text>
-      <view class="li">· 别人记的账会同步到你手机上，你记的也会同步过去</view>
-      <view class="li">· 每条记录都带着「谁记的」，总账和只自己的账随时切换着看</view>
-      <view class="li">· 你的历史账目不会被上传，只有加入之后新记的、以及你点同步时才推</view>
-      <view class="li">· 想退出随时可以，本地记录一条都不会丢</view>
+      <text class="ct">加入之后</text>
+      <view class="li">· 先选择并确认共享范围，未确认不会上传流水</view>
+      <view class="li">· 可选加入当天起的本人流水，也可选包含历史的全部本人流水</view>
+      <view class="li">· 确认后，首页可自动同步；成员可见共享记录的金额、商户和流水备注等内容</view>
+      <view class="li">· 查看视角只影响显示；更改共享范围不会删除已有云端记录</view>
     </view>
   </block>
 
-  <view class="foot">账目只在同一个账本里的人之间同步，不会外传。</view>
+  <view class="foot">请只邀请信任的人。成员可能在本机保存已同步的记录。</view>
 </view>

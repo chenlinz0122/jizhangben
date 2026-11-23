@@ -13,11 +13,11 @@
   <view class="balance-card">
     <view class="balance-top">
       <view class="month-picker">
-        <button class="month-arrow" hover-class="none" bindtap="prevMonth" aria-label="上个月">‹</button>
+        <view class="month-arrow" hover-class="arrow-tap" bindtap="prevMonth">‹</view>
         <picker mode="date" fields="month" value="{{ym}}" end="{{maxYm}}" bindchange="pickMonth">
           <view class="month-value">{{monthText}}</view>
         </picker>
-        <button class="month-arrow {{!canNext ? 'off' : ''}}" hover-class="none" bindtap="nextMonth" disabled="{{!canNext}}" aria-label="下个月">›</button>
+        <view class="month-arrow {{!canNext ? 'off' : ''}}" hover-class="none" bindtap="nextMonth">›</view>
       </view>
       <button wx:if="{{!isCurrent}}" class="current-button" bindtap="currentMonth">回本月</button>
       <text wx:else class="month-badge">本月</text>
@@ -37,9 +37,9 @@
   <view class="home-scope" wx:if="{{sharedJoined}}">
     <text class="scope-title">账本视角</text>
     <view class="scope-options">
-      <button class="scope-choice {{scope === 'mine' ? 'selected' : ''}}" data-k="mine" bindtap="setScope">自己</button>
-      <button class="scope-choice {{scope === 'both' ? 'selected' : ''}}" data-k="both" bindtap="setScope">全部成员</button>
-      <button class="scope-choice {{scope === 'peer' ? 'selected' : ''}}" data-k="peer" bindtap="setScope">其他成员</button>
+      <view hover-class="scope-tap" class="scope-choice {{scope === 'mine' ? 'selected' : ''}}" data-k="mine" bindtap="setScope">自己</view>
+      <view hover-class="scope-tap" class="scope-choice {{scope === 'both' ? 'selected' : ''}}" data-k="both" bindtap="setScope">全部成员</view>
+      <view hover-class="scope-tap" class="scope-choice {{scope === 'peer' ? 'selected' : ''}}" data-k="peer" bindtap="setScope">其他成员</view>
     </view>
   </view>
 

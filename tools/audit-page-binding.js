@@ -108,7 +108,8 @@ function collectClasses(wxss) {
 
 function collectUsedClasses(wxml) {
   var out = {}
-  var re = /class\s*=\s*"([^"]*)"/g
+  /* 前面必须是标签/属性分隔符，避免把 hover-class="none" 这类也当成 class 扫进来 */
+  var re = /(?:^|[\s"'\/>])class\s*=\s*"([^"]*)"/g
   var m
   while ((m = re.exec(wxml))) {
     var raw = m[1].replace(/\{\{[\s\S]*?\}\}/g, ' ')

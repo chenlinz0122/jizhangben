@@ -55,6 +55,7 @@ Page({
     ym: '',
     monthText: '',
     canNext: false,
+    maxYm: '',
     hasData: false,
     isCurMonth: true,
     tab: 'expense',
@@ -403,6 +404,7 @@ Page({
 
     this.setData({
       monthText: format.monthLabel(ym),
+      maxYm: curYm,
       canNext: ym < curYm,
       isCurMonth: isCur,
       hasData: s.count > 0,
@@ -627,6 +629,13 @@ Page({
     this.setData({ catsOpen: !this.data.catsOpen }, function () {
       self.refresh()
     })
+  },
+
+  pickMonth: function (e) {
+    var self = this
+    var ym = String(e.detail.value || '')
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(ym) || ym > format.ymOf(Date.now())) return
+    this.setData({ ym: ym }, function () { self.refresh() })
   },
 
   prevMonth: function () {

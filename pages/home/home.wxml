@@ -13,11 +13,11 @@
   <view class="balance-card">
     <view class="balance-top">
       <view class="month-picker">
-        <button class="month-arrow" bindtap="prevMonth" aria-label="上个月">‹</button>
+        <button class="month-arrow" hover-class="none" bindtap="prevMonth" aria-label="上个月">‹</button>
         <picker mode="date" fields="month" value="{{ym}}" end="{{maxYm}}" bindchange="pickMonth">
-          <view class="month-value">{{monthText}}<text class="picker-caret">⌄</text></view>
+          <view class="month-value">{{monthText}}</view>
         </picker>
-        <button class="month-arrow {{!canNext ? 'off' : ''}}" bindtap="nextMonth" disabled="{{!canNext}}" aria-label="下个月">›</button>
+        <button class="month-arrow {{!canNext ? 'off' : ''}}" hover-class="none" bindtap="nextMonth" disabled="{{!canNext}}" aria-label="下个月">›</button>
       </view>
       <button wx:if="{{!isCurrent}}" class="current-button" bindtap="currentMonth">回本月</button>
       <text wx:else class="month-badge">本月</text>

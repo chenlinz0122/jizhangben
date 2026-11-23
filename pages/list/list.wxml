@@ -8,7 +8,7 @@
     </view>
     <view class="month">
       <text class="nav" bindtap="prevMonth" wx:if="{{!searching}}">‹</text>
-      <picker wx:if="{{!searching}}" mode="date" fields="month" value="{{ym}}" end="{{maxYm}}" bindchange="pickMonth"><text class="mtext">{{monthText}} ⌄</text></picker>
+      <picker wx:if="{{!searching}}" mode="date" fields="month" value="{{ym}}" end="{{maxYm}}" bindchange="pickMonth"><text class="mtext">{{monthText}}</text></picker>
       <text wx:else class="mtext">全部流水</text>
       <text class="nav {{canNext ? '' : 'off'}}" bindtap="nextMonth" wx:if="{{!searching}}">›</text>
     </view>

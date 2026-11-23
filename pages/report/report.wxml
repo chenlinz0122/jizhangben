@@ -5,7 +5,7 @@
   <view class="hero {{tab === 'income' ? 'hi' : ''}}">
     <view class="hrow">
       <text class="hnav" bindtap="prevMonth">‹</text>
-      <text class="hmonth">{{monthText}}</text>
+      <picker mode="date" fields="month" value="{{ym}}" end="{{maxYm}}" bindchange="pickMonth"><text class="hmonth">{{monthText}}</text></picker>
       <text class="hnav {{canNext ? '' : 'off'}}" bindtap="nextMonth">›</text>
       <view class="seg">
         <text class="sg {{tab === 'expense' ? 'on' : ''}}" data-tab="expense" bindtap="switchTab">支出</text>

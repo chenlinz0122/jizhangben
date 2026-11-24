@@ -4,7 +4,7 @@
     <view class="step"><text class="sn">最省事</text><text>在账单列表页截一张长图，用「截图识别」，不用导出、不用复制</text></view>
     <view class="step"><text class="sn">支付宝</text><text>我的 → 账单 → 右上角「…」→「开具交易流水证明」→ 用于个人对账 → 填邮箱，收到的文件是 CSV</text></view>
     <view class="step"><text class="sn">微信</text><text>我 → 服务 → 钱包 → 账单 → 右上角「…」→「下载账单」→「用于个人对账」→ 选微信下发或邮箱，拿到的 Excel（.xlsx）可以直接在这里导入</text></view>
-    <view class="step"><text class="sn">银行卡</text><text>手机银行导出 Excel/CSV，同上；银行用得少可以先不管</text></view>
+    <view class="step"><text class="sn">银行卡</text><text>手机银行 App 里「交易明细 / 流水」导出的 Excel、CSV 都能读；懒得导出就把银行的消费短信复制下来，粘下面一样能认</text></view>
     <view class="hint">导出的整月账单比截图准：笔数全、时间准、还有原始交易单号可去重。把文件发给「文件传输助手」，或直接发到这个聊天里，再点下面的按钮选它。</view>
   </view>
 
@@ -15,18 +15,18 @@
     </view>
 
     <view class="btn {{billBusy ? 'disabled' : ''}}" bindtap="chooseBillFile">
-      {{billBusy ? billStep : '导入账单文件 · 微信 Excel / 支付宝 CSV'}}
+      {{billBusy ? billStep : '导入账单文件 · 微信 / 支付宝 / 银行流水'}}
     </view>
-    <view class="btnnote">选微信「下载账单」得到的 .xlsx，或支付宝「交易流水证明」得到的 .csv；整月一次导完，自动分好收支和分类</view>
+    <view class="btnnote">选微信「下载账单」的 .xlsx、支付宝「交易流水证明」的 .csv，或手机银行导出的 Excel/CSV；整月一次导完，自动分好收支和分类</view>
 
     <view class="btn plain" bindtap="goShot">截图识别 · 随手记</view>
     <view class="btnnote">在账单列表页截一张长图，一次能认出十几笔，适合临时补几笔</view>
 
     <view class="btn plain" bindtap="oneTapImport">一键导入 · 读取剪贴板</view>
-    <view class="btnnote">适合你已经在电脑 Excel 里复制好、再发到自己微信的那段文字</view>
+    <view class="btnnote">电脑上复制好的表格、手机里复制的一堆银行短信，粘进剪贴板点这里就行，会自己认是哪一种</view>
 
     <textarea class="ta" value="{{text}}" bindinput="onInput" maxlength="-1"
-              placeholder="备用：把账单表格整块粘在这里，第一行要是表头（含 交易时间、金额 这类列名）"
+              placeholder="备用：账单表格整块粘在这里（第一行要有「交易时间 / 交易日期、金额」这类列名）；银行消费短信也可以直接粘，一条一行"
               placeholder-class="ph"></textarea>
     <view class="oprow">
       <view class="btn small {{text ? '' : 'disabled'}}" bindtap="doParse">解析当前内容</view>

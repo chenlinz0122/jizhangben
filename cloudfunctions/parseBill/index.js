@@ -18,6 +18,21 @@ function decodeText(buf) {
   }
 }
 
+/* 依次试几种解析，第一个真的出数据的胜出；都失败就把最后一个错误抛出去 */
+function tryFirst(list) {
+  var lastErr = null
+  for (var i = 0; i < list.length; i++) {
+    try {
+      var r = list[i]()
+      if (r && r.items && r.items.length) return r
+      lastErr = new Error('这个文件里没读到流水')
+    } catch (e) {
+      lastErr = e
+    }
+  }
+  throw (lastErr || new Error('解析失败'))
+}
+
 exports.main = async function (event) {
   var fileID = event && event.fileID
   var name = String((event && event.name) || '')
@@ -36,13 +51,21 @@ exports.main = async function (event) {
     var parsed
     if (isXlsx) {
       var rows = xlsx.readSheet(buf)
-      parsed = bill.parseWechat(rows)
+      /* 先是微信那一版（表头固定），不对再当银行流水按列名读 */
+      parsed = tryFirst([
+        function () { return bill.parseWechat(rows) },
+        function () { return bill.parseBank(rows) }
+      ])
     } else {
-      parsed = bill.parseAlipay(decodeText(buf))
+      var text = decodeText(buf)
+      parsed = tryFirst([
+        function () { return bill.parseAlipay(text) },
+        function () { return bill.parseBank(bill.csvToRows(text)) }
+      ])
     }
 
-    if (!parsed.items.length) {
-      return { ok: false, error: '这个文件里没读到流水，确认是「微信支付账单」或「支付宝交易明细」的原文件' }
+    if (!parsed || !parsed.items.length) {
+      return { ok: false, error: '这个文件里没读到流水，确认是「微信支付账单」「支付宝交易明细」或者银行 App 导出的流水原件' }
     }
 
     /* 太老的数据不要，避免一次塞爆本地存储 */

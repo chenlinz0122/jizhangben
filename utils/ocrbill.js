@@ -65,6 +65,9 @@ function findPlatformCat(text) {
   return best
 }
 
+/* 银行 App 的标识，用来把截图的来源认出来（储蓄卡/信用卡/尾号是辅助判断） */
+var BANK_NAME_RE = /招商银行|工商银行|建设银行|农业银行|中国银行|交通银行|邮储银行|邮政储蓄|浦发银行|中信银行|兴业银行|民生银行|光大银行|平安银行|华夏银行|广发银行|宁波银行|杭州银行|北京银行|上海银行|江苏银行|农村商业银行|农商行|信用卡中心/
+
 /* ---------- 1. 聚成行 ---------- */
 function groupRows(items) {
   var list = []
@@ -423,10 +426,24 @@ function rowHasAmount(row) {
   return false
 }
 
+/* 只有「余额 + 数字」那一行：银行 App 在每笔下面就摆余额，
+ * 它既不是流水，也不该把卡片的分类/时间信息截断 */
+function isBalanceRow(row) {
+  if (!row || !row.text) return false
+  if (!/余额/.test(row.text)) return false
+  var rest = String(row.text)
+    .replace(/余额|可用余额|账户余额|当前余额/g, '')
+    .replace(/[¥￥+\-\s]/g, '')
+    .replace(/[\d,.]+/g, '')
+  return rest.length <= 2
+}
+
 /* 取这张卡片的整段文字（金额行 + 后面最多两行小字），用来找分类词/日期/时间 */
 function blockText(rows, i) {
   var parts = [rows[i].text]
   for (var k = i + 1; k < rows.length && k <= i + 2; k++) {
+    /* 余额行只是展示，不算卡片内容的结尾，但也不塞进 block（里面有数字会干扰） */
+    if (isBalanceRow(rows[k])) continue
     if (rowHasAmount(rows[k])) break
     parts.push(rows[k].text)
   }
@@ -441,11 +458,13 @@ function parseItems(items, userRules, opts) {
     return { items: [], skipped: 0, source: '', error: '没识别到文字，换一张更清楚的截图' }
   }
 
-  /* 来源：整张图里出现过平台名就认它 */
+  /* 来源：整张图里出现过平台名就认它。
+     银行 App 界面没有统一标志，靠银行名 / 卡类型 / 尾号认。 */
   var allText = rows.map(function (r) { return r.text }).join(' ')
   var source = '截图'
   if (allText.indexOf('支付宝') >= 0 || allText.indexOf('余额宝') >= 0) source = '支付宝'
-  if (allText.indexOf('微信') >= 0 || allText.indexOf('零钱') >= 0) source = '微信'
+  else if (allText.indexOf('微信') >= 0 || allText.indexOf('零钱') >= 0) source = '微信'
+  else if (BANK_NAME_RE.test(allText) || /储蓄卡|借记卡|信用卡|尾号\s*\d{4}/.test(allText)) source = '银行卡'
 
   /* 单笔详情页（微信支付凭证 / 支付宝账单详情）：版面跟列表页完全不同，走另一条解析。
    * 只在认出 2 个以上详情页标志词时才切过去，避免把列表页误判成详情页 */
@@ -463,18 +482,31 @@ function parseItems(items, userRules, opts) {
     var cells = row.cells
     var text = row.text
 
+    /* 银行 App 每笔下面的「余额 xxx」行不是流水，直接略过 */
+    if (source === '银行卡' && isBalanceRow(row)) { skipped++; continue }
+
     /* 顶部汇总行（微信是「支出 ¥1369.74　收入 ¥1184.92」，支付宝是两格并排） */
     if (/支出/.test(text) && /收入/.test(text)) {
       skipped++
       continue
     }
 
-    /* 金额格 */
+    /* 金额格。银行 App 的卡片里「余额 1,234.56」和交易金额并排显示，
+       余额不是这一笔的钱，那一格和它后面的数字都要跳过 */
     var amtCell = null
     var amtIdx = -1
     var inlineMerchant = ''
+    var balIdx = -1
+    for (var bc = 0; bc < cells.length; bc++) {
+      if (/余额/.test(String(cells[bc].text || ''))) { balIdx = bc; break }
+    }
     for (var c = 0; c < cells.length; c++) {
-      var amt = parseAmountCell(cells[c].text)
+      var ct0 = String(cells[c].text || '')
+      if (source === '银行卡') {
+        if (/余额|可用余额|账户余额/.test(ct0)) continue
+        if (balIdx >= 0 && c > balIdx) continue
+      }
+      var amt = parseAmountCell(ct0)
       if (amt) { amtCell = amt; amtIdx = c; break }
     }
 
@@ -577,8 +609,23 @@ function parseItems(items, userRules, opts) {
      * 退款、理财进出、转给他人都不算日常收支，单列出来 */
     var type = 'expense'
     var markRefund = /已全额退款|已退款|退款成功|已退/.test(block)
-    if (!markRefund && /退款|退货/.test(block)) {
+    if (!markRefund && /退款|退货|冲正/.test(block)) {
       type = 'refund'
+    } else if (source === '银行卡') {
+      /* 银行 App 的用词跟微信/支付宝不一样：
+         还款、取现、理财申购赎回是自己账户之间搬；消费/支付/转出/转给是花出去了；
+         入账/转入/工资/结息才是进账。没写方向的银行流水绝大多数是支出。 */
+      if (/信用卡还款|还款成功|自动还款|还信用卡|还款|取现|取款|ATM|理财|基金|申购|赎回|转存|定活互转/.test(block)) {
+        type = 'transfer'
+      } else if (/消费|支付|扣款|扣费|支出|转出|转给|付款|缴费|缴款/.test(block)) {
+        type = 'expense'
+      } else if (/入账|转入|存入|汇入|工资|代发|利息|结息|分红|收到|到账/.test(block)) {
+        type = 'income'
+      } else if (amtCell.sign === '+') {
+        type = 'income'
+      } else {
+        type = 'expense'
+      }
     } else if (/转入|转出|转给|提现|还款|赎回|申购|基金|理财通|零钱通|收益发放|收益入账|理财收益|余额宝收益|零钱充值|充值到零钱|网银充值|银行卡充值|来自银行卡|来自储蓄卡/.test(block)) {
       type = 'transfer'
     } else if (/收益|利息|红包|收款|入账|来自/.test(block)) {

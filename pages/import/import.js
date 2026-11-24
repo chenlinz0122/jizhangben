@@ -1,5 +1,6 @@
 var darkmode = require('../../utils/darkmode')
 var parser = require('../../utils/parser')
+var parsesms = require('../../utils/parsesms')
 var store = require('../../utils/store')
 var format = require('../../utils/format')
 var ocrbill = require('../../utils/ocrbill')
@@ -232,6 +233,20 @@ Page({
     }
   },
 
+  /* 剪贴板里可能是账单表格，也可能是几条银行短信：先看像不像短信，认不出再走表格 */
+  smartParse: function (text) {
+    var rules = store.rules()
+    if (parsesms.looksLikeSms(text)) {
+      var sms = parsesms.parse(text, rules)
+      if (sms.items && sms.items.length) return sms
+      var tbl = parser.parse(text, rules)
+      if (tbl.items && tbl.items.length) return tbl
+      /* 两边都没东西：如果是短信，就报短信那句更好懂的错 */
+      return (sms && sms.error) ? sms : tbl
+    }
+    return parser.parse(text, rules)
+  },
+
   /* 解析给定文本并出预览，供「一键导入」和「手动解析」复用 */
   parseText: function (text) {
     if (!text || text.replace(/\s/g, '').length < 20) {
@@ -240,7 +255,7 @@ Page({
     }
     this.setData({ parsing: true })
 
-    var r = parser.parse(text, store.rules())
+    var r = this.smartParse(text)
     if (r.error) {
       this.setData({ parsing: false })
       wx.showToast({ title: r.error, icon: 'none' })

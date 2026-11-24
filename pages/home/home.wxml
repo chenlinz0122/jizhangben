@@ -46,7 +46,7 @@
   <view class="quick-grid">
     <button class="quick-action" hover-class="none" bindtap="goAdd"><view class="quick-icon q-add">✍️</view><text class="quick-name">记一笔</text><text class="quick-note">随手记录</text></button>
     <button class="quick-action" hover-class="none" bindtap="goShot"><view class="quick-icon q-shot">📷</view><text class="quick-name">截图识别</text><text class="quick-note">从图片记账</text></button>
-    <button class="quick-action" hover-class="none" bindtap="goImport"><view class="quick-icon q-imp">📥</view><text class="quick-name">账单导入</text><text class="quick-note">微信 / 支付宝</text></button>
+    <button class="quick-action" hover-class="none" bindtap="goImport"><view class="quick-icon q-imp">📥</view><text class="quick-name">账单导入</text><text class="quick-note">微信/支付宝/银行</text></button>
     <button class="quick-action" hover-class="none" bindtap="goReport"><view class="quick-icon q-rep">📊</view><text class="quick-name">看报表</text><text class="quick-note">了解钱的去向</text></button>
   </view>
 

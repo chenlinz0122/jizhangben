@@ -316,7 +316,7 @@
       <text class="cw">六</text>
     </view>
     <view class="cal">
-      <view class="cell {{item.blank ? 'blank' : 'lv' + item.level}} {{item.negative ? 'net-refund cal-net' : ''}}"
+      <view class="cell {{item.blank ? 'blank' : 'lv' + item.level}} {{item.negative ? 'net-refund cal-net' : ''}} {{item.today ? 'is-today' : ''}}"
             wx:for="{{cells}}" wx:key="k" data-item="{{item}}" bindtap="tapDay">
         <text class="cd" wx:if="{{!item.blank}}">{{item.d}}</text>
         <text class="cal-minus" wx:if="{{item.negative}}">−</text>
@@ -331,6 +331,10 @@
       <view class="sw lv3"></view>
       <view class="sw lv4"></view>
       <text class="lgtext">多</text>
+      <view class="sw net-refund"></view>
+      <text class="lgtext">退款多于支出</text>
+      <view class="sw today-sw"></view>
+      <text class="lgtext">今天</text>
     </view>
   </view>
 

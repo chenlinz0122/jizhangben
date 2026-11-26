@@ -219,7 +219,8 @@ function calendar(txs, ym, projected) {
   var firstWeekday = new Date(y, m - 1, 1).getDay()
   var rows = project(txs, prefs.refundExcluded(), projected)
   var arr = []
-  for (var d = 1; d <= days; d++) arr.push({ d: d, amount: 0, income: 0, level: 0 })
+  var todayD = ym === format.ymOf(Date.now()) ? new Date().getDate() : 0
+  for (var d = 1; d <= days; d++) arr.push({ d: d, amount: 0, income: 0, level: 0, today: d === todayD })
 
   rows.forEach(function (t) {
     if (t.ym !== ym) return

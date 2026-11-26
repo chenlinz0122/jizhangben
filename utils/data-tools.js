@@ -143,11 +143,15 @@ function restore(onDone) {
                 return
               }
               var n = payload && Array.isArray(payload.txs) ? payload.txs.length : 0
-              if (!n) { fail('备份里没有流水'); return }
+              var goneCount = payload && payload.gone && typeof payload.gone === 'object' && !Array.isArray(payload.gone)
+                ? Object.keys(payload.gone).length : 0
+              if (!n && !goneCount) { fail('备份里没有流水'); return }
               try {
                 wx.showModal({
                   title: '恢复备份？',
-                  content: '备份里有 ' + n + ' 笔流水；将按现有规则合并，已存在的会自动跳过，不清空原账本。备份中的预算和分类规则也会恢复，请先生成当前账本备份。',
+                  content: (n ? '备份里有 ' + n + ' 笔流水' : '这份备份没有流水') +
+                    (goneCount ? '，另有 ' + goneCount + ' 条删除标记' : '') +
+                    '；将按现有规则合并，已存在的会自动跳过，不清空原账本。备份中的预算、历史预算、分类规则、账户、汇率历史与提醒、支付映射、周期账单、预算模板、票据元数据（不含图片文件）、筛选视图、结算状态和分享偏好也会恢复，请先生成当前账本备份。',
                   confirmText: '恢复',
                   success: function (m) {
                     if (!m.confirm) { done({ ok: false, cancelled: true }); return }

@@ -75,6 +75,12 @@ function ledger(txs, exclude) {
   return rows
 }
 
+/* 页面可以传同一次刷新已算好的完整账本投影，避免每个统计函数都重新配对退款。
+   projected 必须对应完整 txs，不能先按月或筛选条件截断，否则会改变跨月退款归属。 */
+function project(txs, exclude, projected) {
+  return projected === undefined ? ledger(txs, exclude) : projected
+}
+
 /* 输入必须已经投影；拆分退款按原始 id 只计一笔。 */
 function totals(rows) {
   var expense = 0
@@ -171,19 +177,20 @@ function aggregate(raw, rows) {
   }
 }
 
-function summary(txs, ym) {
+function summary(txs, ym, projected) {
   var outRefund = prefs.refundExcluded()
   function inMonth(t) { return t.ym === ym }
-  var out = aggregate(txs.filter(inMonth), ledger(txs, outRefund).filter(inMonth))
+  var rows = project(txs, outRefund, projected)
+  var out = aggregate(txs.filter(inMonth), rows.filter(inMonth))
   out.ym = ym
   out.refundOut = outRefund
   return out
 }
 
 /* 近 n 个月趋势（含当前月）。 */
-function trend(txs, ym, n) {
+function trend(txs, ym, n, projected) {
   var out = []
-  var rows = ledger(txs)
+  var rows = project(txs, prefs.refundExcluded(), projected)
   for (var i = n - 1; i >= 0; i--) {
     var m = format.shiftMonth(ym, -i)
     var s = totals(rows.filter(function (t) { return t.ym === m }))
@@ -204,16 +211,17 @@ function daysInMonth(ym) {
 }
 
 /* 金额保留负数，热力只画正支出。 */
-function calendar(txs, ym) {
+function calendar(txs, ym, projected) {
   var p = ym.split('-')
   var y = parseInt(p[0], 10)
   var m = parseInt(p[1], 10)
   var days = daysInMonth(ym)
   var firstWeekday = new Date(y, m - 1, 1).getDay()
+  var rows = project(txs, prefs.refundExcluded(), projected)
   var arr = []
   for (var d = 1; d <= days; d++) arr.push({ d: d, amount: 0, income: 0, level: 0 })
 
-  ledger(txs).forEach(function (t) {
+  rows.forEach(function (t) {
     if (t.ym !== ym) return
     var dd = parseInt(String(t.day).split('-')[2], 10)
     var cell = arr[dd - 1]
@@ -240,10 +248,10 @@ function calendar(txs, ym) {
 }
 
 /* 净支出按现金流日期；最大一笔和消费天数仍看原始付款。 */
-function insights(txs, ym) {
+function insights(txs, ym, projected) {
   var nowYm = format.ymOf(Date.now())
   var elapsed = ym === nowYm ? new Date().getDate() : daysInMonth(ym)
-  var rows = ledger(txs, true).filter(function (t) { return t.ym === ym })
+  var rows = project(txs, true, projected).filter(function (t) { return t.ym === ym })
   var net = totals(rows).expense
   var maxTx = null
   var weekday = 0
@@ -277,8 +285,8 @@ function insights(txs, ym) {
   }
 }
 
-function compareCats(txs, ym) {
-  var prev = summary(txs, format.shiftMonth(ym, -1))
+function compareCats(txs, ym, projected) {
+  var prev = summary(txs, format.shiftMonth(ym, -1), projected)
   var map = emptyMap()
   prev.byCat.forEach(function (c) { map[c.name] = c.amount })
   return {
@@ -287,9 +295,10 @@ function compareCats(txs, ym) {
   }
 }
 
-function topMerchants(txs, ym, n) {
+function topMerchants(txs, ym, n, projected) {
   var map = emptyMap()
-  ledger(txs).forEach(function (t) {
+  var rows = project(txs, prefs.refundExcluded(), projected)
+  rows.forEach(function (t) {
     if (t.ym !== ym || t.type !== 'expense') return
     bump(map, String(t.merchant || '未知').trim(), t.amount, t.id)
   })
@@ -371,10 +380,11 @@ function rankList(list) {
   })
 }
 
-function yearSummary(txs, year) {
+function yearSummary(txs, year, projected) {
   var outRefund = prefs.refundExcluded()
   function inYear(t) { return String(t.ym || '').split('-')[0] === String(year) }
-  var s = aggregate(txs.filter(inYear), ledger(txs, outRefund).filter(inYear))
+  var rows = project(txs, outRefund, projected)
+  var s = aggregate(txs.filter(inYear), rows.filter(inYear))
   var topAll = rankList(s.byCat)
   return {
     year: year,
@@ -398,17 +408,18 @@ function yearSummary(txs, year) {
 }
 
 /* 仅预算消耗总额夹到零，分类净额保留负数。 */
-function budgetSpent(txs, ym) {
+function budgetSpent(txs, ym, projected) {
   var expense = 0
   var refund = 0
   var matched = 0
   var byCat = emptyMap()
+  var rows = project(txs, true, projected)
   txs.forEach(function (t) {
     if (t.ym !== ym) return
     if (t.type === 'expense') expense += cents(t.amount)
     else if (t.type === 'refund') refund += cents(t.amount)
   })
-  ledger(txs, true).forEach(function (t) {
+  rows.forEach(function (t) {
     if (t.ym !== ym || t.type !== 'expense') return
     var cat = t.category || '未分类'
     byCat[cat] = (byCat[cat] || 0) + cents(t.amount)

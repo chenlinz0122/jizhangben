@@ -7,14 +7,17 @@ const path = require('path')
 function makeDB() {
   const store = {}
   let seq = 0
+  let transactionQueue = Promise.resolve()
   const coll = (name) => {
     if (!store[name]) store[name] = []
     return store[name]
   }
   const NEQ = '$neq'
+  const GTE = '$gte'
   const match = (doc, q) => Object.keys(q).every((k) => {
     const want = q[k]
     if (want && typeof want === 'object' && NEQ in want) return doc[k] !== want[NEQ]
+    if (want && typeof want === 'object' && GTE in want) return doc[k] >= want[GTE]
     return doc[k] === want
   })
   const api = {
@@ -67,6 +70,12 @@ function makeDB() {
         }
       }
       return q
+    },
+    runTransaction(callback) {
+      const run = () => callback(api)
+      const result = transactionQueue.then(run, run)
+      transactionQueue = result.catch(() => {})
+      return result
     }
   }
   return { api, store }
@@ -76,7 +85,7 @@ const fake = {
   DYNAMIC_CURRENT_ENV: 'mock-env',
   init() {},
   database() {
-    db.api.command = { neq: (v) => ({ '$neq': v }) }
+    db.api.command = { neq: (v) => ({ '$neq': v }), gte: (v) => ({ '$gte': v }) }
     return db.api
   },
   getWXContext() {
@@ -93,6 +102,7 @@ Module._load = function (request, parent, isMain) {
 }
 
 const fn = require(path.join(__dirname, '..', 'cloudfunctions', 'vip', 'index.js'))
+const feedbackFn = require(path.join(__dirname, '..', 'cloudfunctions', 'feedback', 'index.js'))
 
 /* ---------------- 断言小工具 ---------------- */
 let pass = 0
@@ -103,6 +113,10 @@ function check(name, cond, extra) {
 async function call(openid, event) {
   fake.currentOpenid = openid
   return await fn.main(Object.assign({ action: 'status' }, event || {}))
+}
+async function callFeedback(openid, content) {
+  fake.currentOpenid = openid
+  return await feedbackFn.main({ action: 'submit', type: 'idea', content: content || '并发反馈测试内容' })
 }
 const DAY = 86400000
 const near = (ts, days) => Math.abs(ts - (Date.now() + days * DAY)) < 60000
@@ -173,6 +187,36 @@ const near = (ts, days) => Math.abs(ts - (Date.now() + days * DAY)) < 60000
   check('第 6 次的日志 rewarded=false', lastLog && lastLog.rewarded === false, lastLog)
   const memberA2 = (db.store.members || []).find((m) => m.openid === 'A')
   check('A 的天数 = 5×7 = 35（不含其它来源）', near(memberA2.expireAt, 35), { expireAt: memberA2.expireAt })
+
+  /* 7. 并发兑不同卡：天数必须累加，不能后写的覆盖前一笔 */
+  const concurrentCodes = (db.store.codes || []).filter((c) => c.days > 0 && !c.usedBy).slice(0, 2)
+  const redeemed = await Promise.all(concurrentCodes.map((c) => call('CONCURRENT', { action: 'redeem', code: c.codeText })))
+  check('并发兑码都成功', redeemed.every((r) => r && r.ok), redeemed)
+  const concurrentMember = (db.store.members || []).find((m) => m.openid === 'CONCURRENT')
+  const expectedDays = concurrentCodes.reduce((sum, c) => sum + c.days, 0)
+  check('并发兑码天数完整累加', concurrentMember && near(concurrentMember.expireAt, expectedDays), { expireAt: concurrentMember && concurrentMember.expireAt, expectedDays })
+
+  /* 8. 同一被邀请人并发核销：只能成功一次 */
+  const dupInviter = await call('DUP_INVITER', { action: 'invite' })
+  const dupAccepts = await Promise.all([
+    call('DUP_INVITEE', { action: 'accept', code: dupInviter.code }),
+    call('DUP_INVITEE', { action: 'accept', code: dupInviter.code })
+  ])
+  check('并发邀请只成功一次', dupAccepts.filter((r) => r && r.ok).length === 1 && dupAccepts.some((r) => r && r.code === 'ALREADY_INVITED'), dupAccepts)
+  check('并发邀请只写一条日志', (db.store.invite_logs || []).filter((l) => l.invitee === 'DUP_INVITEE').length === 1)
+
+  /* 9. 同一邀请人并发接收 6 人：最多 5 次奖励 */
+  const capInviter = await call('CAP_INVITER', { action: 'invite' })
+  const capAccepts = await Promise.all(Array.from({ length: 6 }, (_, i) =>
+    call('CAP_INVITEE_' + i, { action: 'accept', code: capInviter.code })
+  ))
+  check('并发邀请全部返回', capAccepts.every((r) => r && r.ok), capAccepts)
+  check('并发邀请奖励没有超过 5 次', capAccepts.filter((r) => r && r.inviterRewarded).length === 5, capAccepts.map((r) => r && r.inviterRewarded))
+
+  /* 10. 反馈并发限频：3 条成功，第 4 条拒绝 */
+  const feedbacks = await Promise.all(Array.from({ length: 4 }, (_, i) => callFeedback('FEEDBACK_USER', '并发反馈测试内容' + i)))
+  check('反馈并发只放行 3 条', feedbacks.filter((r) => r && r.ok).length === 3 && feedbacks.some((r) => r && r.code === 'RATE_LIMIT'), feedbacks)
+  check('反馈库只写入 3 条', (db.store.feedbacks || []).filter((f) => f.openid === 'FEEDBACK_USER').length === 3)
 
   /* 结果 */
   console.log('通过 ' + pass + ' 项，失败 ' + fails.length + ' 项')

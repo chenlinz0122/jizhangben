@@ -38,13 +38,28 @@ Page({
     shareScopeText: '',
     scopeConfirmed: false,
     viewScopeText: '',
-    refundOut: true
+    refundOut: true,
+    toolsOpen: false,
+    tools: [
+      { url: '/pages/accounts/accounts', title: '多账户与余额', note: '现金、银行卡、净资产', icon: 'icon-chart' },
+      { url: '/pages/recurring/recurring', title: '周期账单', note: '房租、工资按期生成', icon: 'icon-book' },
+      { url: '/pages/rules/rules', title: '分类规则', note: '自动分类的启停与预览', icon: 'icon-palette' },
+      { url: '/pages/health/health', title: '数据体检', note: '重复、异常与待分类', icon: 'icon-shield' },
+      { url: '/pages/rate-alerts/rate-alerts', title: '汇率提醒', note: '外币到价提醒', icon: 'icon-shield' },
+      { url: '/pages/annual/annual', title: '年度报告', note: '12 个月收支与排行', icon: 'icon-chart' },
+      { url: '/pages/budget-templates/budget-templates', title: '预算模板', note: '常用方案与模板', icon: 'icon-book' },
+      { url: '/pages/budget-history/budget-history', title: '预算存档', note: '每月预算变更', icon: 'icon-archive' },
+      { url: '/pages/budget-variance/budget-variance', title: '预算偏差', note: '超支、结余与建议', icon: 'icon-chart' },
+      { url: '/pages/insights/insights', title: '健康报告', note: '储蓄率与分类集中度', icon: 'icon-chart' }
+    ]
   },
 
   onLoad: function () {
     var self = this
     this._unloaded = false
-    this.setData({ dark: darkmode.isDark() })
+    var toolsOpen = false
+    try { toolsOpen = wx.getStorageSync('mine_tools_open') === true } catch (e) { toolsOpen = false }
+    this.setData({ dark: darkmode.isDark(), toolsOpen: toolsOpen })
     this._stopDarkWatch = darkmode.watch(function (dark) {
       if (!self._unloaded) self.setData({ dark: dark })
       if (self._visible) theme.syncTabBar()
@@ -130,6 +145,23 @@ Page({
 
   goShare: function () {
     if (!this.blocked()) wx.navigateTo({ url: '/pages/share/share' })
+  },
+
+  toggleTools: function () {
+    if (this._unloaded) return
+    var open = !this.data.toolsOpen
+    this.setData({ toolsOpen: open })
+    try { wx.setStorageSync('mine_tools_open', open) } catch (e) {}
+  },
+
+  goFeature: function (e) {
+    if (this.blocked()) return
+    var url = e.currentTarget.dataset.url
+    if (url) wx.navigateTo({ url: url })
+  },
+
+  goSettlement: function () {
+    if (!this.blocked()) wx.navigateTo({ url: '/pages/settlement/settlement' })
   },
 
   goDataTools: function () {

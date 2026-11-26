@@ -47,6 +47,27 @@ async function getMember(openid) {
   return (snap.data && snap.data[0]) || null
 }
 
+async function getMemberFrom(collection, openid) {
+  const snap = await collection.where({ openid }).limit(1).get()
+  return (snap.data && snap.data[0]) || null
+}
+
+async function grantDaysTx(transaction, openid, days, code) {
+  const members = transaction.collection(MEMBERS)
+  const member = await getMemberFrom(members, openid)
+  const expireAt = core.calcExpire(Date.now(), member && member.expireAt, days)
+  if (member && member._id) {
+    await members.doc(member._id).update({
+      data: { expireAt: expireAt, code: code, updatedAt: Date.now() }
+    })
+  } else {
+    await members.add({
+      data: { openid: openid, expireAt: expireAt, code: code, updatedAt: Date.now() }
+    })
+  }
+  return expireAt
+}
+
 function statusPayload(member) {
   const now = Date.now()
   const expireAt = (member && member.expireAt) || 0
@@ -131,79 +152,40 @@ async function redeem(openid, rawCode) {
     return bad('BAD_FORMAT', '卡密格式不对，应该是 XXXX-XXXX-XXXX-XXXX')
   }
 
-  const snap = await db.collection(CODES).where({ code: code }).limit(1).get()
-  if (!snap.data || !snap.data.length) {
-    return bad('NOT_FOUND', '这张卡密不存在，检查一下有没有输错')
-  }
-  const doc = snap.data[0]
-
-  /* 已经被别人用掉 */
-  if (doc.usedBy && doc.usedBy !== openid) {
-    return bad('USED', '这张卡密已经被用过了')
-  }
-
-  /* 同一张码再提交一次（网络重试）→ 直接返回现状，不重复加天数 */
-  if (doc.usedBy === openid) {
-    const member = await getMember(openid)
-    return ok(Object.assign(statusPayload(member), { already: true }))
-  }
-
-  /* 抢码：只有 usedBy 还是空串的这一次能写进去 */
-  const claim = await db.collection(CODES)
-    .where({ code: code, usedBy: '' })
-    .update({ data: { usedBy: openid, usedAt: Date.now() } })
-
-  if (!claim.stats || claim.stats.updated !== 1) {
-    const again = await db.collection(CODES).where({ code: code }).limit(1).get()
-    const cur = (again.data && again.data[0]) || {}
-    if (cur.usedBy && cur.usedBy !== openid) return bad('USED', '这张卡密已经被用过了')
-    /* 抢码失败但码又没被别人占：只可能是导入时漏了 usedBy 字段（缺字段匹配不上条件） */
-    if (!cur.usedBy) {
-      return bad('CODE_BAD_DATA', '这张卡密数据不完整（缺 usedBy 字段），在数据库里补成空字符串后再兑')
+  /* 抢码、计算到期日、写会员必须在一个事务里。事务冲突会自动重试，
+     并发兑不同卡时不会各自读到旧到期日，后写的一方把前一方天数覆盖掉。 */
+  return await db.runTransaction(async function (transaction) {
+    const codes = transaction.collection(CODES)
+    const snap = await codes.where({ code: code }).limit(1).get()
+    if (!snap.data || !snap.data.length) {
+      return bad('NOT_FOUND', '这张卡密不存在，检查一下有没有输错')
     }
-  }
+    const doc = snap.data[0]
 
-  const days = doc.days === -1 ? -1 : (Number(doc.days) || 365)
-  const member = await getMember(openid)
-  const expireAt = core.calcExpire(Date.now(), member && member.expireAt, days)
-
-  try {
-    if (member && member._id) {
-      await db.collection(MEMBERS).doc(member._id).update({
-        data: { expireAt: expireAt, code: code, updatedAt: Date.now() }
-      })
-    } else {
-      await db.collection(MEMBERS).add({
-        data: { openid: openid, expireAt: expireAt, code: code, updatedAt: Date.now() }
-      })
+    if (doc.usedBy && doc.usedBy !== openid) {
+      return bad('USED', '这张卡密已经被用过了')
     }
-  } catch (e) {
-    /* 写会员失败就把码退回去，别让用户花钱买一张作废的卡 */
-    await db.collection(CODES).where({ code: code, usedBy: openid })
-      .update({ data: { usedBy: '', usedAt: 0 } })
-    throw e
-  }
+    if (doc.usedBy === openid) {
+      const member = await getMemberFrom(transaction.collection(MEMBERS), openid)
+      return ok(Object.assign(statusPayload(member), { already: true }))
+    }
 
-  return ok({ expireAt: expireAt, isVip: true, permanent: core.isPermanent(expireAt), daysLeft: core.daysLeft(Date.now(), expireAt), days: days, openid: openid })
+    const claim = await codes.where({ code: code, usedBy: '' })
+      .update({ data: { usedBy: openid, usedAt: Date.now() } })
+    if (!claim.stats || claim.stats.updated !== 1) {
+      const again = await codes.where({ code: code }).limit(1).get()
+      const cur = (again.data && again.data[0]) || {}
+      if (cur.usedBy && cur.usedBy !== openid) return bad('USED', '这张卡密已经被用过了')
+      if (!cur.usedBy) return bad('CODE_BAD_DATA', '这张卡密数据不完整（缺 usedBy 字段），在数据库里补成空字符串后再兑')
+    }
+
+    const days = doc.days === -1 ? -1 : (Number(doc.days) || 365)
+    const expireAt = await grantDaysTx(transaction, openid, days, code)
+    return ok({ expireAt: expireAt, isVip: true, permanent: core.isPermanent(expireAt), daysLeft: core.daysLeft(Date.now(), expireAt), days: days, openid: openid })
+  })
 }
 
 /* ---------- 邀请好友：双方各 +7 天 ---------- */
-
-/* 给某个 openid 加天数（没开通就直接开），返回新的到期日 */
-async function grantDays(openid, days) {
-  const member = await getMember(openid)
-  const expireAt = core.calcExpire(Date.now(), member && member.expireAt, days)
-  if (member && member._id) {
-    await db.collection(MEMBERS).doc(member._id).update({
-      data: { expireAt: expireAt, updatedAt: Date.now() }
-    })
-  } else {
-    await db.collection(MEMBERS).add({
-      data: { openid: openid, expireAt: expireAt, code: 'invite', updatedAt: Date.now() }
-    })
-  }
-  return expireAt
-}
 
 /* 取/建自己的邀请码 */
 async function invite(openid) {
@@ -249,48 +231,46 @@ async function accept(openid, rawCode) {
   const code = core.normalize(rawCode)
   if (!core.isRightShape(code)) return bad('BAD_FORMAT', '邀请码格式不对')
 
-  const inviterSnap = await db.collection(INVITES).where({ code: code }).limit(1).get()
-  const inviter = inviterSnap.data && inviterSnap.data[0]
-  if (!inviter) return bad('BAD_CODE', '这个邀请码不存在，检查有没有输错')
+  /* 查重、双方加天数、写日志在同一事务里。并发邀请会冲突重试，
+     重试后能看到已写入的日志，不会给同一被邀请人重复发奖。 */
+  return await db.runTransaction(async function (transaction) {
+    const invites = transaction.collection(INVITES)
+    const logs = transaction.collection(INVITE_LOGS)
+    const inviterSnap = await invites.where({ code: code }).limit(1).get()
+    const inviter = inviterSnap.data && inviterSnap.data[0]
+    if (!inviter) return bad('BAD_CODE', '这个邀请码不存在，检查有没有输错')
+    if (inviter.openid === openid) return bad('SELF_INVITE', '不能邀请自己，发给朋友吧')
 
-  if (inviter.openid === openid) {
-    return bad('SELF_INVITE', '不能邀请自己，发给朋友吧')
-  }
+    const dup = await logs.where({ invitee: openid }).limit(1).get()
+    if (dup.data && dup.data.length) return bad('ALREADY_INVITED', '你已经用过一次邀请奖励了')
 
-  /* 一个人一辈子只算一次被邀请 */
-  const dup = await db.collection(INVITE_LOGS).where({ invitee: openid }).limit(1).get()
-  if (dup.data && dup.data.length) {
-    return bad('ALREADY_INVITED', '你已经用过一次邀请奖励了')
-  }
+    const used = await logs.where({ inviter: inviter.openid, rewarded: true }).count()
+    const rewarded = ((used && used.total) || 0) < INVITE_MAX
+    const expireAt = await grantDaysTx(transaction, openid, INVITE_DAYS, 'invite')
+    if (rewarded) await grantDaysTx(transaction, inviter.openid, INVITE_DAYS, 'invite')
 
-  const expireAt = await grantDays(openid, INVITE_DAYS)
+    await logs.add({
+      data: {
+        inviter: inviter.openid,
+        invitee: openid,
+        code: code,
+        days: INVITE_DAYS,
+        rewarded: rewarded,
+        at: Date.now()
+      }
+    })
 
-  /* 邀请人的奖励：超过 5 次就不再加天数，但日志照记（方便你看真实拉新数） */
-  const used = await db.collection(INVITE_LOGS).where({ inviter: inviter.openid, rewarded: true }).count()
-  const rewarded = ((used && used.total) || 0) < INVITE_MAX
-  if (rewarded) await grantDays(inviter.openid, INVITE_DAYS)
-
-  await db.collection(INVITE_LOGS).add({
-    data: {
-      inviter: inviter.openid,
-      invitee: openid,
-      code: code,
+    const member = await getMemberFrom(transaction.collection(MEMBERS), openid)
+    return ok({
       days: INVITE_DAYS,
       rewarded: rewarded,
-      at: Date.now()
-    }
-  })
-
-  const member = await getMember(openid)
-  return ok({
-    days: INVITE_DAYS,
-    rewarded: rewarded,
-    expireAt: expireAt,
-    isVip: true,
-    daysLeft: core.daysLeft(Date.now(), (member && member.expireAt) || expireAt),
-    openid: openid,
-    inviterRewarded: rewarded,
-    maxReward: INVITE_MAX
+      expireAt: expireAt,
+      isVip: true,
+      daysLeft: core.daysLeft(Date.now(), (member && member.expireAt) || expireAt),
+      openid: openid,
+      inviterRewarded: rewarded,
+      maxReward: INVITE_MAX
+    })
   })
 }
 

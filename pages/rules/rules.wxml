@@ -1,0 +1,125 @@
+<view class="theme-{{themeKey}} rules-page {{dark ? 'dark' : ''}}">
+  <view class="hero">
+    <text class="hero-title">分类规则管理中心</text>
+    <text class="hero-subtitle">管理记账时学到的商户分类；停用或删除规则不会改动已有流水</text>
+  </view>
+
+  <view class="summary card">
+    <view class="summary-item">
+      <text class="summary-num">{{totalCount}}</text>
+      <text class="summary-label">全部规则</text>
+    </view>
+    <view class="summary-item">
+      <text class="summary-num accent">{{enabledCount}}</text>
+      <text class="summary-label">已启用</text>
+    </view>
+    <view class="summary-item">
+      <text class="summary-num">{{disabledCount}}</text>
+      <text class="summary-label">已停用</text>
+    </view>
+  </view>
+
+  <view class="loading card" wx:if="{{loading}}">
+    <view class="spinner"></view>
+    <text>正在读取分类规则…</text>
+  </view>
+
+  <view class="error-card card" wx:elif="{{error}}">
+    <text class="error-title">暂时无法管理规则</text>
+    <text class="error-text">{{error}}</text>
+    <button class="secondary-btn" bindtap="retry">重新读取</button>
+  </view>
+
+  <block wx:else>
+    <view class="search-row card">
+      <view class="search-box">
+        <view class="search-icon ui-icon icon-search"></view>
+        <input class="search-input" value="{{search}}" maxlength="80" confirm-type="search"
+               placeholder="搜索商户名或分类" placeholder-class="placeholder" bindinput="onSearch" />
+        <text class="search-clear" wx:if="{{search}}" catchtap="clearSearch">×</text>
+      </view>
+      <view class="filters">
+        <view class="filter {{filter === 'all' ? 'active' : ''}}" data-filter="all" bindtap="pickFilter">全部 {{totalCount}}</view>
+        <view class="filter {{filter === 'enabled' ? 'active' : ''}}" data-filter="enabled" bindtap="pickFilter">启用 {{enabledCount}}</view>
+        <view class="filter {{filter === 'disabled' ? 'active' : ''}}" data-filter="disabled" bindtap="pickFilter">停用 {{disabledCount}}</view>
+      </view>
+    </view>
+
+    <view class="section-head">
+      <text class="section-title">规则列表</text>
+      <button class="text-button danger-text {{actionBusy ? 'is-off' : ''}}" disabled="{{actionBusy || disabledCount === 0}}" bindtap="requestClearDisabled">
+        清空停用{{disabledCount ? '（' + disabledCount + '）' : ''}}
+      </button>
+    </view>
+
+    <view class="action-error" wx:if="{{actionError}}">{{actionError}}</view>
+
+    <view class="empty card" wx:if="{{visibleRules.length === 0}}">
+      <view class="empty-mark">≡</view>
+      <text class="empty-title">{{totalCount === 0 ? '还没有分类规则' : '没有匹配的规则'}}</text>
+      <text class="empty-desc" wx:if="{{totalCount === 0}}">记账时手动修改分类，或导入账单后，规则会出现在这里</text>
+      <text class="empty-desc" wx:else>换个关键词或筛选条件试试</text>
+    </view>
+
+    <view class="rule-list card" wx:else>
+      <view class="rule-item {{!item.enabled ? 'is-disabled' : ''}}" wx:for="{{visibleRules}}" wx:key="merchant">
+        <view class="rule-main">
+          <view class="category-badge" style="background: {{item.tint}}; color: {{item.color}};">{{item.badge}}</view>
+          <view class="rule-copy">
+            <text class="merchant">{{item.merchant}}</text>
+            <view class="category-line">
+              <text class="category-name">{{item.category}}</text>
+              <text class="state-tag {{item.enabled ? 'enabled' : 'disabled'}}">{{item.enabled ? '启用' : '停用'}}</text>
+            </view>
+            <text class="impact">{{item.impactText}}</text>
+          </view>
+        </view>
+        <view class="rule-actions">
+          <switch class="rule-switch" checked="{{item.enabled}}" color="{{themeColor}}" disabled="{{actionBusy}}"
+                  data-merchant="{{item.merchant}}" bindchange="toggleRule" />
+          <button class="delete-button {{actionBusy ? 'is-off' : ''}}" disabled="{{actionBusy}}" data-merchant="{{item.merchant}}"
+                  data-count="{{item.affectedCount}}" bindtap="requestRemove">删除</button>
+        </view>
+      </view>
+    </view>
+
+    <view class="section-head preview-head">
+      <text class="section-title">分类预览</text>
+      <text class="section-note">仅使用当前启用规则</text>
+    </view>
+
+    <view class="preview-card card">
+      <view class="preview-types">
+        <view class="type {{previewType === 'expense' ? 'active' : ''}}" data-type="expense" bindtap="pickPreviewType">支出</view>
+        <view class="type {{previewType === 'income' ? 'active' : ''}}" data-type="income" bindtap="pickPreviewType">收入</view>
+        <view class="type {{previewType === 'transfer' ? 'active' : ''}}" data-type="transfer" bindtap="pickPreviewType">转账</view>
+      </view>
+      <view class="field">
+        <text class="field-label">商户名</text>
+        <input class="field-input" value="{{previewMerchant}}" maxlength="80" placeholder="例如：离线书店"
+               placeholder-class="placeholder" bindinput="onPreviewMerchant" />
+      </view>
+      <view class="field">
+        <text class="field-label">商品说明</text>
+        <input class="field-input" value="{{previewDesc}}" maxlength="200" placeholder="例如：购买图书"
+               placeholder-class="placeholder" bindinput="onPreviewDesc" />
+      </view>
+
+      <view class="preview-result" wx:if="{{previewResult}}">
+        <view class="result-badge" style="background: {{previewResult.tint}}; color: {{previewResult.color}};">{{previewResult.badge}}</view>
+        <view class="result-copy">
+          <text class="result-label">预览分类</text>
+          <text class="result-category">{{previewResult.category}}</text>
+          <text class="result-source">{{previewResult.sourceText}}{{previewResult.keyword ? '：' + previewResult.keyword : ''}}</text>
+        </view>
+      </view>
+      <view class="preview-placeholder" wx:elif="{{!previewError}}">
+        <text>输入商户名或商品说明，结果会实时显示</text>
+      </view>
+      <view class="preview-error" wx:if="{{previewError}}">{{previewError}}</view>
+      <text class="preview-tip">预览不会保存规则，也不会修改流水。转账流水按“不计收支”规则判断。</text>
+    </view>
+  </block>
+
+  <view class="footer">规则仅保存在本机；删除规则不影响历史分类</view>
+</view>

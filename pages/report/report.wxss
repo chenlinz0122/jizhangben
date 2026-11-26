@@ -644,6 +644,8 @@
 
 .links {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 24rpx;
 }
 
@@ -1022,6 +1024,8 @@
   margin-bottom: 4rpx;
 }
 
+.annual-link { display: inline-block; margin: 4rpx 0 2rpx; }
+
 /* 支出 / 入账 切换：跟顶部那个页签一个意思，但这是卡片内的浅色版本 */
 .yseg {
   display: flex;
@@ -1294,3 +1298,5 @@
 .dark .camt { color: #e5eee9; }
 .dark .track { background: #2c3831; }
 .dark .cmeta { color: #93a19a; }
+.dark .iv, .dark .yn { color: #e6e9ec; }
+.dark .bline { color: #b7c2bd; }

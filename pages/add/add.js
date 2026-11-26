@@ -2,6 +2,23 @@ var darkmode = require('../../utils/darkmode')
 var format = require('../../utils/format')
 var store = require('../../utils/store')
 var category = require('../../utils/category')
+var accounts = require('../../utils/accounts')
+var currency = require('../../utils/currency')
+
+var CURRENCY_OPTIONS = currency.CODES.map(function (code) {
+  return { code: code, name: currency.CURRENCIES[code].name, label: code + ' · ' + currency.CURRENCIES[code].name }
+})
+
+function amountCents(text) {
+  var value = String(text || '').trim()
+  if (!/^(?:\d+(?:\.\d{0,2})?|\.\d{1,2})$/.test(value)) return null
+  var cents = Math.round(Number(value) * 100)
+  return isFinite(cents) && cents > 0 && cents <= 9007199254740991 ? cents : null
+}
+
+function accountById(list, id) {
+  return list.filter(function (item) { return item.id === id })[0] || null
+}
 
 function withIcons(names) {
   return names.map(function (n) { return { name: n, icon: category.iconOf(n) } })
@@ -25,6 +42,7 @@ var theme = require('../../utils/theme')
 Page({
   onShow: function () {
     this.setData({ themeKey: theme.get().key, dark: darkmode.isDark() })
+    this.loadAccounts()
   },
   data: {
     dark: false,
@@ -37,23 +55,171 @@ Page({
     note: '',
     date: '',
     today: '',
-    suggestions: []
+    suggestions: [],
+    accounts: [],
+    currencyOptions: CURRENCY_OPTIONS,
+    manualCurrency: 'CNY',
+    manualCurrencyIndex: 0,
+    manualRate: '1',
+    selectedCurrency: 'CNY',
+    selectedSymbol: '¥',
+    selectedRate: 1,
+    selectedRateText: '人民币固定汇率 1',
+    selectedForeign: false,
+    amountPreview: '',
+    toManualCurrency: 'CNY',
+    toManualCurrencyIndex: 0,
+    toManualRate: '1',
+    toCurrency: 'CNY',
+    toSymbol: '¥',
+    toRate: 1,
+    toRateText: '人民币固定汇率 1',
+    toForeign: false,
+    transferPreview: '',
+    accountNames: [{ id: '', name: '未指定账户' }],
+    accountId: '',
+    accountIndex: 0,
+    fromAccountId: '',
+    fromAccountIndex: 0,
+    toAccountId: '',
+    toAccountIndex: 0,
+    saveState: ''
   },
 
   onLoad: function () {
     var today = format.dayOf(Date.now())
     this.setData({ date: today, today: today })
     this._merchants = knownMerchants()
+    this.loadAccounts()
+  },
+
+  loadAccounts: function () {
+    var list = accounts.list()
+    var names = [{ id: '', name: '未指定账户' }].concat(list.map(function (item) {
+      return { id: item.id, name: item.name }
+    }))
+    function indexOf(id) {
+      for (var i = 0; i < names.length; i++) if (names[i].id === id) return i
+      return 0
+    }
+    this.setData({
+      accounts: list,
+      accountNames: names,
+      accountIndex: indexOf(this.data.accountId),
+      fromAccountIndex: indexOf(this.data.fromAccountId),
+      toAccountIndex: indexOf(this.data.toAccountId)
+    })
+    this.syncCurrency()
+  },
+
+  currencyState: function (account, manualCode, manualRate) {
+    var code = account ? account.currency : currency.normalizeCode(manualCode)
+    var rate = account ? account.rateToCny : currency.normalizeRate(manualRate, code)
+    return {
+      code: code,
+      symbol: currency.CURRENCIES[code].symbol,
+      rate: rate === null ? null : rate,
+      rateText: currency.formatRate(rate, code),
+      foreign: code !== 'CNY'
+    }
+  },
+
+  syncCurrency: function () {
+    var transfer = this.data.type === 'transfer'
+    var sourceId = transfer ? this.data.fromAccountId : this.data.accountId
+    var source = this.currencyState(
+      accountById(this.data.accounts, sourceId), this.data.manualCurrency, this.data.manualRate
+    )
+    var target = this.currencyState(
+      accountById(this.data.accounts, this.data.toAccountId), this.data.toManualCurrency, this.data.toManualRate
+    )
+    this.setData({
+      selectedCurrency: source.code,
+      selectedSymbol: source.symbol,
+      selectedRate: source.rate,
+      selectedRateText: source.rateText,
+      selectedForeign: source.foreign,
+      toCurrency: target.code,
+      toSymbol: target.symbol,
+      toRate: target.rate,
+      toRateText: target.rateText,
+      toForeign: target.foreign
+    })
+    this.updateAmountPreviews()
+  },
+
+  updateAmountPreviews: function () {
+    var native = amountCents(this.data.amount)
+    var cny = native === null || this.data.selectedRate === null ? null : currency.convert(native, this.data.selectedRate, 1)
+    var preview = cny === null ? '' : (cny > 0 && this.data.selectedForeign ? '约合 ' + currency.formatNative(cny, 'CNY') : '')
+    var transferPreview = ''
+    if (this.data.type === 'transfer' && native !== null && this.data.selectedRate && this.data.toRate) {
+      var target = currency.convert(native, this.data.selectedRate, this.data.toRate)
+      if (target !== null && target > 0 && (this.data.toCurrency !== this.data.selectedCurrency || this.data.toRate !== this.data.selectedRate)) {
+        transferPreview = '转入约 ' + currency.formatNative(target, this.data.toCurrency)
+      }
+    }
+    this.setData({ amountPreview: preview, transferPreview: transferPreview })
+  },
+
+  onAccount: function (e) {
+    var idx = Number(e.detail.value) || 0
+    this.setData({ accountIndex: idx, accountId: this.data.accountNames[idx].id })
+    this.syncCurrency()
+  },
+
+  onFromAccount: function (e) {
+    var idx = Number(e.detail.value) || 0
+    this.setData({ fromAccountIndex: idx, fromAccountId: this.data.accountNames[idx].id })
+    this.syncCurrency()
+  },
+
+  onToAccount: function (e) {
+    var idx = Number(e.detail.value) || 0
+    this.setData({ toAccountIndex: idx, toAccountId: this.data.accountNames[idx].id })
+    this.syncCurrency()
+  },
+
+  onManualCurrency: function (e) {
+    var index = Number(e.detail.value) || 0
+    var code = CURRENCY_OPTIONS[index].code
+    var rate = code === 'CNY' ? '1' : (this.data.manualCurrency === code ? this.data.manualRate : '')
+    this.setData({ manualCurrencyIndex: index, manualCurrency: code, manualRate: rate })
+    this.syncCurrency()
+  },
+
+  onManualRate: function (e) {
+    this.setData({ manualRate: e.detail.value })
+    this.syncCurrency()
+  },
+
+  onToManualCurrency: function (e) {
+    var index = Number(e.detail.value) || 0
+    var code = CURRENCY_OPTIONS[index].code
+    var rate = code === 'CNY' ? '1' : (this.data.toManualCurrency === code ? this.data.toManualRate : '')
+    this.setData({ toManualCurrencyIndex: index, toManualCurrency: code, toManualRate: rate })
+    this.syncCurrency()
+  },
+
+  onToManualRate: function (e) {
+    this.setData({ toManualRate: e.detail.value })
+    this.syncCurrency()
+  },
+
+  onUnload: function () {
+    if (this._backTimer) clearTimeout(this._backTimer)
   },
 
   switchType: function (e) {
     var t = e.currentTarget.dataset.t
     var cats = withIcons(category.catsOf(t))
     this.setData({ type: t, cats: cats, cat: cats[0].name })
+    this.syncCurrency()
   },
 
   onAmount: function (e) {
     this.setData({ amount: e.detail.value })
+    this.updateAmountPreviews()
   },
 
   onMerchant: function (e) {
@@ -86,12 +252,40 @@ Page({
   },
 
   save: function () {
-    var amountText = String(this.data.amount || '').trim()
-    var amount = Math.round(Number(amountText) * 100) / 100
-    if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(amountText) || !isFinite(amount) || amount <= 0) {
-      wx.showToast({ title: '请填有效正金额，按分取整后不能为 0', icon: 'none' })
+    if (this._saving) return
+    var nativeCents = amountCents(this.data.amount)
+    if (nativeCents === null) {
+      wx.showToast({ title: '请填有效正金额，最多两位小数且不能为 0', icon: 'none' })
       return
     }
+    var isTransfer = this.data.type === 'transfer'
+    var sourceAccount = accountById(this.data.accounts, isTransfer ? this.data.fromAccountId : this.data.accountId)
+    var targetAccount = isTransfer ? accountById(this.data.accounts, this.data.toAccountId) : null
+    var source = this.currencyState(sourceAccount, this.data.manualCurrency, this.data.manualRate)
+    if (source.rate === null) {
+      wx.showToast({ title: '请填写大于 0 的有效汇率', icon: 'none' })
+      return
+    }
+    var cnyCents = currency.convert(nativeCents, source.rate, 1)
+    if (cnyCents === null || cnyCents <= 0) {
+      wx.showToast({ title: '换算后人民币金额不足 0.01 元', icon: 'none' })
+      return
+    }
+    var target = null
+    var targetCents = null
+    if (isTransfer) {
+      target = this.currencyState(targetAccount, this.data.toManualCurrency, this.data.toManualRate)
+      if (target.rate === null) {
+        wx.showToast({ title: '请填写转入币种的有效汇率', icon: 'none' })
+        return
+      }
+      targetCents = currency.convert(nativeCents, source.rate, target.rate)
+      if (targetCents === null || targetCents <= 0) {
+        wx.showToast({ title: '换算后转入金额不足 0.01', icon: 'none' })
+        return
+      }
+    }
+    var amount = cnyCents / 100
 
     var date = String(this.data.date || '')
     var parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date)
@@ -110,6 +304,10 @@ Page({
     var type = this.data.type
     var cat = this.data.cat
     var merchant = this.data.merchant || this.data.note || '(手记)'
+    if (type === 'transfer' && this.data.fromAccountId && this.data.fromAccountId === this.data.toAccountId) {
+      wx.showToast({ title: '转出和转入账户不能相同', icon: 'none' })
+      return
+    }
 
     var rnd = String(Math.floor(Math.random() * 1000000))
     while (rnd.length < 6) rnd = '0' + rnd
@@ -120,10 +318,19 @@ Page({
       day: format.dayOf(ts),
       ym: format.ymOf(ts),
       amount: amount,
+      nativeAmount: nativeCents / 100,
+      currency: source.code,
+      rateToCny: source.rate,
       type: type,
       merchant: merchant,
       desc: this.data.note,
       category: cat,
+      accountId: type === 'transfer' ? '' : this.data.accountId,
+      fromAccountId: type === 'transfer' ? this.data.fromAccountId : '',
+      toAccountId: type === 'transfer' ? this.data.toAccountId : '',
+      toNativeAmount: isTransfer ? targetCents / 100 : undefined,
+      toCurrency: isTransfer ? target.code : undefined,
+      toRateToCny: isTransfer ? target.rate : undefined,
       account: '手记',
       status: '手动',
       source: '手记',
@@ -131,8 +338,17 @@ Page({
       note: this.data.note
     }
 
-    var res = store.addOne(tx)
+    this._saving = true
+    this.setData({ saveState: 'saving' })
+    var res
+    try {
+      res = store.addOne(tx)
+    } catch (e) {
+      res = null
+    }
     if (!res || res.saved !== true || res.partial) {
+      this._saving = false
+      this.setData({ saveState: '' })
       wx.showModal({
         title: '没能保存',
         content: res && res.partial
@@ -142,6 +358,7 @@ Page({
       })
       return
     }
+    this.setData({ saveState: 'saved' })
     if (type !== 'transfer' && this.data.merchant && store.learn(this.data.merchant, cat) === false) {
       wx.showModal({
         title: '流水已保存',
@@ -153,7 +370,9 @@ Page({
     }
 
     wx.showToast({ title: '已记上', icon: 'success' })
-    setTimeout(function () {
+    var self = this
+    this._backTimer = setTimeout(function () {
+      self._backTimer = null
       wx.navigateBack()
     }, 500)
   }

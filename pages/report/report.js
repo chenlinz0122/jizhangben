@@ -18,8 +18,7 @@ function previewCats(list, limit) {
   return list.filter(function (c, i) { return i < limit || c.negative })
 }
 
-function topBy(txs, ym, kind, n) {
-  var rows = stats.ledger(txs, prefs.refundExcluded())
+function topBy(txs, ym, kind, n, rows) {
   var map = Object.create(null)
   for (var i = 0; i < rows.length; i++) {
     var t = rows[i]
@@ -234,6 +233,24 @@ Page({
     wx.navigateTo({ url: '/pages/vip/vip' })
   },
 
+  goAnnual: function () {
+    wx.navigateTo({ url: '/pages/annual/annual?year=' + this.data.ym.slice(0, 4) })
+  },
+
+  goBudgetTemplates: function () {
+    if (!vip.guard('预算模板')) return
+    wx.navigateTo({ url: '/pages/budget-templates/budget-templates' })
+  },
+
+  goBudgetVariance: function () {
+    if (!vip.guard('预算偏差分析')) return
+    wx.navigateTo({ url: '/pages/budget-variance/budget-variance' })
+  },
+
+  goBudgetHistory: function () {
+    wx.navigateTo({ url: '/pages/budget-history/budget-history' })
+  },
+
   /* 页面内返回（报表 ← 总览 是 switchTab，原生没有返回箭头） */
   goBack: function () {
     var target = this.data.backTab
@@ -246,12 +263,17 @@ Page({
     var ym = this.data.ym
     var kind = this.data.tab
     var txs = this.scopeTxs()
-    var s = stats.summary(txs, ym)
-    var bs = stats.budgetSpent(txs, ym)
-    var ins = stats.insights(txs, ym)
-    var cmp = stats.compareCats(txs, ym)
-    var cal = stats.calendar(txs, ym)
-    var ys = stats.yearSummary(txs, ym.split('-')[0])
+    var refundOut = prefs.refundExcluded()
+    /* 退款配对会遍历整本账。首屏汇总、趋势、日历、年度和排行共用同一份投影；
+       只有关闭“退款抵减”时，预算/洞察才需要额外保留退款抵减口径。 */
+    var projected = stats.ledger(txs, refundOut)
+    var budgetRows = refundOut ? projected : stats.ledger(txs, true)
+    var s = stats.summary(txs, ym, projected)
+    var bs = stats.budgetSpent(txs, ym, budgetRows)
+    var ins = stats.insights(txs, ym, budgetRows)
+    var cmp = stats.compareCats(txs, ym, projected)
+    var cal = stats.calendar(txs, ym, projected)
+    var ys = stats.yearSummary(txs, ym.split('-')[0], projected)
     var uncatCount = 0
     var grossCats = Object.create(null)
     var maxPayment = null
@@ -328,14 +350,14 @@ Page({
     this._cats = full
     var preview = previewCats(full, 5)
     /* 每日对比 */
-    var daily = this.buildDaily(txs, ym, kind)
+    var daily = this.buildDaily(txs, ym, kind, cal)
     /* 缩放档位换算成柱子宽度：44 / 62 rpx 之外一律铺满整行 */
     var zoom = this.data.dayZoom || 1
     var dColW = zoom === 1 ? 0 : (zoom === 2 ? 44 : 62)
     var dInW = dColW ? dColW * daily.list.length : 0
 
     /* 近 6 个月对比 */
-    var tr6 = stats.trend(txs, ym, 6)
+    var tr6 = stats.trend(txs, ym, 6, projected)
     var max6 = 0
     for (var i = 0; i < tr6.length; i++) {
       var v = kind === 'income' ? tr6[i].income : tr6[i].expense
@@ -397,8 +419,8 @@ Page({
     })
 
     /* 商户排行：支出榜和入账榜都给出来，当前页签对应的那个排前面 */
-    var topExp = topBy(txs, ym, 'expense', 6)
-    var topInc = topBy(txs, ym, 'income', 6)
+    var topExp = topBy(txs, ym, 'expense', 6, projected)
+    var topInc = topBy(txs, ym, 'income', 6, projected)
     var rankBoards = [
       { key: 'exp', title: s.refundOut ? '净支出排行' : '支出排行', sub: s.refundOut ? '含当月退款抵减 · 按净额排序' : '本月花得最多的商户', inc: false, list: topExp },
       { key: 'inc', title: '入账排行', sub: '本月进账最多的商户', inc: true, list: topInc }
@@ -485,8 +507,8 @@ Page({
     })  },
 
   /* 每日与月汇总共用现金流日期口径。 */
-  buildDaily: function (txs, ym, kind) {
-    var cal = stats.calendar(txs, ym)
+  buildDaily: function (txs, ym, kind, cal) {
+    cal = cal || stats.calendar(txs, ym)
     var m = parseInt(ym.split('-')[1], 10)
     var dim = cal.days.length
     var raw = cal.days.map(function (c) { return kind === 'income' ? c.income : c.amount })

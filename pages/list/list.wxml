@@ -7,10 +7,10 @@
       <text class="sclear" wx:if="{{kw}}" bindtap="clearKw">×</text>
     </view>
     <view class="month">
-      <text class="nav" bindtap="prevMonth" wx:if="{{!searching}}">‹</text>
-      <picker wx:if="{{!searching}}" mode="date" fields="month" value="{{ym}}" end="{{maxYm}}" bindchange="pickMonth"><text class="mtext">{{monthText}}</text></picker>
-      <text wx:else class="mtext">全部流水</text>
-      <text class="nav {{canNext ? '' : 'off'}}" bindtap="nextMonth" wx:if="{{!searching}}">›</text>
+      <text class="nav" bindtap="prevMonth" wx:if="{{!allDates}}">‹</text>
+      <picker wx:if="{{!allDates}}" mode="date" fields="month" value="{{ym}}" end="{{maxYm}}" bindchange="pickMonth"><text class="mtext">{{monthText}}</text></picker>
+      <text wx:else class="mtext">{{monthText}}</text>
+      <text class="nav {{canNext ? '' : 'off'}}" bindtap="nextMonth" wx:if="{{!allDates}}">›</text>
     </view>
     <view class="sumrow">
       <text class="sumi">{{s.refundOut ? '净支出' : '支出'}} ¥{{s.expenseText}}</text>
@@ -29,23 +29,30 @@
     <view class="chips toolbar">
       <text class="chip {{onlyUncat ? 'on' : ''}}" bindtap="toggleUncat">未分类</text>
       <text class="toolbar-spacer"></text>
+      <text class="toolbar-action {{filterLabels.length ? 'on' : ''}}" bindtap="openFilters">筛选{{filterLabels.length ? ' · ' + filterLabels.length : ''}}</text>
       <text class="toolbar-action" bindtap="goImport">导入</text>
       <text class="toolbar-action" bindtap="moreActions">管理</text>
     </view>
-    <view class="chips active-filters" wx:if="{{backTab || filterCat || filterDay || filterKind}}">
+    <view class="chips active-filters" wx:if="{{backTab || filterCat || filterDay || filterKind || filterLabels.length}}">
       <text class="chip back" wx:if="{{backTab}}" bindtap="goBack">‹ {{backLabel}}</text>
       <text class="chip on" wx:if="{{filterCat}}" bindtap="clearFilter">× {{filterCat}}</text>
       <text class="chip on" wx:if="{{filterDay}}" bindtap="clearFilter">× {{filterDay}}</text>
       <text class="chip on" wx:if="{{filterKind}}" bindtap="clearFilter">× {{filterKind === 'income' ? '入账' : '支出'}}</text>
+      <text class="chip on" wx:for="{{filterLabels}}" wx:key="*this">{{item}}</text>
+      <text class="chip" wx:if="{{activeView}}">视图：{{activeView}}</text>
     </view>
+    <scroll-view scroll-x class="saved-strip" wx:if="{{savedViews.length}}">
+      <view class="saved-chip {{activeView === item.name ? 'on' : ''}}" wx:for="{{savedViews}}" wx:key="id" data-id="{{item.id}}" bindtap="applySavedView">
+        <text>{{item.name}}</text><text class="saved-del" data-id="{{item.id}}" catchtap="deleteSavedView">×</text>
+      </view>
+    </scroll-view>
   </view>
 
   <view class="empty" wx:if="{{groups.length === 0}}">
-    <text>{{searching || filterCat || filterDay || filterKind || onlyUncat ? '没有符合筛选条件的记录' : '这个月还没有流水'}}</text>
+    <text>{{hasFilters ? '没有符合筛选条件的记录' : '这个月还没有流水'}}</text>
     <view class="empty-link" wx:if="{{searching}}" bindtap="clearKw">清除关键词 ›</view>
-    <view class="empty-link" wx:if="{{filterCat || filterDay || filterKind}}" bindtap="clearFilter">清除筛选 ›</view>
-    <view class="empty-link" wx:if="{{onlyUncat}}" bindtap="toggleUncat">查看已分类记录 ›</view>
-    <view class="empty-link" wx:if="{{!searching && !filterCat && !filterDay && !filterKind && !onlyUncat}}" bindtap="goImport">导入账单 ›</view>
+    <view class="empty-link" wx:if="{{hasFilters}}" bindtap="clearFilter">清除全部筛选 ›</view>
+    <view class="empty-link" wx:if="{{!hasFilters}}" bindtap="goImport">导入账单 ›</view>
   </view>
 
   <view class="group" wx:for="{{groups}}" wx:key="day" wx:for-item="g">
@@ -66,19 +73,63 @@
           <text class="isub">{{item.category}} · {{item.timeText}}<text class="notedot" wx:if="{{item.note}}"> · 有备注</text></text>
           <text class="idesc" wx:if="{{item.desc}}">{{item.desc}}</text>
         </view>
-        <text class="iamt {{item.type === 'income' || item.type === 'refund' ? 'inc' : (item.type === 'transfer' ? 'muted' : 'exp')}}">{{item.sign}}{{item.amountText}}</text>
+        <view class="amount-block">
+          <text class="iamt {{item.type === 'income' || item.type === 'refund' ? 'inc' : (item.type === 'transfer' ? 'muted' : 'exp')}}">{{item.sign}}{{item.amountText}}</text>
+          <text class="cny-equivalent" wx:if="{{item.foreign}}">≈ {{item.sign}}{{item.cnyAmountText}}</text>
+          <text class="transfer-native" wx:if="{{item.transferTargetText}}">{{item.transferTargetText}}</text>
+        </view>
       </view>
     </view>
   </view>
 
   <view class="tip">点一笔看明细；只有自己记的账能改分类、流水备注或删除。他人记录只读，但可给记账人设本机个人备注。「⋯ 管理」可删本月本人流水或清空本机数据。</view>
 
-<view class="mask" wx:if="{{sheetVisible}}" bindtap="closeSheet"></view>
+<view class="fmask" wx:if="{{filterOpen}}" bindtap="closeFilters" catchmovement="noop">
+  <view class="fpanel" catchtap="noop">
+    <view class="fhead"><text>高级筛选</text><text class="fclose" bindtap="closeFilters">完成</text></view>
+    <view class="fsection">
+      <text class="flabel">金额区间（按绝对值）</text>
+      <view class="frow">
+        <input class="finput" type="digit" value="{{advanced.minAmount}}" data-field="minAmount" bindinput="onFilterInput" placeholder="最低金额" />
+        <text class="fsep">至</text>
+        <input class="finput" type="digit" value="{{advanced.maxAmount}}" data-field="maxAmount" bindinput="onFilterInput" placeholder="最高金额" />
+      </view>
+    </view>
+    <view class="fsection">
+      <text class="flabel">分类（可多选）</text>
+      <view class="chips fcats">
+        <text class="chip {{catSelected[item] ? 'on' : ''}}" wx:for="{{allCats}}" wx:key="*this" data-cat="{{item}}" bindtap="toggleFilterCat">{{item}}</text>
+      </view>
+    </view>
+    <view class="fsection">
+      <text class="flabel">账户</text>
+      <picker range="{{accountOptions}}" range-key="name" value="{{accountIndex}}" bindchange="onFilterAccount">
+        <view class="fpicker">{{accountOptions[accountIndex].name}} ›</view>
+      </picker>
+    </view>
+    <view class="fsection">
+      <text class="flabel">日期区间</text>
+      <view class="frow">
+        <picker mode="date" value="{{advanced.dateFrom}}" data-field="dateFrom" bindchange="onFilterDate"><view class="fpicker">{{advanced.dateFrom || '开始日期'}}</view></picker>
+        <text class="fsep">至</text>
+        <picker mode="date" value="{{advanced.dateTo}}" data-field="dateTo" bindchange="onFilterDate"><view class="fpicker">{{advanced.dateTo || '结束日期'}}</view></picker>
+      </view>
+    </view>
+    <view class="fswitch"><text>排除不计收支的转账</text><switch checked="{{advanced.excludeTransfer}}" bindchange="excludeTransfer" color="{{themeKey === 'amber' ? '#b96a2b' : '#17806b'}}" /></view>
+    <view class="factions">
+      <view class="fbtn plain" bindtap="resetFilters">重置</view>
+      <view class="fbtn plain" bindtap="saveFilterView">保存视图</view>
+      <view class="fbtn" bindtap="applyFilters">应用</view>
+    </view>
+  </view>
+</view>
+
+<view class="mask" wx:if="{{sheetVisible}}" bindtap="closeSheet" catchmovement="noop"></view>
 <view class="sheet {{sheetVisible ? 'up' : ''}}">
   <!-- 明细头：金额 + 方向 -->
   <view class="shamt-row">
     <view class="shamt {{sheetItem.dirClass}}">
-      <text class="shsign">{{sheetItem.sign}}</text><text class="shnum">{{sheetItem.amountText}}</text>
+      <text class="shsign">{{sheetItem.sign}}</text><text class="shnum">{{sheetItem.displayAmountText}}</text>
     </view>
     <text class="shdir {{sheetItem.dirClass}}">{{sheetItem.dirText}}</text>
     <text class="shclose" bindtap="closeSheet">关闭</text>
@@ -106,6 +157,18 @@
       <text class="sl">说明</text>
       <text class="sv sv-wrap">{{sheetItem.desc}}</text>
     </view>
+    <view class="srow" wx:if="{{sheetItem.foreign}}">
+      <text class="sl">原币金额</text>
+      <text class="sv">{{sheetItem.nativeAmountText}}<text class="sv-dim"> · {{sheetItem.rateText}}</text></text>
+    </view>
+    <view class="srow" wx:if="{{sheetItem.foreign}}">
+      <text class="sl">人民币等值</text>
+      <text class="sv">{{sheetItem.cnyAmountText}}</text>
+    </view>
+    <view class="srow" wx:if="{{sheetItem.transferTargetText}}">
+      <text class="sl">目标原币</text>
+      <text class="sv">{{sheetItem.transferTargetText}}</text>
+    </view>
     <view class="srow" wx:if="{{sheetItem.status}}">
       <text class="sl">状态</text>
       <text class="sv">{{sheetItem.status}}</text>
@@ -114,9 +177,21 @@
       <text class="sl">分类依据</text>
       <text class="sv sv-wrap sv-dim">{{sheetItem.why}}</text>
     </view>
+    <view class="srow" bindtap="openAttachments">
+      <text class="sl">票据</text>
+      <text class="sv">{{sheetItem.attachmentCount ? sheetItem.attachmentCount + ' 张图片' : '添加收据或截图'}}<text class="sv-dim"> · 点这里管理</text></text>
+    </view>
     <view class="srow">
       <text class="sl">来源</text>
       <text class="sv">{{sheetItem.source || '—'}}<text class="sv-dim" wx:if="{{sheetItem.account}}"> · {{sheetItem.account}}</text></text>
+    </view>
+    <view class="srow" wx:if="{{sheetItem.type !== 'transfer'}}" bindtap="toggleAccountMode">
+      <text class="sl">账户</text>
+      <text class="sv">{{sheetItem.accountName}}<text class="sv-dim" wx:if="{{sheetItem.canEdit}}"> · 点这里修改</text></text>
+    </view>
+    <view class="srow" wx:else>
+      <text class="sl">账户</text>
+      <text class="sv">{{sheetItem.accountName}}</text>
     </view>
     <view class="srow">
       <text class="sl">流水备注</text>
@@ -129,9 +204,22 @@
   <view class="tip" wx:if="{{sheetItem && !sheetItem.canEdit}}">这是其他成员的流水，只能查看，不能修改或删除；记账人的个人备注仅在本机生效。</view>
   <view class="shacts" wx:if="{{sheetItem.canEdit}}">
     <view class="act {{catMode ? 'on' : ''}}" bindtap="toggleCatMode">{{catMode ? '收起类目' : '改分类'}}</view>
+    <block wx:if="{{sheetItem.type === 'transfer'}}">
+      <view class="act {{accountMode && accountSide === 'from' ? 'on' : ''}}" data-side="from" bindtap="toggleAccountMode">转出账户</view>
+      <view class="act {{accountMode && accountSide === 'to' ? 'on' : ''}}" data-side="to" bindtap="toggleAccountMode">转入账户</view>
+    </block>
+    <view class="act {{accountMode && accountSide === '' ? 'on' : ''}}" wx:else bindtap="toggleAccountMode">{{accountMode ? '收起账户' : '改账户'}}</view>
     <view class="act" bindtap="editNote">改备注</view>
     <view class="act danger" bindtap="deleteSheetItem">删除</view>
   </view>
+
+  <scroll-view scroll-y class="shlist" wx:if="{{accountMode && sheetItem.canEdit}}">
+    <view class="shcat {{sheetItem.accountId === item.id ? 'on' : ''}}"
+          wx:for="{{sheetAccounts}}" wx:key="id" data-idx="{{index}}" bindtap="pickAccount">
+      <text>{{item.name}}</text>
+      <text class="shcheck" wx:if="{{sheetItem.accountId === item.id}}">✓</text>
+    </view>
+  </scroll-view>
 
   <scroll-view scroll-y class="shlist" wx:if="{{catMode && sheetItem.canEdit}}">
     <view class="shcat {{sheetItem.category === item ? 'on' : ''}}"

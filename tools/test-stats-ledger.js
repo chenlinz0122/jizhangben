@@ -7,6 +7,7 @@ global.wx = {
 }
 var stats = require('../utils/stats')
 var prefs = require('../utils/prefs')
+var refundpair = require('../utils/refundpair')
 var pass = 0
 var fails = []
 var fixtures = []
@@ -171,6 +172,29 @@ test('cross-year refunds never restate earlier yearly spending', function () {
   assert.strictEqual(day.level, 0)
   assert.strictEqual(stats.budgetSpent(crossYear, '2025-12').net, 120)
   assert.strictEqual(stats.budgetSpent(crossYear, '2026-01').matched, 120)
+})
+
+test('precomputed full-ledger projections avoid repeated refund pairing', function () {
+  var projected = stats.ledger(crossMonth, true)
+  var originalPair = refundpair.pair
+  var calls = 0
+  refundpair.pair = function (rows) {
+    calls++
+    return originalPair(rows)
+  }
+  try {
+    assert.strictEqual(stats.summary(crossMonth, '2026-11', projected).expense, -20)
+    assert.strictEqual(stats.trend(crossMonth, '2026-11', 2, projected).length, 2)
+    assert.strictEqual(stats.calendar(crossMonth, '2026-11', projected).days[6].amount, -30)
+    assert.strictEqual(stats.insights(crossMonth, '2026-11', projected).net, -20)
+    assert.strictEqual(stats.compareCats(crossMonth, '2026-12', projected).prevTotal, -20)
+    assert.strictEqual(stats.topMerchants(crossMonth, '2026-11', 5, projected).length, 2)
+    assert.strictEqual(stats.yearSummary(crossMonth, '2026', projected).expense, 60)
+    assert.strictEqual(stats.budgetSpent(crossMonth, '2026-11', projected).matched, 30)
+    assert.strictEqual(calls, 0)
+  } finally {
+    refundpair.pair = originalPair
+  }
 })
 
 var onlyRefund = remember([tx('only-refund', '2026-02-01', 'refund', 40, '原退款类别', '__proto__')])

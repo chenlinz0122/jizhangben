@@ -27,7 +27,12 @@ Page({
   onLoad: function () {
     var self = this
     this.setData({ dark: darkmode.isDark() })
-    darkmode.watch(function (d) { self.setData({ dark: d }) })
+    this._unwatchDark = darkmode.watch(function (d) { if (!self._unloaded) self.setData({ dark: d }) })
+  },
+
+  onUnload: function () {
+    this._unloaded = true
+    if (this._unwatchDark) this._unwatchDark()
   },
 
   pickPlatform: function (e) {
@@ -55,6 +60,7 @@ Page({
       sizeType: ['compressed'],
       sourceType: ['album', 'camera'],
       success: function (res) {
+        if (self._unloaded) return
         var f = (res.tempFiles && res.tempFiles[0]) || {}
         if (f.tempFilePath) self.setData({ imagePath: f.tempFilePath })
       }
@@ -101,6 +107,7 @@ Page({
           page: self.route || ''
         },
         success: function (res) {
+          if (self._unloaded) return
           var r = (res && res.result) || {}
           if (r.ok) {
             self.setData({ busy: false, link: '', views: '', imagePath: '' })
@@ -115,6 +122,7 @@ Page({
           self.setData({ busy: false, msg: codeText(r.code, r.msg) })
         },
         fail: function () {
+          if (self._unloaded) return
           self.setData({ busy: false, msg: '提交失败，可能是网络问题，稍后再试' })
         }
       })

@@ -6,9 +6,14 @@
   </view>
 
   <view class="amtbox">
-    <text class="cny">¥</text>
+    <text class="cny">{{selectedSymbol}}</text>
     <input class="amtinput" type="digit" value="{{amount}}" bindinput="onAmount"
-           placeholder="0.00" placeholder-class="amph" />
+           placeholder="0.00" placeholder-class="amph" aria-label="原币金额" />
+  </view>
+  <view class="currency-strip">
+    <text class="currency-caption">{{selectedCurrency}} 原币金额 · {{selectedRateText}}</text>
+    <text class="currency-preview" wx:if="{{amountPreview}}">{{amountPreview}}</text>
+    <text class="currency-preview" wx:if="{{transferPreview}}">{{transferPreview}}</text>
   </view>
 
   <view class="card">
@@ -27,6 +32,55 @@
         <view class="fvalue">{{date}} ›</view>
       </picker>
     </view>
+    <view class="field" wx:if="{{type !== 'transfer'}}">
+      <text class="flabel">账户</text>
+      <picker range="{{accountNames}}" range-key="name" value="{{accountIndex}}" bindchange="onAccount">
+        <view class="fvalue">{{accountNames[accountIndex].name}} ›</view>
+      </picker>
+    </view>
+    <view class="field" wx:if="{{type === 'transfer'}}">
+      <text class="flabel">转出</text>
+      <picker range="{{accountNames}}" range-key="name" value="{{fromAccountIndex}}" bindchange="onFromAccount">
+        <view class="fvalue">{{accountNames[fromAccountIndex].name}} ›</view>
+      </picker>
+    </view>
+    <view class="field" wx:if="{{type === 'transfer'}}">
+      <text class="flabel">转入</text>
+      <picker range="{{accountNames}}" range-key="name" value="{{toAccountIndex}}" bindchange="onToAccount">
+        <view class="fvalue">{{accountNames[toAccountIndex].name}} ›</view>
+      </picker>
+    </view>
+    <view class="field" wx:if="{{type !== 'transfer' && !accountId}}">
+      <text class="flabel">手选币种</text>
+      <picker range="{{currencyOptions}}" range-key="label" value="{{manualCurrencyIndex}}" bindchange="onManualCurrency">
+        <view class="fvalue">{{manualCurrency}} ›</view>
+      </picker>
+    </view>
+    <view class="field" wx:if="{{type === 'transfer' && !fromAccountId}}">
+      <text class="flabel">转出币种</text>
+      <picker range="{{currencyOptions}}" range-key="label" value="{{manualCurrencyIndex}}" bindchange="onManualCurrency">
+        <view class="fvalue">{{manualCurrency}} ›</view>
+      </picker>
+    </view>
+    <view class="field" wx:if="{{type !== 'transfer' && !accountId && manualCurrency !== 'CNY'}}">
+      <text class="flabel">汇率</text>
+      <input class="finput" type="digit" value="{{manualRate}}" bindinput="onManualRate" placeholder="1 外币兑人民币" />
+    </view>
+    <view class="field" wx:if="{{type === 'transfer' && !toAccountId}}">
+      <text class="flabel">转入币种</text>
+      <picker range="{{currencyOptions}}" range-key="label" value="{{toManualCurrencyIndex}}" bindchange="onToManualCurrency">
+        <view class="fvalue">{{toManualCurrency}} ›</view>
+      </picker>
+    </view>
+    <view class="field" wx:if="{{type === 'transfer' && !toAccountId && toManualCurrency !== 'CNY'}}">
+      <text class="flabel">转入汇率</text>
+      <input class="finput" type="digit" value="{{toManualRate}}" bindinput="onToManualRate" placeholder="1 外币兑人民币" />
+    </view>
+    <view class="field" wx:if="{{type === 'transfer'}}">
+      <text class="flabel">到账币种</text>
+      <text class="fvalue">{{toCurrency}} · {{toRateText}}</text>
+    </view>
+    <view class="muted currency-note" wx:if="{{!accountId && type !== 'transfer'}}">未指定账户时可手选币种，默认人民币；金额仍按人民币等值计入统计。</view>
     <view class="field">
       <text class="flabel">交易对方</text>
       <input class="finput" value="{{merchant}}" bindinput="onMerchant" placeholder="可不填" placeholder-class="ph" />
@@ -40,5 +94,5 @@
     </view>
   </view>
 
-  <view class="savebtn btn" bindtap="save">保存</view>
+  <view class="savebtn btn {{saveState ? 'saving' : ''}}" bindtap="save">{{saveState === 'saving' ? '保存中…' : (saveState === 'saved' ? '已保存' : '保存')}}</view>
 </view>

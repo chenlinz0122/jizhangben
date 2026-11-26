@@ -3,9 +3,9 @@
 // 只做一件事：拿一批商户名 → 问模型 → 返回校验过的类目。
 // 不碰流水本身：改不改、改哪条，全由小程序端在用户确认后自己写本地存储。
 //
-// ── Key 怎么配（二选一，推荐环境变量）──
-//   1) 云开发控制台 → 云函数 aiCat → 配置 → 环境变量 → ZHIPU_API_KEY
-//   2) 同目录 secret.js：module.exports = { ZHIPU_API_KEY: 'xxx.yyy' }
+// ── Key 怎么配 ──
+// 云开发控制台 → 云函数 aiCat → 配置 → 环境变量 → ZHIPU_API_KEY
+// 真实 Key 不写进代码或仓库。
 // 申请地址：https://bigmodel.cn/apikey/platform
 //
 // ── 模型：只用 glm-4.7-flash ──
@@ -21,14 +21,7 @@ const cloud = require('wx-server-sdk')
 const https = require('https')
 const core = require('./core')
 
-let secretConfig = {}
-try {
-  secretConfig = require('./secret') || {}
-} catch (e) {
-  secretConfig = {}
-}
-
-const ZHIPU_KEY = process.env.ZHIPU_API_KEY || secretConfig.ZHIPU_API_KEY || ''
+const ZHIPU_KEY = process.env.ZHIPU_API_KEY || ''
 /* 默认就是永久免费那个；改成别的模型有可能开始计费，改之前自己确认 */
 const MODEL = (process.env.AI_MODEL || 'glm-4.7-flash').trim()
 

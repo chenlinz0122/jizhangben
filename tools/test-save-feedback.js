@@ -1,6 +1,7 @@
 const assert = require('assert')
 const path = require('path')
 const copy = (value) => JSON.parse(JSON.stringify(value))
+const accounts = require('../utils/accounts')
 const nativeTimeout = global.setTimeout
 const tx = (id, day, extra) => Object.assign({
   id, day, ym: day.slice(0, 7), time: new Date(day + 'T12:00:00+08:00').getTime(),
@@ -54,7 +55,7 @@ function setup(pageName, failKey) {
   page.refresh = () => {}
   page.offerBatch = () => {}
   return {
-    page, store, disk, modals, toasts, timers,
+    page, store, disk, modals, toasts, timers, definition,
     confirm(content) { const modal = modals[modals.length - 1]; assert.ok(modal && modal.success); modal.success({ confirm: true, content }) },
     retry() { failedKey = undefined },
     denyVip() { allowed = false },
@@ -92,18 +93,68 @@ try {
     check(env.disk.txs_v1.length === 3, name + '规则失败保留已保存的流水')
   }
 
-  let env = setup('add', 'txs_v1')
+  let env = setup('shot')
+  env.page.finishBatch([tx('b-shot-preview', '2018-02-03')], [
+    { no: 3, why: '第三张失败' }, { no: 1, why: '第一张失败' }
+  ], 0, '截图', 3)
+  check(env.page.data.preview.fails.map((f) => f.no).join(',') === '1,3', '多图识别按图序展示全部失败项')
+
+  env = setup('import')
+  let upload = null
+  let parseCalls = 0
+  const deleted = []
+  wx.cloud = {
+    uploadFile: (options) => { upload = options },
+    callFunction: () => { parseCalls++ },
+    deleteFile: (options) => deleted.push(...options.fileList)
+  }
+  env.page.uploadAndParse('memory.csv', 'memory.csv')
+  env.page.onUnload()
+  upload.success({ fileID: 'cloud-file' })
+  check(parseCalls === 0 && deleted.join(',') === 'cloud-file' && env.modals.length === 0, '账单上传完成后离开页面不继续解析或弹窗，并清理云端文件')
+
+  env = setup('import')
+  let attempts = 0
+  wx.cloud = { uploadFile: (options) => { attempts++; options.fail({ errMsg: 'ECONNRESET' }) } }
+  env.page.uploadWithRetry('memory.csv', 'memory.csv', () => {})
+  check(env.timers.length === 1, '上传网络失败安排一次重试')
+  env.page.onUnload()
+  env.timers[0]()
+  check(attempts === 1, '离开页面后不再执行上传重试')
+
+  env = setup('shot')
+  env.page.compress = (src, cb) => cb(src)
+  upload = null
+  parseCalls = 0
+  deleted.length = 0
+  wx.cloud = {
+    uploadFile: (options) => { upload = options },
+    callFunction: () => { parseCalls++ },
+    deleteFile: (options) => deleted.push(...options.fileList)
+  }
+  env.page.ocrOne('memory.jpg', 1, 1, () => {})
+  env.page.onUnload()
+  upload.success({ fileID: 'shot-file' })
+  check(parseCalls === 0 && deleted.join(',') === 'shot-file', '截图上传完成后离开页面不继续识别，并清理云端图片')
+
+  env = setup('add', 'txs_v1')
+  const manualAccount = accounts.save({ name: '现金', type: 'cash', openingBalance: 0, includeInNetWorth: true })
   env.page.onLoad()
-  Object.assign(env.page.data, { date: '2018-02-03', amount: '12.50', merchant: '离线测试店', note: '输入保留' })
+  Object.assign(env.page.data, { date: '2018-02-03', amount: '12.50', merchant: '离线测试店', note: '输入保留', accountId: manualAccount.id })
   env.page.save()
   check(env.page.data.amount === '12.50' && env.page.data.note === '输入保留', '手记失败保留金额备注')
   check(env.backs() === 0 && env.timers.length === 0, '手记失败不返回上一页')
   check(env.modals.at(-1).title === '没能保存', '手记失败反馈')
+  check(!env.page._saving && env.page.data.saveState === '', '手记失败解除保存锁，允许重试')
   env.retry()
   env.page.save()
   check(env.disk.txs_v1.some((t) => t.day === '2018-02-03'), '手记支持超过一年的历史日期')
+  check(env.disk.txs_v1.some((t) => t.day === '2018-02-03' && t.accountId === manualAccount.id), '手记保存账户归属')
   check(env.disk.txs_v1.some((t) => t.id === 'b-old'), '手记历史流水不删已有旧账')
   check(env.toasts.at(-1).title === '已记上', '手记成功反馈')
+  const savedCount = env.disk.txs_v1.length
+  env.page.save()
+  check(env.disk.txs_v1.length === savedCount && env.page.data.saveState === 'saved', '重复点击保存不会生成第二条流水')
   for (const amount of ['Infinity', 'NaN', '0', '-2', '0.001', '12abc']) {
     env = setup('add')
     Object.assign(env.page.data, { amount, date: '2020-01-01' })
@@ -141,6 +192,77 @@ try {
   check(env.page.data.filterCat === '餐饮', '清空失败不重置筛选')
   check(!env.toasts.some((t) => t.title === '已清空'), '清空失败不报成功')
   check(env.disk.member_v1.offline === '保留会员测试标记', '清空尝试不触碰会员数据')
+
+  env = setup('list')
+  const listAccount = accounts.save({ name: '微信', type: 'wallet', openingBalance: 0, includeInNetWorth: true })
+  env.page.openSheet({ currentTarget: { dataset: { id: 'b-current' } } })
+  check(env.page.data.sheetAccounts.some((item) => item.id === listAccount.id), '流水详情加载账户列表')
+  env.page.toggleAccountMode()
+  env.page.pickAccount({ currentTarget: { dataset: { idx: 1 } } })
+  check(env.store.all().find((t) => t.id === 'b-current').accountId === listAccount.id, '流水详情可修改账户归属')
+
+  env = setup('add')
+  const usd = accounts.save({ name: '美元账户', type: 'bank', openingBalance: 100, currency: 'USD', rateToCny: 7.2, includeInNetWorth: true })
+  env.page.onLoad()
+  env.page.onAccount({ detail: { value: 1 } })
+  check(env.page.data.selectedCurrency === 'USD' && env.page.data.selectedSymbol === '$' && env.page.data.selectedRate === 7.2, '手记随账户显示币种符号和汇率')
+  Object.assign(env.page.data, { date: '2020-01-01', amount: '10.25' })
+  env.page.save()
+  let saved = env.store.all().find((t) => t.id !== 'b-old' && t.id !== 'b-current')
+  check(saved.nativeAmount === 10.25 && saved.currency === 'USD' && saved.rateToCny === 7.2, '手记保存原币金额与汇率快照')
+  check(saved.amount === 73.8 && saved.accountId === usd.id, '手记 amount 保存人民币等值')
+
+  env = setup('add')
+  env.page.onLoad()
+  env.page.onManualCurrency({ detail: { value: 1 } })
+  env.page.onManualRate({ detail: { value: '7.2' } })
+  Object.assign(env.page.data, { date: '2020-01-01', amount: '10' })
+  env.page.save()
+  saved = env.store.all().find((t) => t.id !== 'b-old' && t.id !== 'b-current')
+  check(saved.nativeAmount === 10 && saved.amount === 72 && saved.currency === 'USD' && !saved.accountId, '无账户允许手选外币并按人民币等值入账')
+
+  env = setup('add')
+  env.page.onLoad()
+  env.page.onManualCurrency({ detail: { value: 1 } })
+  Object.assign(env.page.data, { date: '2020-01-01', amount: '10' })
+  const beforeInvalidRate = env.writes()
+  env.page.save()
+  check(env.writes() === beforeInvalidRate && /汇率/.test(env.toasts.at(-1).title), '手选外币缺少有效汇率时不保存')
+
+  env = setup('add')
+  accounts.save({ name: '美元', type: 'bank', openingBalance: 100, currency: 'USD', rateToCny: 7.2, includeInNetWorth: true })
+  accounts.save({ name: '日元', type: 'wallet', openingBalance: 1000, currency: 'JPY', rateToCny: 0.05, includeInNetWorth: true })
+  env.page.onLoad()
+  env.page.switchType({ currentTarget: { dataset: { t: 'transfer' } } })
+  env.page.onFromAccount({ detail: { value: 1 } })
+  env.page.onToAccount({ detail: { value: 2 } })
+  Object.assign(env.page.data, { date: '2020-01-01', amount: '10' })
+  env.page.save()
+  saved = env.store.all().find((t) => t.type === 'transfer')
+  check(saved.amount === 72 && saved.nativeAmount === 10 && saved.currency === 'USD' && saved.rateToCny === 7.2, '跨币种转账保存转出原币与人民币等值')
+  check(saved.toNativeAmount === 1440 && saved.toCurrency === 'JPY' && saved.toRateToCny === 0.05, '跨币种转账保存目标账户原币入账和汇率快照')
+
+  env = setup('list')
+  const foreign = tx('b-foreign', '2026-11-23', { amount: 73.8, nativeAmount: 10.25, currency: 'USD', rateToCny: 7.2 })
+  env.disk.txs_v1.push(foreign)
+  env.page.refresh = env.definition.refresh
+  env.page.data.ym = '2026-11'
+  env.page.refresh()
+  let row = env.page.data.groups.flatMap((g) => g.items).find((item) => item.id === 'b-foreign')
+  check(row.foreign && row.amountText === '$10.25 USD' && row.cnyAmountText === '¥73.80', '流水列表显示原币、币种和人民币等值')
+  const oldRow = env.page.data.groups.flatMap((g) => g.items).find((item) => item.id === 'b-current')
+  check(!oldRow.foreign && oldRow.amountText === '20.00', '旧人民币流水列表保持原样')
+  env.page.openSheet({ currentTarget: { dataset: { id: 'b-foreign' } } })
+  check(env.page.data.sheetItem.displayAmountText === '$10.25 USD' && env.page.data.sheetItem.cnyAmountText === '¥73.80', '流水详情显示原币和人民币等值')
+  check(env.page.data.sheetItem.foreign && env.page.data.sheetItem.currency === 'USD', '流水详情显示外汇币种与汇率')
+  env.page.openSheet({ currentTarget: { dataset: { id: 'b-current' } } })
+  check(!env.page.data.sheetItem.foreign && env.page.data.sheetItem.displayAmountText === '20.00', '旧人民币流水详情保持原样')
+
+  const addWxml = require('fs').readFileSync(path.resolve(__dirname, '../pages/add/add.wxml'), 'utf8')
+  check(addWxml.includes('bindchange="onManualCurrency"') && addWxml.includes('bindinput="onManualRate"'), '手记模板提供无账户手选币种与汇率')
+  check(addWxml.includes('{{selectedRateText}}') && addWxml.includes('{{transferPreview}}'), '手记模板展示当前汇率与跨币种到账预览')
+  const listWxml = require('fs').readFileSync(path.resolve(__dirname, '../pages/list/list.wxml'), 'utf8')
+  check(listWxml.includes('item.cnyAmountText') && listWxml.includes('sheetItem.nativeAmountText'), '流水模板展示外汇人民币等值和原币明细')
 
   env = setup('report', 'budget_v1')
   env.page.setBudget()

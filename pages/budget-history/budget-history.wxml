@@ -1,0 +1,83 @@
+<view class="theme-{{themeKey}} bh-page {{dark ? 'dark' : ''}}">
+  <view class="bh-hero">
+    <view class="bh-kicker">BUDGET ARCHIVE</view>
+    <view class="bh-title">历史预算存档</view>
+    <view class="bh-subtitle">留住每个月的预算计划，随时回看调整</view>
+    <view class="bh-current">
+      <view>
+        <text class="bh-current-label">当前预算 · {{currentMonth}}</text>
+        <text class="bh-current-money">{{currentBudgetText}}</text>
+      </view>
+      <text class="bh-current-count">{{currentCategoryCount}} 个分类预算</text>
+    </view>
+    <view class="bh-save {{saving ? 'disabled' : ''}}" bindtap="saveCurrent">{{saving ? '正在存档…' : '存档当前预算'}}</view>
+    <text class="bh-hero-note">同月再次存档会覆盖旧快照，最多保留最近 120 个月</text>
+  </view>
+
+  <view class="bh-error" wx:if="{{error}}">{{error}}</view>
+
+  <view class="bh-section-head" wx:if="{{hasHistory}}">
+    <text class="bh-section-title">预算时间线</text>
+    <text class="bh-section-note">差异 = 当前 − 历史</text>
+  </view>
+
+  <view class="bh-empty" wx:if="{{!hasHistory}}">
+    <view class="bh-empty-mark">—</view>
+    <text class="bh-empty-title">还没有历史预算</text>
+    <text class="bh-empty-text">设置好报表中的月度预算后，点击“存档当前预算”即可留下第一份快照。</text>
+  </view>
+
+  <view class="bh-timeline" wx:if="{{hasHistory}}">
+    <view class="bh-item" wx:for="{{items}}" wx:key="ym">
+      <view class="bh-dot"></view>
+      <view class="bh-card">
+        <view class="bh-card-head">
+          <view>
+            <text class="bh-month">{{item.monthText}}</text>
+            <text class="bh-time">存档于 {{item.updatedAtText}}</text>
+          </view>
+          <view class="bh-copy" data-ym="{{item.ym}}" bindtap="copyHistory">复制</view>
+        </view>
+
+        <view class="bh-budget-grid">
+          <view class="bh-budget-cell">
+            <text class="bh-cell-label">历史总预算</text>
+            <text class="bh-cell-value">{{item.budgetText}}</text>
+          </view>
+          <view class="bh-budget-cell">
+            <text class="bh-cell-label">当前总预算</text>
+            <text class="bh-cell-value">{{item.currentBudgetText}}</text>
+          </view>
+          <view class="bh-budget-cell">
+            <text class="bh-cell-label">总预算差异</text>
+            <text class="bh-cell-value {{item.budgetDiffClass}}">{{item.budgetDiffText}}</text>
+          </view>
+        </view>
+
+        <view class="bh-block">
+          <text class="bh-block-title">历史分类预算</text>
+          <view class="bh-cat-empty" wx:if="{{!item.hasCategories}}">这份快照没有分类预算</view>
+          <view class="bh-cat-row" wx:for="{{item.categories}}" wx:for-item="cat" wx:key="category">
+            <text class="bh-cat-name">{{cat.category}}</text>
+            <text class="bh-cat-amount">{{cat.amountText}}</text>
+          </view>
+        </view>
+
+        <view class="bh-block bh-diff-block">
+          <text class="bh-block-title">与当前分类预算的差异</text>
+          <view class="bh-cat-empty" wx:if="{{!item.hasCategoryDiffs}}">暂无分类预算可比较</view>
+          <view class="bh-diff-row" wx:for="{{item.categoryDiffs}}" wx:for-item="diff" wx:key="category">
+            <view class="bh-diff-main">
+              <text class="bh-cat-name">{{diff.category}}</text>
+              <text class="bh-diff-value {{diff.diffClass}}">{{diff.diffText}}</text>
+            </view>
+            <text class="bh-diff-detail">历史 {{diff.budgetText}} · 当前 {{diff.currentBudgetText}}</text>
+          </view>
+        </view>
+        <text class="bh-diff-error" wx:if="{{item.diffError}}">{{item.diffError}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="bh-footer">快照仅保存预算，不包含流水；备份合并由账本备份统一处理</view>
+</view>

@@ -1,0 +1,224 @@
+<view class="accounts-page theme-{{themeKey}} {{dark ? 'dark' : ''}}">
+  <view class="page-heading">
+    <view class="heading-copy">
+      <text class="page-title">多账户与余额</text>
+      <text class="page-subtitle">看清每一笔钱放在哪里</text>
+    </view>
+    <button class="plain-button add-button {{(busy || mappingBusy || mappingApplyBusy) ? 'is-off' : ''}}" bindtap="openCreate" disabled="{{busy}}" hover-class="button-pressed" aria-label="新增账户">＋ 新增</button>
+  </view>
+
+  <view class="worth-card">
+    <view class="worth-top">
+      <text class="worth-label">总净资产</text>
+      <text class="worth-scope">{{includedCount}} / {{accountCount}} 个账户计入</text>
+    </view>
+    <text class="worth-value {{netWorthNegative ? 'is-negative' : ''}}">{{netWorthReady ? netWorthText : '--'}}</text>
+    <text class="worth-note">外币按账户汇率折算为人民币；期初余额与流水均按原币计算</text>
+  </view>
+
+  <view wx:if="{{error}}" class="error-banner" role="alert">
+    <view class="error-copy">
+      <text class="error-title">暂时无法完整显示</text>
+      <text class="error-message">{{error}}</text>
+    </view>
+    <button class="plain-button retry-button {{(busy || mappingBusy || mappingApplyBusy) ? 'is-off' : ''}}" bindtap="refresh" hover-class="button-pressed">重试</button>
+  </view>
+
+  <view wx:if="{{!accountCount && !error}}" class="empty-state">
+    <view class="empty-badge">账</view>
+    <text class="empty-title">还没有账户</text>
+    <text class="empty-description">建立账户后，可查看各账户余额和总净资产。旧流水不会改动。</text>
+    <button class="primary-button {{(busy || mappingBusy || mappingApplyBusy) ? 'is-off' : ''}}" bindtap="seedExamples" disabled="{{busy}}" loading="{{busy}}" hover-class="button-pressed">一键建立现金 / 微信 / 支付宝 / 银行卡示例</button>
+    <button class="text-button {{(busy || mappingBusy || mappingApplyBusy) ? 'is-off' : ''}}" bindtap="openCreate" disabled="{{busy}}" hover-class="button-pressed">自己创建账户</button>
+  </view>
+
+  <view wx:if="{{accountCount}}" class="list-section">
+    <view class="section-heading">
+      <text>账户余额</text>
+      <text class="section-note">共 {{accountCount}} 个</text>
+    </view>
+    <view wx:for="{{accounts}}" wx:key="id" class="account-card">
+      <view class="account-main">
+        <view class="account-badge badge-{{item.type}}">{{item.initial}}</view>
+        <view class="account-identity">
+          <text class="account-name">{{item.name}}</text>
+          <text class="account-type">{{item.typeLabel}} · {{item.currency}} {{item.currencyName}}</text>
+        </view>
+        <view class="balance-block">
+          <text class="balance-label">当前余额</text>
+          <text class="balance-value {{item.negative ? 'is-negative' : ''}}">{{item.balanceText}}</text>
+        </view>
+      </view>
+      <view class="account-meta">
+        <view class="account-meta-left">
+          <text>期初 {{item.openingBalanceText}}</text>
+          <text class="rate-line">{{item.rateText}}</text>
+        </view>
+        <text class="{{item.includeInNetWorth ? 'included' : 'excluded'}}">{{item.includeInNetWorth ? '计入净资产' : '不计入净资产'}}</text>
+      </view>
+      <view wx:if="{{item.rateHistory.length}}" class="rate-history">
+        <view class="rate-history-heading">
+          <text>汇率记录</text>
+          <text class="rate-history-note">仅审计展示，不改写流水快照</text>
+        </view>
+        <view wx:for="{{item.rateHistory}}" wx:key="id" class="rate-history-row">
+          <text class="rate-history-time">{{item.timeText}}</text>
+          <view class="rate-history-change">
+            <text class="rate-history-value">{{item.changeText}}</text>
+            <text class="rate-history-rate">{{item.rateText}}</text>
+          </view>
+        </view>
+      </view>
+      <view class="account-actions">
+        <button class="plain-button row-action {{(busy || mappingBusy || mappingApplyBusy) ? 'is-off' : ''}}" data-id="{{item.id}}" bindtap="openEdit" disabled="{{busy}}" hover-class="button-pressed" aria-label="编辑{{item.name}}">编辑</button>
+        <button wx:if="{{item.currency !== 'CNY'}}" class="plain-button row-action {{(busy || mappingBusy || mappingApplyBusy) ? 'is-off' : ''}}" data-id="{{item.id}}" bindtap="openRateAlerts" disabled="{{busy}}" hover-class="button-pressed" aria-label="设置{{item.name}}汇率提醒">汇率提醒</button>
+        <button class="plain-button row-action danger-action {{(busy || mappingBusy || mappingApplyBusy) ? 'is-off' : ''}}" data-id="{{item.id}}" bindtap="deleteAccount" disabled="{{busy}}" hover-class="button-pressed" aria-label="删除{{item.name}}">删除</button>
+      </view>
+    </view>
+  </view>
+
+  <text wx:if="{{accountCount}}" class="page-footnote">单账户收支通过 accountId 关联；转账通过转出、转入账户计算。信用卡负余额合法。</text>
+
+  <view wx:if="{{accountCount}}" class="list-section mapping-section">
+    <view class="section-heading">
+      <text>支付方式自动映射</text>
+      <text class="section-note">共 {{mappingRules.length}} 条</text>
+    </view>
+    <view class="mapping-intro">
+      <text class="mapping-intro-title">按原始支付方式文本关联账户</text>
+      <text class="mapping-intro-note">关键词自动忽略大小写和空格，最长匹配优先；命中多个不同账户时不会自动关联。原始 account 文本保留不变。</text>
+      <view class="mapping-stats">
+        <text>可自动关联 {{mappingAutoCount}} 笔</text>
+        <text>需逐笔确认 {{mappingAmbiguousCount}} 笔</text>
+      </view>
+    </view>
+
+    <view wx:if="{{mappingError}}" class="form-error mapping-error" role="alert">{{mappingError}}</view>
+
+    <view class="mapping-editor">
+      <view class="field-group">
+        <text class="field-label">支付方式关键词</text>
+        <input class="field-input" value="{{mappingKeyword}}" maxlength="80" bindinput="inputMappingKeyword" disabled="{{busy || mappingBusy || mappingApplyBusy}}" placeholder="例如：微信、支付宝、云闪付" placeholder-class="input-placeholder" aria-label="支付方式关键词" />
+      </view>
+      <view class="field-group">
+        <text class="field-label">关联账户</text>
+        <picker mode="selector" range="{{accounts}}" range-key="name" value="{{mappingAccountIndex}}" bindchange="pickMappingAccount" disabled="{{busy || mappingBusy || mappingApplyBusy}}">
+          <view class="field-input mapping-picker {{mappingAccountId ? '' : 'is-placeholder'}}">{{mappingAccountId ? (accounts[mappingAccountIndex] && accounts[mappingAccountIndex].name) || '请选择账户' : '请选择账户'}}</view>
+        </picker>
+      </view>
+      <view wx:if="{{mappingFormError}}" class="form-error" role="alert">{{mappingFormError}}</view>
+      <button class="primary-button save-button {{(busy || mappingBusy || mappingApplyBusy) ? 'is-off' : ''}}" bindtap="saveMappingRule" disabled="{{busy || mappingBusy || mappingApplyBusy || !accountCount}}" loading="{{mappingBusy}}" hover-class="button-pressed">新增映射规则</button>
+    </view>
+
+    <view class="mapping-preview">
+      <text class="field-label">匹配预览</text>
+      <input class="field-input" value="{{mappingPreviewText}}" maxlength="200" bindinput="inputMappingPreview" disabled="{{mappingApplyBusy || !!mappingError}}" placeholder="输入完整支付方式文本" placeholder-class="input-placeholder" aria-label="支付方式匹配预览" />
+      <text wx:if="{{mappingPreviewResult}}" class="mapping-preview-result">{{mappingPreviewResult}}</text>
+      <text wx:if="{{mappingPreviewError}}" class="mapping-preview-error">{{mappingPreviewError}}</text>
+    </view>
+
+    <view wx:if="{{!mappingRules.length && !mappingError}}" class="mapping-empty">还没有映射规则。新增后可预览，并批量关联未指定账户的历史流水。</view>
+    <view wx:for="{{mappingRules}}" wx:key="id" class="mapping-card {{item.accountMissing ? 'is-missing' : ''}}">
+      <view class="mapping-rule-main">
+        <view class="mapping-rule-copy">
+          <text class="mapping-keyword">{{item.keyword}}</text>
+          <text class="mapping-target">→ {{item.accountName}}</text>
+        </view>
+        <switch checked="{{item.enabled}}" color="{{themeColor}}" data-id="{{item.id}}" bindchange="toggleMappingRule" disabled="{{busy || mappingBusy || mappingApplyBusy || item.accountMissing}}" aria-label="启用{{item.keyword}}映射" />
+      </view>
+      <view class="mapping-rule-meta">
+        <text class="{{item.enabled ? 'included' : 'excluded'}}">{{item.impactText}}{{item.ambiguityText}}</text>
+        <text>最长优先 · 已有账户不覆盖</text>
+      </view>
+      <view class="mapping-rule-actions">
+        <button class="plain-button row-action danger-action {{(busy || mappingBusy || mappingApplyBusy) ? 'is-off' : ''}}" data-id="{{item.id}}" bindtap="deleteMappingRule" disabled="{{busy || mappingBusy || mappingApplyBusy}}" hover-class="button-pressed">删除规则</button>
+      </view>
+    </view>
+
+    <button class="primary-button mapping-apply {{(busy || mappingBusy || mappingApplyBusy) ? 'is-off' : ''}}" bindtap="applyMappings" disabled="{{busy || mappingBusy || mappingApplyBusy || !!mappingError || (!mappingAutoCount && !mappingAmbiguousCount)}}" loading="{{mappingApplyBusy}}" hover-class="button-pressed">应用到未指定流水</button>
+    <text class="mapping-footnote">仅修改可编辑且尚未指定 accountId 的流水；模糊匹配会逐笔询问，失败不会报告成功。</text>
+  </view>
+
+  <view wx:if="{{mappingApplyBusy && !mappingConfirmed}}" class="mapping-progress" role="status">
+    <text>{{mappingProgress}}</text>
+  </view>
+
+  <view wx:if="{{mappingConfirmed}}" class="form-mask mapping-confirm-mask" catchmovement="noop">
+    <view class="form-sheet" catchtap="noop">
+      <view class="form-heading">
+        <view class="form-heading-copy">
+          <text class="form-title">确认关联账户</text>
+          <text class="form-subtitle">{{mappingConfirmed.txText}}</text>
+        </view>
+      </view>
+      <view class="form-body">
+        <text class="field-hint mapping-confirm-hint">这条流水命中了多个不同账户，请选择要关联的账户。</text>
+        <button wx:for="{{mappingConfirmed.candidates}}" wx:key="accountId" class="plain-button mapping-choice {{(busy || mappingBusy || mappingApplyBusy) ? 'is-off' : ''}}" data-account-id="{{item.accountId}}" bindtap="confirmMappedAccount" hover-class="button-pressed">{{item.accountName}}</button>
+        <button class="text-button mapping-skip {{(busy || mappingBusy || mappingApplyBusy) ? 'is-off' : ''}}" bindtap="skipMappedTx" hover-class="button-pressed">跳过这笔</button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{formVisible}}" class="form-mask" catchmovement="noop" bindtap="closeForm">
+    <view class="form-sheet" catchtap="noop">
+      <view class="form-heading">
+        <view class="form-heading-copy">
+          <text class="form-title">{{formTitle}}</text>
+          <text class="form-subtitle">期初余额按账户原币填写，汇率用于折算人民币净资产</text>
+        </view>
+        <button class="plain-button close-button {{(busy || mappingBusy || mappingApplyBusy) ? 'is-off' : ''}}" bindtap="closeForm" disabled="{{busy}}" hover-class="button-pressed" aria-label="关闭账户表单">取消</button>
+      </view>
+
+      <view class="form-body">
+        <view class="field-group">
+          <text class="field-label">账户名称</text>
+          <input class="field-input" value="{{form.name}}" maxlength="30" bindinput="inputName" disabled="{{busy}}" placeholder="例如：招商银行卡" placeholder-class="input-placeholder" aria-label="账户名称" />
+        </view>
+
+        <view class="field-group">
+          <text class="field-label">账户类型</text>
+          <view class="type-grid">
+            <button wx:for="{{accountTypes}}" wx:key="value" class="plain-button type-option {{form.type === item.value ? 'is-selected' : ''}} {{(busy || mappingBusy || mappingApplyBusy) ? 'is-off' : ''}}" data-type="{{item.value}}" bindtap="pickType" disabled="{{busy}}" hover-class="button-pressed" aria-label="{{item.label}}，{{item.note}}">
+              <text class="type-name">{{item.label}}</text>
+              <text class="type-note">{{item.note}}</text>
+            </button>
+          </view>
+        </view>
+
+        <view class="field-group">
+          <text class="field-label">账户币种</text>
+          <picker mode="selector" range="{{currencyOptions}}" range-key="label" value="{{formCurrencyIndex}}" bindchange="pickCurrency" disabled="{{busy}}">
+            <view class="field-input currency-picker">{{form.currency}} · {{formCurrencyName}} ›</view>
+          </picker>
+        </view>
+
+        <view class="field-group" wx:if="{{form.currency !== 'CNY'}}">
+          <text class="field-label">汇率（1 外币 = 多少人民币）</text>
+          <input class="field-input" type="digit" value="{{form.rateToCny}}" bindinput="inputRate" disabled="{{busy}}" placeholder="例如美元填 7.20" placeholder-class="input-placeholder" aria-label="账户汇率" />
+          <text class="field-hint">{{formRateHint}}。新流水会保存当时的汇率快照；修改汇率会留下审计记录。</text>
+        </view>
+
+        <view class="field-group">
+          <text class="field-label">期初余额（{{form.currency}}）</text>
+          <view class="amount-input-wrap">
+            <text class="currency-mark">{{formCurrencySymbol}}</text>
+            <input class="field-input amount-input" type="{{form.type === 'credit' ? 'text' : 'digit'}}" value="{{form.openingBalance}}" bindinput="inputOpening" disabled="{{busy}}" placeholder="0.00" placeholder-class="input-placeholder" aria-label="原币期初余额" />
+          </view>
+          <text wx:if="{{form.type === 'credit'}}" class="field-hint credit-hint">信用卡可填负数，例如 -1200.00 表示待还金额。</text>
+          <text wx:else class="field-hint">现金、银行卡和电子钱包的期初余额不能为负数。</text>
+        </view>
+
+        <view class="switch-row">
+          <view class="switch-copy">
+            <text class="field-label">计入总净资产</text>
+            <text class="field-hint">关闭后仍显示余额，但不合计到总净资产</text>
+          </view>
+          <switch checked="{{form.includeInNetWorth}}" color="{{themeColor}}" bindchange="toggleInclude" disabled="{{busy}}" aria-label="计入总净资产" />
+        </view>
+
+        <view wx:if="{{formError}}" class="form-error" role="alert">{{formError}}</view>
+        <button class="primary-button save-button {{(busy || mappingBusy || mappingApplyBusy) ? 'is-off' : ''}}" bindtap="saveForm" disabled="{{busy}}" loading="{{busy}}" hover-class="button-pressed">{{busy ? '保存中…' : '保存账户'}}</button>
+      </view>
+    </view>
+  </view>
+</view>

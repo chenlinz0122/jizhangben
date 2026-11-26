@@ -1,0 +1,104 @@
+<view class="theme-{{themeKey}} rate-page {{dark ? 'dark' : ''}}">
+  <view class="rate-back" bindtap="goBack">‹ 返回账户</view>
+
+  <view class="rate-header">
+    <text class="rate-title">汇率变更提醒</text>
+    <text class="rate-subtitle">按账户设置目标汇率，跨越时在应用内提醒</text>
+  </view>
+
+  <view class="rate-notice" role="note">
+    <text class="rate-notice-title">仅应用内提醒</text>
+    <text>不后台推送、不发送通知。只有打开应用并进入提醒页面时，才能查看待提醒状态；请勿依赖它接收紧急汇率信息。</text>
+  </view>
+
+  <view class="rate-card" wx:if="{{accountOptions.length}}">
+    <text class="rate-label">选择外币账户</text>
+    <picker range="{{accountOptions}}" range-key="name" value="{{accountIndex}}" bindchange="pickAccount">
+      <view class="rate-account-picker">{{accountOptions[accountIndex].name}} ›</view>
+    </picker>
+  </view>
+
+  <view class="rate-error" wx:if="{{error}}" role="alert">{{error}}</view>
+
+  <view class="rate-card" wx:if="{{accountName}}">
+    <view class="rate-row">
+      <text class="rate-label">当前账户</text>
+      <text class="rate-account-name">{{accountName}}</text>
+    </view>
+    <view class="rate-row">
+      <text class="rate-label">当前币种</text>
+      <text class="rate-value">{{currency}} · {{currencyName}}</text>
+    </view>
+    <view class="rate-row">
+      <text class="rate-label">当前汇率</text>
+      <text class="rate-value rate-number">{{currentRateText}}</text>
+    </view>
+    <text class="rate-hint" wx:if="{{supported}}">1 {{currency}} = {{currentRate}} CNY；修改账户汇率后由应用调用评估。</text>
+  </view>
+
+  <view class="rate-card" wx:if="{{supported}}">
+    <view class="rate-card-heading">
+      <text class="rate-card-title">提醒规则</text>
+      <switch checked="{{enabled}}" bindchange="toggleEnabled" color="#17806b" aria-label="启用汇率提醒" />
+    </view>
+
+    <view class="rate-field">
+      <text class="rate-label">目标汇率（CNY）</text>
+      <view class="rate-input-row">
+        <input class="rate-input" type="digit" value="{{targetRate}}" bindinput="inputTarget" placeholder="填写大于 0 的数字" placeholder-class="rate-placeholder" aria-label="目标汇率" />
+        <text class="rate-unit">CNY</text>
+      </view>
+      <text class="rate-hint">表示 1 {{currency}} 兑换的人民币数量。</text>
+    </view>
+
+    <text class="rate-label rate-direction-label">触发方向</text>
+    <view class="rate-directions">
+      <view class="rate-direction {{direction === 'above' ? 'selected' : ''}}" data-direction="above" bindtap="selectDirection" role="radio" aria-checked="{{direction === 'above'}}">
+        <text class="rate-direction-mark">{{direction === 'above' ? '●' : '○'}}</text>
+        <view>
+          <text class="rate-direction-title">上涨到提醒</text>
+          <text class="rate-direction-sub">由低于目标变为达到或高于目标</text>
+        </view>
+      </view>
+      <view class="rate-direction {{direction === 'below' ? 'selected' : ''}}" data-direction="below" bindtap="selectDirection" role="radio" aria-checked="{{direction === 'below'}}">
+        <text class="rate-direction-mark">{{direction === 'below' ? '●' : '○'}}</text>
+        <view>
+          <text class="rate-direction-title">下跌到提醒</text>
+          <text class="rate-direction-sub">由高于目标变为达到或低于目标</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="rate-actions">
+      <view class="rate-button rate-button-primary" bindtap="saveSettings">保存设置</view>
+      <view class="rate-button" bindtap="testAlert">立即测试</view>
+    </view>
+    <text class="rate-hint rate-center">达到目标即算跨越；同一方向只提醒一次，确认待提醒或关闭后才可再次触发。</text>
+  </view>
+
+  <view class="rate-card rate-status {{statusClass}}" wx:if="{{supported}}">
+    <view class="rate-card-heading">
+      <text class="rate-card-title">提醒状态</text>
+      <text class="rate-badge {{statusClass}}">{{statusText}}</text>
+    </view>
+    <view class="rate-pending" wx:if="{{pending}}" role="alert">
+      <text class="rate-pending-title">待提醒</text>
+      <text>汇率已{{direction === 'above' ? '上涨到' : '下跌到'}}目标 {{targetRate}} CNY，请确认后继续监控。</text>
+    </view>
+    <view class="rate-row">
+      <text class="rate-label">累计触发</text>
+      <text class="rate-value">{{triggerCount}} 次</text>
+    </view>
+    <view class="rate-row">
+      <text class="rate-label">最近触发</text>
+      <text class="rate-value">{{lastTriggeredText}}</text>
+    </view>
+    <view class="rate-button rate-button-warning" wx:if="{{pending}}" bindtap="acknowledge">确认待提醒</view>
+  </view>
+
+  <view class="rate-card rate-empty" wx:if="{{!supported}}">
+    <text class="rate-empty-title">当前账户不支持</text>
+    <text wx:if="{{currency === 'CNY'}}">人民币汇率固定为 1，无需设置汇率变更提醒。</text>
+    <text wx:else>请选择有效的外币账户。</text>
+  </view>
+</view>

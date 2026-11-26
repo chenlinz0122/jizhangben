@@ -44,9 +44,9 @@ function normMerchant(name) {
   return s
 }
 
-/* 两个规范化名字有没有 2 个字以上的公共片段（用来认「抖音电商商家」和「抖音商城」）
- * 缓存：这是全流程最贵的一步（长度 10 的名字要试约 45 次子串搜索），
- * 而名字组合是有限的，缓存后同一对名字只算一次。 */
+/* 两个规范化名字是否有至少 3 个字的公共片段（用来认「抖音电商商家」和「抖音商城」）。
+ * 不用任意 2 字片段：「中国石化」和「中国移动」都含「中国」，同额时会错配。
+ * 规范化后相同的两字品牌（抖音 / 美团）仍走 same，不受影响。 */
 var _tokenCache = Object.create(null)
 function shareToken(a, b) {
   if (!a || !b) return false
@@ -55,7 +55,7 @@ function shareToken(a, b) {
   var hit = _tokenCache[key]
   if (hit !== undefined) return hit
   var out = false
-  for (var len = Math.min(a.length, b.length); len >= 2; len--) {
+  for (var len = Math.min(a.length, b.length); len >= 3; len--) {
     for (var i = 0; i + len <= a.length; i++) {
       if (b.indexOf(a.substr(i, len)) >= 0) { out = true; break }
     }
@@ -84,9 +84,10 @@ function scoreOf(e, r) {
   var exact = Math.abs(e.left - r.amount) <= 0.01
   var canPay = e.left >= r.amount - 0.01
 
-  /* 名字没关系、金额又不一样的，一律不许配：
-     不然「闲鱼退 12.5」会被硬塞给「海底捞 320」，把好账算坏 */
-  if (!same && !alike && !exact) return -1
+  /* 名字没关系时只允许「退款/退货」这类明确退款别名按同额兜底；
+     不能仅凭同额就配给任意商户，否则中国石化和中国移动同额也会互相冲抵。 */
+  var refundAlias = /退款|退货|冲正|返款|返还/.test(String(r.merchant || ''))
+  if (!same && !alike && !(exact && refundAlias)) return -1
 
   var s = 0
   if (same) s += 100

@@ -1,0 +1,119 @@
+<view class="theme-{{themeKey}} page {{dark ? 'dark' : ''}}">
+  <view class="hero">
+    <view class="hero-kicker">BUDGET TEMPLATES</view>
+    <view class="hero-title">预算模板</view>
+    <view class="hero-sub">先规划，再一键安排本月预算</view>
+    <view class="hero-note">内置金额仅为示例，可编辑后保存为自己的模板</view>
+  </view>
+
+  <view class="notice">
+    <view class="notice-title">应用前请确认</view>
+    <view class="notice-text">应用会覆盖当前月预算与现有分类预算，模板中未列出的分类预算将被清除。月度预算会员限制沿用报表页，本页不会绕过。</view>
+  </view>
+
+  <view class="section-head between">
+    <view class="title">选择模板</view>
+    <view class="muted">{{builtinTemplates.length + customTemplates.length}} 个</view>
+  </view>
+
+  <view class="template-grid">
+    <view wx:for="{{builtinTemplates}}" wx:key="id" class="template-card {{item.selected ? 'selected' : ''}}" data-id="{{item.id}}" bindtap="selectTemplate" hover-class="card-hover">
+      <view class="template-top">
+        <view class="template-name">{{item.name}}</view>
+        <view class="badge">{{item.typeText}}</view>
+      </view>
+      <view class="template-money">{{item.budgetText}}</view>
+      <view class="template-desc">{{item.categoryText}}</view>
+      <view class="selected-mark" wx:if="{{item.selected}}">已选择</view>
+    </view>
+  </view>
+
+  <view class="section-head between custom-head">
+    <view class="title">我的模板</view>
+    <view class="muted">{{customTemplates.length}} 个</view>
+  </view>
+  <view wx:if="{{!customTemplates.length}}" class="empty card">还没有我的模板，可从内置示例编辑保存</view>
+  <view wx:for="{{customTemplates}}" wx:key="id" class="card custom-card {{item.selected ? 'selected' : ''}}">
+    <view class="template-top" data-id="{{item.id}}" bindtap="selectTemplate" hover-class="card-hover">
+      <view class="template-name">{{item.name}}</view>
+      <view class="template-money">{{item.budgetText}}</view>
+    </view>
+    <view class="template-desc" data-id="{{item.id}}" bindtap="selectTemplate">{{item.categoryText}}</view>
+    <view class="item-actions">
+      <view class="action" data-id="{{item.id}}" bindtap="editTemplate">编辑</view>
+      <view class="action" data-id="{{item.id}}" bindtap="duplicateTemplate">复制</view>
+      <view class="action danger" data-id="{{item.id}}" bindtap="removeTemplate">删除</view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="between">
+      <view class="title">金额预览</view>
+      <view class="badge" wx:if="{{preview}}">{{preview.name}}</view>
+    </view>
+    <view wx:if="{{!preview}}" class="empty">请选择一个有效模板</view>
+    <block wx:else>
+      <view class="preview-total">
+        <view>
+          <view class="muted">月预算</view>
+          <view class="big-money">{{preview.monthlyBudgetText}}</view>
+        </view>
+        <view class="current-note">当前月预算<br />¥{{currentBudget}}</view>
+      </view>
+      <view class="field income-field">
+        <text class="flabel">月收入（选填）</text>
+        <input class="finput" type="digit" value="{{incomeInput}}" bindinput="onIncomeInput" placeholder="用于估算预算占比" placeholder-class="ph" />
+      </view>
+      <view class="preview-metrics">
+        <view class="metric"><text class="metric-value">{{preview.allocatedText}}</text><text class="metric-label">分类预算合计</text></view>
+        <view class="metric"><text class="metric-value {{preview.overAllocated ? 'warning' : ''}}">{{preview.remainingText}}</text><text class="metric-label">{{preview.overAllocated ? '超出月预算' : '尚未分配'}}</text></view>
+        <view class="metric"><text class="metric-value">{{preview.budgetRate === null ? '—' : preview.budgetRate + '%'}}</text><text class="metric-label">月预算占收入</text></view>
+      </view>
+      <view class="preview-rows">
+        <view wx:for="{{preview.rows}}" wx:key="category" class="preview-row">
+          <view class="preview-row-main">
+            <text>{{item.category}}</text>
+            <text>{{item.amountText}}</text>
+          </view>
+          <view class="progress"><view class="progress-in" style="width: {{item.percent > 100 ? 100 : item.percent}}%;"></view></view>
+        </view>
+      </view>
+      <view class="tip">预览不会修改账本；应用时月预算与分类预算会一起覆盖。</view>
+      <view class="btn primary {{applying ? 'disabled' : ''}}" bindtap="applyTemplate">{{applying ? '等待确认…' : '应用到本月预算'}}</view>
+    </block>
+  </view>
+
+  <view class="card">
+    <view class="between">
+      <view class="title">{{editingId ? '编辑我的模板' : '编辑并保存'}}</view>
+      <view class="badge" wx:if="{{editingId}}">编辑中</view>
+    </view>
+    <view class="tip top-tip">选择上方模板后，点击“载入模板”调整月预算和分类预算。内置模板保持不变。</view>
+    <view class="action wide load-draft" bindtap="openDraft">载入模板</view>
+    <view class="field">
+      <text class="flabel">模板名称</text>
+      <input class="finput" value="{{draftName}}" maxlength="40" bindinput="onNameInput" placeholder="1—40 个字符" placeholder-class="ph" />
+    </view>
+    <view class="field amount-field">
+      <text class="flabel">月预算</text>
+      <text class="cny">¥</text>
+      <input class="finput" type="digit" value="{{draftBudget}}" bindinput="onBudgetInput" placeholder="0.00" placeholder-class="ph" />
+    </view>
+    <view class="form-label budget-label">分类预算 <text class="muted">留空表示不设置</text></view>
+    <view class="budget-row" wx:for="{{draftRows}}" wx:key="category">
+      <text class="budget-category">{{item.category}}</text>
+      <view class="budget-input-wrap"><text class="cny">¥</text><input class="finput budget-input" type="digit" value="{{item.amount}}" data-index="{{index}}" bindinput="onCategoryAmount" placeholder="0.00" placeholder-class="ph" /></view>
+    </view>
+    <view class="btn primary {{savingCustom ? 'disabled' : ''}}" bindtap="saveCustom">{{savingCustom ? '保存中…' : (editingId ? '保存修改' : '保存为我的模板')}}</view>
+  </view>
+
+  <view class="card">
+    <view class="title">模板备份</view>
+    <view class="tip top-tip">只导出或合并自定义模板，不包含流水。合并时同 ID 以备份为准，其他模板保留。</view>
+    <view class="backup-actions">
+      <view class="action wide" bindtap="exportTemplates">复制备份</view>
+      <view class="action wide" bindtap="mergeBackup">合并备份</view>
+    </view>
+  </view>
+  <view class="foot">数据仅保存在本机 · 路由 /pages/budget-templates/budget-templates</view>
+</view>

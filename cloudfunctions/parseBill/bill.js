@@ -201,33 +201,57 @@ function splitCsvLine(line) {
 
 function alipayType() { /* 已并入 classifyRow，保留空壳避免旧引用报错 */ }
 
+var ALIPAY_COL = {
+  time: ['交易时间', '交易创建时间', '支付时间', '时间'],
+  cat: ['交易分类', '交易类型'],
+  merchant: ['交易对方', '对方', '商户名称', '商户'],
+  product: ['商品说明', '商品名称', '商品详情', '商品'],
+  inout: ['收/支', '收支类型', '收支', '交易方向'],
+  amount: ['金额', '金额(元)', '金额（元）', '交易金额', '交易金额(元)', '交易金额（元）'],
+  pay: ['支付方式', '付款方式', '收/付款方式', '支付渠道'],
+  status: ['交易状态', '当前状态', '状态', '交易结果'],
+  tradeNo: ['交易订单号', '交易单号', '订单号', '商家订单号'],
+  remark: ['备注', '交易备注', '备注信息']
+}
+
 function parseAlipay(text) {
   var lines = String(text).split(/\r?\n/)
   var head = -1
+  var header = []
   for (var i = 0; i < lines.length; i++) {
     var cells = splitCsvLine(lines[i])
-    if (/交易时间/.test(cells[0] || '') && /金额/.test(lines[i])) { head = i; break }
+    if (findBankCol(cells, ALIPAY_COL.time) >= 0 && findBankCol(cells, ALIPAY_COL.amount) >= 0) {
+      head = i
+      header = cells
+      break
+    }
   }
   if (head < 0) throw new Error('不是支付宝交易明细：找不到「交易时间 / 金额」表头')
 
+  var col = {}
+  Object.keys(ALIPAY_COL).forEach(function (key) { col[key] = findBankCol(header, ALIPAY_COL[key]) })
   var items = []
   var skipped = 0
+  function get(cells, key) {
+    var idx = col[key]
+    return idx >= 0 && idx < cells.length ? trim(cells[idx]) : ''
+  }
   for (var r = head + 1; r < lines.length; r++) {
     var line = lines[r]
     if (!trim(line)) { skipped++; continue }
     var c = splitCsvLine(line)
-    if (c.length < 8) { skipped++; continue }
+    if (c.length < 2) { skipped++; continue }
 
-    var ts = textToMs(trim(c[0]))
-    var amount = num(c[6])
+    var ts = textToMs(get(c, 'time'))
+    var amount = num(get(c, 'amount'))
     /* 金额为 0 的记录也保留（支付宝里有「订单关闭」这类 0 元行），交给前端决定怎么处理 */
     if (!ts) { skipped++; continue }
 
-    var cat = trim(c[1])
-    var merchant = trim(c[2])
-    var product = trim(c[4])
-    var inout = trim(c[5])
-    var remark = trim(c[11])
+    var cat = get(c, 'cat')
+    var merchant = get(c, 'merchant')
+    var product = get(c, 'product')
+    var inout = get(c, 'inout')
+    var remark = get(c, 'remark')
     if (product === '/') product = ''
     if (!merchant || merchant === '/' || merchant === '.') {
       merchant = product.replace(/^转账备注[:：]/, '') || cat || '支付宝'
@@ -246,7 +270,7 @@ function parseAlipay(text) {
       m: merchant.slice(0, 40),
       d: product.slice(0, 40),
       pc: cat === '其他' ? '' : cat,
-      sn: trim(c[9]).slice(0, 64),
+      sn: get(c, 'tradeNo').slice(0, 64),
       s: '支付宝'
     })
   }

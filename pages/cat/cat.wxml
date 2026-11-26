@@ -44,7 +44,7 @@
   <view class="tip" wx:if="{{months.length > 0}}">按实际收付日期归入月份；退款抵减单列汇总，原付款保留。笔数包含退款，净支出可为负。</view>
 </view>
 
-<view class="mask" wx:if="{{sheetVisible}}" bindtap="closeDetail"></view>
+<view class="mask" wx:if="{{sheetVisible}}" bindtap="closeDetail" catchmovement="noop"></view>
 <view class="sheet {{sheetVisible ? 'up' : ''}}">
   <view class="sheethd">
     <view class="shleft">

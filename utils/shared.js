@@ -156,6 +156,12 @@ function plain(t) {
   }
   var out = { id: t.id, time: time, day: format.dayOf(time), ym: format.ymOf(time), type: t.type, amount: Number(t.amount) }
   for (var i = 0; i < TEXT_FIELDS.length; i++) out[TEXT_FIELDS[i]] = t[TEXT_FIELDS[i]] || ''
+  /* 原币信息属于账目内容，需要随共同账本同步；账户 ID 仍是本机私有信息。 */
+  if (t.currency) out.currency = String(t.currency)
+  if (t.toCurrency) out.toCurrency = String(t.toCurrency)
+  ;['nativeAmount', 'rateToCny', 'toNativeAmount', 'toRateToCny'].forEach(function (key) {
+    if (t[key] !== undefined && t[key] !== null && t[key] !== '') out[key] = Number(t[key])
+  })
   out.edited = Number(t.edited) || 0
   return out
 }
@@ -190,7 +196,11 @@ function validRow(row) {
   if (row.deleted === true) return true
   var t = plain(row)
   return isFinite(t.time) && isFinite(new Date(t.time).getTime()) && isFinite(t.amount) && t.amount > 0 &&
-    ['expense', 'income', 'refund', 'transfer'].indexOf(t.type) >= 0
+    ['expense', 'income', 'refund', 'transfer'].indexOf(t.type) >= 0 &&
+    (!t.currency || /^[A-Z]{3}$/.test(t.currency)) && (!t.toCurrency || /^[A-Z]{3}$/.test(t.toCurrency)) &&
+    ['nativeAmount', 'rateToCny', 'toNativeAmount', 'toRateToCny'].every(function (key) {
+      return t[key] === undefined || (isFinite(t[key]) && t[key] > 0)
+    })
 }
 
 function pullPages(bookId, cb) {

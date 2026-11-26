@@ -8,6 +8,9 @@ var theme = require('../../utils/theme')
 var darkmode = require('../../utils/darkmode')
 var shared = require('../../utils/shared')
 var prefs = require('../../utils/prefs')
+var accounts = require('../../utils/accounts')
+var recurring = require('../../utils/recurring')
+var rateAlerts = require('../../utils/rate-alerts')
 
 function greetText() {
   var h = new Date().getHours()
@@ -42,6 +45,13 @@ Page({
     recent: [],
     hasData: false,
     uncatCount: 0,
+    accountCount: 0,
+    netWorthText: '0.00',
+    reminderCount: 0,
+    reminderText: '',
+    rateAlertCount: 0,
+    rateAlertText: '',
+    rateAlertAccountId: '',
 
     themeKey: 'green',
     dark: false,
@@ -255,11 +265,32 @@ Page({
     if (ym > currentYm) ym = currentYm
     var scope = shared.isJoined() ? prefs.viewScope() : 'both'
     var txs = shared.viewRows(store.all(), scope)
+    var accountList = accounts.list()
+    var accountCount = accountList.length
+    var netWorthText = '0.00'
+    if (accountCount) {
+      try { netWorthText = format.signedMoney(accounts.netWorth(store.all()) / 100) } catch (e) {}
+    }
+    var reminderItems = []
+    try {
+      if (recurring.getReminderPrefs().enabled) reminderItems = recurring.reminderItems(Date.now())
+    } catch (e) {}
+    var reminderText = reminderItems.slice(0, 3).map(function (item) {
+      return item.name + ' ' + item.nextDate
+    }).join('、')
+    var pendingRateAlerts = []
+    try { pendingRateAlerts = rateAlerts.listPending() } catch (e) {}
+    var alertNames = Object.create(null)
+    accounts.list().forEach(function (item) { alertNames[item.id] = item.name })
+    var rateAlertText = pendingRateAlerts.slice(0, 3).map(function (item) {
+      return (alertNames[item.accountId] || '外币账户') + ' ' + item.currency + ' → ' + item.targetRate
+    }).join('、')
     this.setData({ scope: scope, scopeLabel: shared.isJoined() ? prefs.viewScopeLabel(scope) : '' })
-    var s = stats.summary(txs, ym)
+    var refundOut = prefs.refundExcluded()
+    var projected = stats.ledger(txs, refundOut)
+    var s = stats.summary(txs, ym, projected)
 
     var recent = []
-    var refundOut = prefs.refundExcluded()
     for (var i = 0; i < txs.length && recent.length < 5; i++) {
       var t = txs[i]
       if (t.ym !== ym) continue
@@ -280,7 +311,11 @@ Page({
     }
 
     var budget = vip.isVip() ? store.budget() : 0
-    var spent = budget > 0 ? stats.budgetSpent(txs, ym).net : 0
+    var spent = 0
+    if (budget > 0) {
+      var budgetRows = refundOut ? projected : stats.ledger(txs, true)
+      spent = stats.budgetSpent(txs, ym, budgetRows).net
+    }
     this.setData({
       ym: ym, maxYm: currentYm, canNext: ym < currentYm, isCurrent: ym === currentYm,
       cats: s.byCat.filter(function (c) { return c.amount !== 0 }).slice(0, 3),
@@ -299,6 +334,13 @@ Page({
       },
       recent: recent,
       hasData: s.count > 0,
+      accountCount: accountCount,
+      netWorthText: netWorthText,
+      reminderCount: reminderItems.length,
+      reminderText: reminderText,
+      rateAlertCount: pendingRateAlerts.length,
+      rateAlertText: rateAlertText,
+      rateAlertAccountId: pendingRateAlerts.length ? pendingRateAlerts[0].accountId : '',
       uncatCount: txs.filter(function (t) { return t.ym === ym && t.type === 'expense' && t.category === '未分类' && store.canEdit(t) }).length
     })
   },
@@ -405,6 +447,16 @@ Page({
     app.globalData.backTab = '/pages/home/home'
     app.globalData.backLabel = '首页'
     wx.switchTab({ url: '/pages/report/report' })
+  },
+
+  goFeature: function (e) {
+    var url = e.currentTarget.dataset.url
+    if (url) wx.navigateTo({ url: url })
+  },
+
+  goRateAlerts: function () {
+    var id = this.data.rateAlertAccountId
+    wx.navigateTo({ url: '/pages/rate-alerts/rate-alerts' + (id ? '?accountId=' + encodeURIComponent(id) : '') })
   },
 
   goUncat: function () {

@@ -2,6 +2,8 @@
   min-height: 100vh;
   background: #f4f5f7;
   padding: 8rpx 0 40rpx;
+  padding-bottom: calc(40rpx + constant(safe-area-inset-bottom));
+  padding-bottom: calc(40rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 
@@ -63,6 +65,12 @@
   font-size: 24rpx;
   color: #d9433f;
   line-height: 1.6;
+}
+
+.fail {
+  display: block;
+  margin-top: 8rpx;
+  color: var(--secondary, #5f676f);
 }
 
 .stat {
@@ -127,6 +135,211 @@
 .siamt.inc { color: #1f7a4d; }
 .siamt.mut { color: #6b8f7f; }
 
+/* 低置信度复核：保留原主题色，仅用暖色底把待核对项分开 */
+.reviewbox {
+  margin-top: 20rpx;
+  padding: 22rpx;
+  border: 2rpx solid #efd7a5;
+  border-radius: 18rpx;
+  background: #fff8e9;
+}
+
+.reviewtitle {
+  color: #92600d;
+  font-size: 27rpx;
+  font-weight: 600;
+}
+
+.reviewhint {
+  margin-top: 8rpx;
+  color: #8a6a31;
+  font-size: 23rpx;
+  line-height: 1.6;
+}
+
+/* 原图与识别框：图片自然撑高，覆盖层用同一容器的百分比坐标。 */
+.original-review {
+  margin-top: 20rpx;
+  padding: 20rpx;
+  border: 2rpx solid var(--brand-line, #cfe0da);
+  border-radius: 18rpx;
+  background: var(--brand-soft, #e7f5ef);
+}
+
+.original-title {
+  font-size: 27rpx;
+  font-weight: 600;
+  color: var(--brand-ink, #0f5f50);
+}
+
+.imagetabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 14rpx;
+}
+
+.imagetab {
+  padding: 8rpx 16rpx;
+  border-radius: 10rpx;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--brand-ink, #0f5f50);
+  font-size: 23rpx;
+}
+
+.imagetab.on {
+  background: var(--brand, #17806b);
+  color: #ffffff;
+}
+
+.original-stage {
+  position: relative;
+  width: 100%;
+  margin-top: 16rpx;
+  overflow: hidden;
+  border-radius: 12rpx;
+  background: #e9ecea;
+  line-height: 0;
+}
+
+.original-image {
+  display: block;
+  width: 100%;
+}
+
+.ocr-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.ocrbox {
+  position: absolute;
+  box-sizing: border-box;
+  border: 3rpx solid var(--brand, #17806b);
+  border-radius: 6rpx;
+  background: rgba(23, 128, 107, 0.08);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.ocrbox.low {
+  border-color: #e6a23c;
+  background: rgba(230, 162, 60, 0.1);
+}
+
+.ocrbox.highlight {
+  z-index: 2;
+  border: 5rpx solid #ff6b35;
+  background: rgba(255, 107, 53, 0.2);
+  box-shadow: 0 0 0 3rpx rgba(255, 255, 255, 0.8);
+}
+
+.original-meta {
+  margin-top: 10rpx;
+  line-height: 1.5;
+}
+
+.reviewitem {
+  padding: 18rpx 0;
+  border-bottom: 1rpx solid #f0e2c5;
+}
+
+.reviewitem.active {
+  background: rgba(230, 162, 60, 0.08);
+}
+
+.reviewactions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12rpx;
+  margin-top: 12rpx;
+}
+
+.reviewaction {
+  padding: 8rpx 18rpx;
+  border-radius: 10rpx;
+  background: #f7e8c6;
+  color: #875b16;
+  font-size: 23rpx;
+}
+
+.reviewaction.fix {
+  background: var(--brand, #17806b);
+  color: #ffffff;
+}
+
+.editbox {
+  margin-top: 20rpx;
+  padding: 22rpx;
+  border: 2rpx solid var(--brand-line, #cfe0da);
+  border-radius: 18rpx;
+  background: var(--brand-soft, #e7f5ef);
+}
+
+.field {
+  margin-top: 16rpx;
+  font-size: 24rpx;
+  color: var(--secondary, #5f676f);
+}
+
+.reviewinput,
+.reviewvalue {
+  margin-top: 8rpx;
+  padding: 16rpx 18rpx;
+  border: 2rpx solid var(--brand-line, #cfe0da);
+  border-radius: 12rpx;
+  background: #ffffff;
+  color: #1c1f23;
+  font-size: 27rpx;
+}
+
+.edit-hint {
+  margin-top: 18rpx;
+  line-height: 1.6;
+}
+
+.reviewitem:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.reviewhead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.reviewmerchant {
+  flex: 1;
+  min-width: 0;
+  margin-right: 16rpx;
+  font-size: 26rpx;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.reviewhead .siamt {
+  flex: none;
+}
+
+.reasons {
+  margin-top: 10rpx;
+}
+
+.reason {
+  display: inline-block;
+  margin: 4rpx 8rpx 0 0;
+  padding: 4rpx 10rpx;
+  border-radius: 8rpx;
+  background: #f7e8c6;
+  color: #875b16;
+  font-size: 22rpx;
+  line-height: 1.5;
+}
+
 .oprow {
   display: flex;
   gap: 20rpx;
@@ -162,7 +375,7 @@
 /* ---------- 系统深色 ---------- */
 .dark { background: #111916; color: #e5eee9; }
 .dark .card { background: #1b2421; border-color: #2c3831; }
-.dark .hint, .dark .muted, .dark .tip, .dark .li, .dark .foot, .dark .note, .dark .h2 { color: #9fb0a8; }
+.dark .hint, .dark .muted, .dark .tip, .dark .li, .dark .foot, .dark .note, .dark .h2, .dark .sisub { color: #9fb0a8; }
 .dark .title, .dark .ct, .dark .h1 { color: #e5eee9; }
 .dark .ipt, .dark .ta { background: #141b18; border-color: #2c3831; color: #e5eee9; }
 .dark .btn.plain { background: #1b2421; border-color: #2c3831; color: #e5eee9; }
@@ -170,3 +383,15 @@
 
 /* 深色：页面特有的底色 */
 .dark .hint, .dark .sitem { background: #1b2421; }
+.dark .reviewbox { background: #2a2418; border-color: #4a3c20; }
+.dark .reviewtitle, .dark .reviewhint { color: #e2bd78; }
+.dark .reviewitem { border-bottom-color: #4a3c20; }
+.dark .reviewitem.active { background: rgba(226, 189, 120, 0.08); }
+.dark .reason, .dark .reviewaction { background: #40351f; color: #e2bd78; }
+.dark .reviewaction.fix { background: var(--brand, #17806b); color: #ffffff; }
+.dark .original-review, .dark .editbox { background: #1b2421; border-color: #2c3831; }
+.dark .original-title, .dark .field { color: #e5eee9; }
+.dark .imagetab { background: #2c3831; color: #e5eee9; }
+.dark .imagetab.on { background: var(--brand, #17806b); color: #ffffff; }
+.dark .original-stage { background: #111916; }
+.dark .reviewinput, .dark .reviewvalue { background: #141b18; border-color: #2c3831; color: #e5eee9; }

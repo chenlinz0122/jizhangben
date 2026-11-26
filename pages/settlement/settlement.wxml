@@ -1,0 +1,257 @@
+<view class="theme-{{themeKey}} page {{dark ? 'dark' : ''}}">
+  <view class="hero">
+    <view class="hero-head">
+      <view>
+        <text class="eyebrow">共同账本</text>
+        <text class="book-name">{{joined ? bookName : '一起记账，清楚结算'}}</text>
+      </view>
+      <text class="member-badge" wx:if="{{joined && memberCount}}">{{memberCount}} 人参与</text>
+    </view>
+
+    <view class="month-bar">
+      <text class="month-nav" bindtap="prevMonth">‹</text>
+      <picker mode="date" fields="month" value="{{ym}}" end="{{maxYm}}" bindchange="pickMonth">
+        <text class="month-label">{{monthText}}</text>
+      </picker>
+      <text class="month-nav {{canNext ? '' : 'disabled'}}" bindtap="nextMonth">›</text>
+    </view>
+
+    <block wx:if="{{joined && memberCount}}">
+      <text class="hero-label">本月净支出</text>
+      <view class="hero-amount"><text class="currency">¥</text>{{totalText}}</view>
+      <view class="hero-foot">
+        <text>支出 ¥{{expenseText}}</text>
+        <text class="dot">·</text>
+        <text>退款抵减 ¥{{refundText}}</text>
+      </view>
+      <view class="my-balance {{myBalanceClass}}">
+        <text>{{myBalanceLabel}}</text>
+        <text wx:if="{{myBalanceText !== '0.00'}}">¥{{myBalanceText}}</text>
+      </view>
+    </block>
+  </view>
+
+  <view class="empty-card" wx:if="{{!joined || !memberCount}}">
+    <view class="empty-mark">¥</view>
+    <text class="empty-title">{{joined ? '等待成员名单' : '还没有共同账本'}}</text>
+    <text class="empty-desc">{{emptyText}}</text>
+    <view class="empty-action" bindtap="goShare">{{joined ? '去同步成员名单' : '创建或加入账本'}} ›</view>
+  </view>
+
+  <block wx:if="{{joined && memberCount}}">
+    <view class="card" wx:if="{{!hasData}}">
+      <text class="empty-title">这个月还没有账目</text>
+      <text class="empty-desc">{{emptyText}}可以切换月份查看历史结算。</text>
+    </view>
+
+    <view class="card">
+      <view class="section-head">
+        <view>
+          <text class="section-title">分摊权重</text>
+          <text class="section-subtitle">{{weightModeText}}</text>
+        </view>
+        <text class="text-action" bindtap="toggleWeightEditing">{{weightEditing ? '收起' : '编辑'}}</text>
+      </view>
+      <view class="weight-editor" wx:if="{{weightEditing}}">
+        <view class="weight-row" wx:for="{{members}}" wx:key="ownerKey">
+          <text class="weight-name">{{item.name}}</text>
+          <view class="weight-input-wrap">
+            <input class="weight-input" type="digit" maxlength="16" value="{{item.weightText}}"
+                   data-key="{{item.ownerKey}}" bindinput="onWeightInput" placeholder="0" />
+            <text class="weight-unit">比例</text>
+          </view>
+        </view>
+        <view class="weight-actions">
+          <view class="secondary-action" bindtap="resetWeights">恢复平均分摊</view>
+          <view class="primary-action" bindtap="saveMemberWeights">保存权重</view>
+        </view>
+      </view>
+      <text class="weight-warning" wx:if="{{weightWarnings}}">{{weightWarnings}}</text>
+      <text class="footnote">0 表示不参与，正数表示比例，至少一人大于 0。例如 2 : 1 表示按三分之二、三分之一分摊。</text>
+      <view class="template-section">
+        <view class="subsection-head">
+          <text class="subsection-title">命名模板</text>
+          <text class="section-note">账本级共享</text>
+        </view>
+        <view class="template-save-row">
+          <input class="template-name-input" value="{{templateName}}" maxlength="50"
+                 bindinput="onTemplateNameInput" placeholder="模板名称" />
+          <view class="primary-action" bindtap="saveWeightTemplate">保存当前权重</view>
+        </view>
+        <view wx:if="{{templates.length}}">
+          <picker mode="selector" value="{{templateIndex}}" range="{{templates}}" range-key="name" bindchange="pickTemplate">
+            <view class="template-picker">{{templateIndex >= 0 ? templates[templateIndex].name : '选择模板'}}</view>
+          </picker>
+          <view class="weight-actions">
+            <view class="secondary-action" bindtap="deleteWeightTemplate" data-id="{{templateId}}">删除模板</view>
+            <view class="primary-action" bindtap="applyWeightTemplate">套用模板</view>
+          </view>
+          <view class="template-row" wx:for="{{templates}}" wx:key="id">
+            <view class="template-main">
+              <text class="template-name">{{item.name}}</text>
+              <text class="template-weight">{{item.weightText}}</text>
+            </view>
+            <text class="template-time">{{item.createdAtText}}</text>
+          </view>
+        </view>
+        <text class="footnote" wx:else>还没有模板。保存后可在不同月份快速套用同一组权重。</text>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="section-head">
+        <view>
+          <text class="section-title">分类分摊覆盖</text>
+          <text class="section-subtitle">覆盖分类单独分摊，其余走默认权重</text>
+        </view>
+        <text class="text-action" bindtap="toggleCategoryEditing">{{categoryEditing ? '收起' : '编辑'}}</text>
+      </view>
+      <view class="category-editor" wx:if="{{categoryEditing}}">
+        <picker mode="selector" value="{{categoryIndex}}" range="{{categoryOptions}}" range-key="name" bindchange="pickCategory">
+          <view class="category-picker">{{categoryName}}</view>
+        </picker>
+        <view class="weight-row" wx:for="{{categoryInputs}}" wx:key="ownerKey">
+          <text class="weight-name">{{item.name}}</text>
+          <view class="weight-input-wrap">
+            <input class="weight-input" type="digit" maxlength="16" value="{{item.weightText}}"
+                   data-key="{{item.ownerKey}}" bindinput="onCategoryWeightInput" placeholder="0" />
+            <text class="weight-unit">比例</text>
+          </view>
+        </view>
+        <view class="weight-actions">
+          <view class="primary-action" bindtap="saveCategoryOverride">保存分类覆盖</view>
+        </view>
+      </view>
+      <text class="weight-warning" wx:if="{{categoryWarnings}}">{{categoryWarnings}}</text>
+      <view class="category-list" wx:if="{{categories.length}}">
+        <view class="category-row {{item.covered ? 'is-covered' : ''}}" wx:for="{{categories}}" wx:key="name">
+          <view class="category-main">
+            <view class="category-line">
+              <text class="category-name">{{item.name}}</text>
+              <text class="category-badge" wx:if="{{item.covered}}">已覆盖</text>
+            </view>
+            <text class="category-weight">{{item.weightText}}</text>
+          </view>
+          <view class="category-side">
+            <text class="category-net">¥{{item.netText}}</text>
+            <text class="category-delete" wx:if="{{item.covered}}" data-category="{{item.name}}" bindtap="removeCategoryOverride">删除覆盖</text>
+          </view>
+        </view>
+      </view>
+      <text class="footnote" wx:else>本月暂无分类流水。分类净支出 = 该分类正支出 − 该分类退款；退款分类以流水实际分类为准。</text>
+      <text class="footnote">每个覆盖分类按自身权重分配净支出，余分按余量从大到小、同量按成员顺序分配；其余净支出按本月默认权重分摊，最后相加。</text>
+    </view>
+
+    <view class="card" wx:if="{{hasData}}">
+      <view class="section-head">
+        <text class="section-title">成员支出占比</text>
+        <text class="section-note">按正支出计算</text>
+      </view>
+      <view class="share-track">
+        <view class="share-segment seg-{{index}}" wx:for="{{members}}" wx:key="ownerKey"
+              style="width:{{item.pct}}%"></view>
+      </view>
+      <view class="member-list">
+        <view class="member-row" wx:for="{{members}}" wx:key="ownerKey">
+          <view class="avatar tone-{{index % 4}}">{{item.initial}}</view>
+          <view class="member-main">
+            <view class="member-line">
+              <text class="member-name">{{item.name}}</text>
+              <text class="member-expense">¥{{item.expenseText}}</text>
+            </view>
+            <view class="member-line meta">
+              <text>支出占比 {{item.pctText}}</text>
+              <text wx:if="{{item.hasRefund}}">退款 ¥{{item.refundText}}</text>
+            </view>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view class="card" wx:if="{{hasData}}">
+      <view class="section-head">
+        <text class="section-title">垫付与应付明细</text>
+        <text class="section-note">金额单位：元</text>
+      </view>
+      <view class="detail-head">
+        <text>成员</text>
+        <text>垫付</text>
+        <text>应分摊</text>
+        <text>应收 / 应付</text>
+      </view>
+      <view class="detail-row" wx:for="{{members}}" wx:key="ownerKey">
+        <text class="detail-name">{{item.name}}</text>
+        <text class="detail-money {{item.paidNegative ? 'negative' : ''}}">{{item.paidText}}</text>
+        <text class="detail-money">{{item.shareText}}</text>
+        <text class="detail-money {{item.balanceClass}}">{{item.balanceLabel}}</text>
+      </view>
+      <text class="footnote">{{weightModeText === '按权重分摊' ? '默认分摊：应分摊 = 本月净支出 × 成员权重 ÷ 权重合计；余分按余量从大到小、同量按成员顺序分配。' : '默认分摊：应分摊 = 本月净支出 ÷ 成员数，余分按成员顺序分配。'}}垫付 = 正支出 − 退款；负结余表示应付。</text>
+    </view>
+
+    <view class="card" wx:if="{{hasData}}">
+      <view class="section-head">
+        <text class="section-title">结算转账建议</text>
+        <text class="section-note">待结清 {{pendingCount}} / 共 {{transfers.length}} 笔</text>
+      </view>
+      <block wx:if="{{transfers.length}}">
+        <view class="transfer-row {{item.settled ? 'is-settled' : ''}}" wx:for="{{transfers}}" wx:key="index">
+          <view class="transfer-index">{{index + 1}}</view>
+          <view class="transfer-main">
+            <view class="transfer-line">
+              <text class="transfer-name from">{{item.fromName}}</text>
+              <text class="transfer-arrow">→</text>
+              <text class="transfer-name to">{{item.toName}}</text>
+            </view>
+            <text class="transfer-tip">{{item.settled ? '已在本机标记为结清' : '付款方转给收款方'}}</text>
+          </view>
+          <view class="transfer-side">
+            <text class="transfer-amount">¥{{item.amountText}}</text>
+            <text class="transfer-status {{item.settled ? 'receive' : ''}}">{{item.statusText}}</text>
+            <text class="transfer-action" data-index="{{index}}" bindtap="toggleTransfer">{{item.actionText}}</text>
+          </view>
+        </view>
+        <text class="footnote">按应收金额从大到小贪心匹配，尽量转给更少的人。结清标记仅记录在本机，可随时取消；建议仅供参考，请核对后自行转账。</text>
+      </block>
+      <view class="settled" wx:else>
+        <view class="settled-icon">✓</view>
+        <text class="settled-title">本月已结清</text>
+        <text class="settled-desc">成员之间没有待结算金额。</text>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="section-head">
+        <text class="section-title">结算历史</text>
+        <text class="section-note">最近 {{historyCount}} 条</text>
+      </view>
+      <block wx:if="{{historyCount}}">
+        <view class="history-row" wx:for="{{history}}" wx:key="index">
+          <view class="history-main">
+            <view class="history-line">
+              <text class="history-action {{item.actionClass}}">{{item.actionText}}</text>
+              <text class="history-amount">¥{{item.amountText}}</text>
+            </view>
+            <text class="history-parties">{{item.fromName}} → {{item.toName}}</text>
+          </view>
+          <view class="history-meta">
+            <text>{{item.monthText}}</text>
+            <text>{{item.timeText}}</text>
+          </view>
+        </view>
+      </block>
+      <view class="history-empty" wx:else>
+        <text class="settled-title">暂无结算记录</text>
+        <text class="settled-desc">标记或取消结清后，会在这里保留操作历史。</text>
+      </view>
+    </view>
+
+    <view class="scope-note">
+      <text>{{preferenceText}}；结算固定看双方，避免漏算他人的垫付。</text>
+      <text wx:if="{{ignored}}">另有 {{ignored}} 笔支出或退款因成员身份不明或累计金额超限未计入。</text>
+      <text>权重与结清记录仅保存在本机，不改变云端流水，也不会自动同步或发起转账。</text>
+      <text>上次同步：{{lastSyncText}}。</text>
+    </view>
+  </block>
+
+  <view class="safe-bottom"></view>
+</view>

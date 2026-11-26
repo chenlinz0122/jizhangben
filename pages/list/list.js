@@ -5,6 +5,43 @@ var category = require('../../utils/category')
 var vip = require('../../utils/vip')
 var shared = require('../../utils/shared')
 var prefs = require('../../utils/prefs')
+var listFilter = require('../../utils/list-filter')
+var savedFilters = require('../../utils/saved-filters')
+var currency = require('../../utils/currency')
+
+function nativeView(tx) {
+  if (!currency || typeof currency.normalizeCode !== 'function') {
+    var legacyCents = Math.abs(Math.round((Number(tx.amount) || 0) * 100))
+    var legacyText = format.money(legacyCents / 100)
+    return { currency: 'CNY', foreign: false, nativeAmountText: legacyText, cnyAmountText: legacyText, rateText: '', transferTargetText: '' }
+  }
+  var code = currency.normalizeCode(tx.currency)
+  var foreign = code !== 'CNY' && tx.nativeAmount !== undefined && tx.nativeAmount !== null && tx.nativeAmount !== ''
+  var nativeCents = Math.abs(currency.txNative(tx, null))
+  var cnyCents = Math.abs(Math.round((Number(tx.amount) || 0) * 100))
+  return {
+    currency: code,
+    foreign: foreign,
+    nativeAmountText: currency.formatNative(nativeCents, code),
+    cnyAmountText: currency.formatNative(cnyCents, 'CNY'),
+    rateText: foreign ? currency.formatRate(tx.rateToCny, code) : '',
+    transferTargetText: tx.type === 'transfer' && tx.toCurrency
+      ? '转入 ' + currency.formatNative(Math.abs(currency.txNative({
+        nativeAmount: tx.toNativeAmount, currency: tx.toCurrency, rateToCny: tx.toRateToCny
+      }, null)), tx.toCurrency)
+      : ''
+  }
+}
+
+function emptyAdvanced() {
+  return { minAmount: '', maxAmount: '', cats: [], accountId: '', dateFrom: '', dateTo: '', excludeTransfer: false }
+}
+
+function catSelection(cats) {
+  var selected = {}
+  ;(cats || []).forEach(function (name) { selected[name] = true })
+  return selected
+}
 
 var theme = require('../../utils/theme')
 var darkmode = require('../../utils/darkmode')
@@ -23,12 +60,29 @@ Page({
     filterDay: '',
     kw: '',
     searching: false,
+    allDates: false,
+    hasFilters: false,
+    advanced: emptyAdvanced(),
+    catSelected: {},
+    filterLabels: [],
+    filterOpen: false,
+    allCats: [],
+    accountOptions: [
+      { id: '', name: '全部账户' },
+      { id: '__none__', name: '未指定账户' }
+    ],
+    accountIndex: 0,
+    savedViews: [],
+    activeView: '',
     groups: [],
     s: { expenseText: '0.00', incomeText: '0.00', count: 0 },
     sheetVisible: false,
     sheetItem: null,
     sheetCats: [],
     catMode: false,
+    accountMode: false,
+    accountSide: '',
+    sheetAccounts: [],
     backTab: '',
     backLabel: '',
     /* 共同账本：只有加入了才显示「谁记的」和视角切换 */
@@ -40,7 +94,14 @@ Page({
 
   onLoad: function () {
     var self = this
-    this.setData({ ym: format.ymOf(Date.now()), maxYm: format.ymOf(Date.now()), dark: darkmode.isDark() })
+    this._unloaded = false
+    var cats = []
+    ;['expense', 'income', 'transfer'].forEach(function (kind) {
+      category.catsOf(kind).forEach(function (name) { if (cats.indexOf(name) < 0) cats.push(name) })
+    })
+    this.setData({
+      ym: format.ymOf(Date.now()), maxYm: format.ymOf(Date.now()), dark: darkmode.isDark(), allCats: cats
+    })
     this._unwatchDark = darkmode.watch(function (dark) {
       self.setData({ dark: dark })
       if (self._visible) theme.syncTabBar()
@@ -57,7 +118,8 @@ Page({
       (g.backFor === '/pages/list/list' && g.backTab))
     if (jumped) this.setData({
       onlyUncat: !!g.filterUncat, filterCat: g.filterCat || '', filterKind: g.filterKind || '',
-      filterDay: g.filterDay || '', ym: g.filterYm || format.ymOf(Date.now()), kw: ''
+      filterDay: g.filterDay || '', ym: g.filterYm || format.ymOf(Date.now()), kw: '',
+      advanced: emptyAdvanced(), catSelected: {}, activeView: '', filterOpen: false
     })
     app.globalData.filterUncat = false
     app.globalData.filterCat = ''
@@ -86,6 +148,7 @@ Page({
       scope: sharedOn ? prefs.viewScope() : 'both'
     })
     this.refresh()
+    this.syncAttachmentCount()
     if (g.openTxId) {
       var id = g.openTxId
       g.openTxId = ''
@@ -96,7 +159,7 @@ Page({
   pickMonth: function (e) {
     var ym = String(e.detail.value || '')
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(ym) || ym > format.ymOf(Date.now())) return
-    this.setData({ ym: ym, filterDay: '', kw: '' })
+    this.setData({ ym: ym, filterDay: '', kw: '', 'advanced.dateFrom': '', 'advanced.dateTo': '', activeView: '' })
     this.refresh()
   },
 
@@ -108,7 +171,8 @@ Page({
       backTab: '', backLabel: '',
       kw: '', filterCat: '', filterDay: '', filterKind: '',
       onlyUncat: false,
-      ym: format.ymOf(Date.now())
+      ym: format.ymOf(Date.now()),
+      advanced: emptyAdvanced(), catSelected: {}, activeView: ''
     }, function () { self.refresh() })
     if (!target) return
     var tabs = ['/pages/home/home', '/pages/index/index', '/pages/list/list', '/pages/report/report']
@@ -123,6 +187,9 @@ Page({
     var ym = this.data.ym
     var kw = (this.data.kw || '').trim().toLowerCase()
     var searching = !!kw
+    var advanced = listFilter.normalize(this.data.advanced)
+    var allDates = searching || !!(advanced.dateFrom || advanced.dateTo)
+    var hasAdvanced = listFilter.hasAdvanced(advanced)
     clearTimeout(this._searchTimer)
     var refundOut = prefs.refundExcluded()
     var scope = this.data.sharedOn ? this.data.scope : 'both'
@@ -133,7 +200,8 @@ Page({
     var filtered = []
     for (var i = 0; i < txs.length; i++) {
       var t = txs[i]
-      if (!searching && t.ym !== ym) continue
+      if (!allDates && t.ym !== ym) continue
+      if (!listFilter.matches(t, advanced)) continue
       if (searching) {
         var hay = [t.merchant, t.originalMerchant, t.desc, t.note, t.category, t.originalCategory].join(' ').toLowerCase()
         if (hay.indexOf(kw) < 0) continue
@@ -174,11 +242,18 @@ Page({
       var sign = '+'
       if (tx.type === 'transfer') sign = ''
       else if (tx.type === 'expense') sign = '-'
+      var native = nativeView(tx)
       var row = {
         id: tx.id,
         merchant: tx.merchant || '（没有商户名）',
         category: tx.category,
-        amountText: format.money(tx.amount),
+        amountText: native.foreign ? native.nativeAmountText : format.money(tx.amount),
+        foreign: native.foreign,
+        nativeAmountText: native.nativeAmountText,
+        cnyAmountText: native.cnyAmountText,
+        currency: native.currency,
+        rateText: native.rateText,
+        transferTargetText: native.transferTargetText,
         timeText: format.pad(new Date(tx.time).getHours()) + ':' + format.pad(new Date(tx.time).getMinutes()),
         type: tx.type,
         sign: sign,
@@ -201,7 +276,7 @@ Page({
         ' − 退款 ¥' + format.money(total.refundAdjustment) + ' = 净支出 ¥' + format.signedMoney(total.expense) +
         ' · 退款按到账日计，笔数含退款'
       : ''
-    var plainView = !searching && !this.data.filterCat && !this.data.filterDay &&
+    var plainView = !searching && !hasAdvanced && !this.data.filterCat && !this.data.filterDay &&
       !this.data.filterKind && !this.data.onlyUncat
 
     /* 看双方时最常见的困惑：「同步成功了、账本里也有，可这个月流水里一条对方的都没有」。
@@ -225,10 +300,15 @@ Page({
       g.refundText = g.refund ? format.money(g.refund / 100) : ''
     })
 
+    var hasFilters = searching || hasAdvanced || !!this.data.filterCat || !!this.data.filterDay ||
+      !!this.data.filterKind || !!this.data.onlyUncat
     this.setData({
-      monthText: searching ? '全部流水' : format.monthLabel(ym),
+      monthText: searching ? '全部流水' : (allDates ? '自定义日期' : format.monthLabel(ym)),
       canNext: ym < format.ymOf(Date.now()),
       searching: searching,
+      allDates: allDates,
+      hasFilters: hasFilters,
+      filterLabels: listFilter.labels(advanced),
       groups: groups,
       refundNote: note,
       s: {
@@ -253,6 +333,7 @@ Page({
   },
 
   onUnload: function () {
+    this._unloaded = true
     clearTimeout(this._searchTimer)
     if (this._unwatchDark) this._unwatchDark()
   },
@@ -264,13 +345,13 @@ Page({
 
   prevMonth: function () {
     var self = this
-    this.setData({ ym: format.shiftMonth(this.data.ym, -1), filterDay: '' }, function () { self.refresh() })
+    this.setData({ ym: format.shiftMonth(this.data.ym, -1), filterDay: '', 'advanced.dateFrom': '', 'advanced.dateTo': '', activeView: '' }, function () { self.refresh() })
   },
 
   nextMonth: function () {
     if (!this.data.canNext) return
     var self = this
-    this.setData({ ym: format.shiftMonth(this.data.ym, 1), filterDay: '' }, function () { self.refresh() })
+    this.setData({ ym: format.shiftMonth(this.data.ym, 1), filterDay: '', 'advanced.dateFrom': '', 'advanced.dateTo': '', activeView: '' }, function () { self.refresh() })
   },
 
   toggleUncat: function () {
@@ -290,7 +371,114 @@ Page({
 
   clearFilter: function () {
     var self = this
-    this.setData({ filterCat: '', filterKind: '', filterDay: '' }, function () { self.refresh() })
+    this.setData({ filterCat: '', filterKind: '', filterDay: '', onlyUncat: false, advanced: emptyAdvanced(), catSelected: {}, activeView: '' }, function () { self.refresh() })
+  },
+
+  openFilters: function () {
+    var options = [{ id: '', name: '全部账户' }, { id: '__none__', name: '未指定账户' }]
+    try {
+      var accounts = require('../../utils/accounts')
+      accounts.list().forEach(function (item) { options.push({ id: item.id, name: item.name }) })
+    } catch (e) {}
+    var idx = 0
+    options.forEach(function (item, i) { if (item.id === this.data.advanced.accountId) idx = i }.bind(this))
+    this.setData({
+      filterOpen: true,
+      accountOptions: options,
+      accountIndex: idx,
+      savedViews: savedFilters.list()
+    })
+  },
+
+  closeFilters: function () { this.setData({ filterOpen: false }) },
+
+  onFilterInput: function (e) {
+    var field = e.currentTarget.dataset.field
+    if (['minAmount', 'maxAmount'].indexOf(field) < 0) return
+    var patch = {}
+    patch['advanced.' + field] = e.detail.value
+    this.setData(patch)
+  },
+
+  toggleFilterCat: function (e) {
+    var name = e.currentTarget.dataset.cat
+    var cats = this.data.advanced.cats.slice()
+    var idx = cats.indexOf(name)
+    if (idx >= 0) cats.splice(idx, 1)
+    else cats.push(name)
+    this.setData({ 'advanced.cats': cats, catSelected: catSelection(cats) })
+  },
+
+  onFilterAccount: function (e) {
+    var idx = Number(e.detail.value) || 0
+    var item = this.data.accountOptions[idx] || this.data.accountOptions[0]
+    this.setData({ accountIndex: idx, 'advanced.accountId': item.id })
+  },
+
+  onFilterDate: function (e) {
+    var field = e.currentTarget.dataset.field
+    if (field !== 'dateFrom' && field !== 'dateTo') return
+    var patch = {}
+    patch['advanced.' + field] = e.detail.value
+    this.setData(patch)
+  },
+
+  excludeTransfer: function (e) {
+    this.setData({ 'advanced.excludeTransfer': !!e.detail.value })
+  },
+
+  applyFilters: function () {
+    var raw = this.data.advanced
+    var normalized = listFilter.normalize(raw)
+    if ((raw.minAmount !== '' && normalized.minAmount === null) || (raw.maxAmount !== '' && normalized.maxAmount === null)) {
+      wx.showToast({ title: '金额区间要填有效数字', icon: 'none' })
+      return
+    }
+    if (normalized.minAmount !== null && normalized.maxAmount !== null && normalized.minAmount > normalized.maxAmount) {
+      wx.showToast({ title: '最小金额不能大于最大金额', icon: 'none' })
+      return
+    }
+    if (normalized.dateFrom && normalized.dateTo && normalized.dateFrom > normalized.dateTo) {
+      wx.showToast({ title: '开始日期不能晚于结束日期', icon: 'none' })
+      return
+    }
+    var self = this
+    this.setData({ advanced: normalized, catSelected: catSelection(normalized.cats), filterOpen: false, activeView: '' }, function () { self.refresh() })
+  },
+
+  resetFilters: function () {
+    var self = this
+    this.setData({ advanced: emptyAdvanced(), catSelected: {}, accountIndex: 0, filterOpen: false, activeView: '' }, function () { self.refresh() })
+  },
+
+  saveFilterView: function () {
+    var self = this
+    wx.showModal({
+      title: '保存当前筛选',
+      editable: true,
+      placeholderText: '比如：本月大额餐饮（最多 20 字）',
+      success: function (res) {
+        if (!res.confirm || self._unloaded) return
+        var item = savedFilters.save(res.content, listFilter.normalize(self.data.advanced))
+        if (!item) { wx.showToast({ title: '保存失败，或已达 30 个上限', icon: 'none' }); return }
+        self.setData({ savedViews: savedFilters.list(), activeView: item.name })
+        wx.showToast({ title: '筛选已保存', icon: 'none' })
+      }
+    })
+  },
+
+  applySavedView: function (e) {
+    var id = e.currentTarget.dataset.id
+    var item = savedFilters.list().filter(function (v) { return v.id === id })[0]
+    if (!item) return
+    var self = this
+    this.setData({ advanced: listFilter.normalize(item.filters), catSelected: catSelection(item.filters.cats), activeView: item.name, filterOpen: false }, function () { self.refresh() })
+  },
+
+  deleteSavedView: function (e) {
+    var id = e.currentTarget.dataset.id
+    if (!savedFilters.remove(id)) { wx.showToast({ title: '删除失败', icon: 'none' }); return }
+    this.setData({ savedViews: savedFilters.list(), activeView: '' })
   },
 
   openSheet: function (e) {
@@ -303,6 +491,18 @@ Page({
     if (!tx) return
     var cats = category.catsOf(tx.type).slice(0)
     if (tx.type !== 'transfer' && cats.indexOf('未分类') < 0) cats.push('未分类')
+    var accountOptions = [{ id: '', name: '未指定账户' }]
+    try {
+      require('../../utils/accounts').list().forEach(function (item) {
+        accountOptions.push({ id: item.id, name: item.name })
+      })
+    } catch (e) {}
+    function accountName(id) {
+      for (var ai = 0; ai < accountOptions.length; ai++) if (accountOptions[ai].id === id) return accountOptions[ai].name
+      return '未指定账户'
+    }
+    var attachmentCount = 0
+    try { attachmentCount = require('../../utils/attachments').list(tx.id).length } catch (e) {}
 
     var d = new Date(tx.time)
     var wk = '日一二三四五六'.charAt(d.getDay())
@@ -313,6 +513,7 @@ Page({
       transfer: { t: '不计收支', cls: 'muted' }
     }
     var dir = dirMap[tx.type] || dirMap.expense
+    var native = nativeView(tx)
 
     /* 分类依据：重跑一遍规则，顺手把命中的词也拿回来。
      * 只有重算结果和库里存的类目一致时才敢展示——否则说明当初是别的来源（比如平台分类、AI）定的。 */
@@ -338,11 +539,22 @@ Page({
     this.setData({
       sheetVisible: true,
       catMode: false,
+      accountMode: false,
+      accountSide: '',
+      sheetAccounts: accountOptions,
       sheetItem: {
         id: tx.id,
         canEdit: store.canEdit(tx),
         merchant: tx.merchant || '（没有商户名）',
         amountText: format.money(tx.amount),
+        displayAmountText: native.foreign ? native.nativeAmountText : format.money(tx.amount),
+        foreign: native.foreign,
+        nativeAmountText: native.nativeAmountText,
+        cnyAmountText: native.cnyAmountText,
+        currency: native.currency,
+        rateText: native.rateText,
+        transferTargetText: native.transferTargetText,
+        type: tx.type,
         sign: (tx.type === 'income' || tx.type === 'refund') ? '+' : (tx.type === 'transfer' ? '' : '-'),
         dirText: dir.t,
         dirClass: dir.cls,
@@ -359,6 +571,11 @@ Page({
         ownerKey: tx.ownerKey || '',
         status: tx.status || '',
         account: tx.account || '',
+        accountId: tx.accountId || '',
+        accountName: tx.type === 'transfer'
+          ? (accountName(tx.fromAccountId) + ' → ' + accountName(tx.toAccountId))
+          : accountName(tx.accountId),
+        attachmentCount: attachmentCount,
         source: tx.source || '',
         why: why
       },
@@ -367,7 +584,26 @@ Page({
   },
 
   closeSheet: function () {
-    this.setData({ sheetVisible: false, sheetItem: null, catMode: false })
+    this.setData({ sheetVisible: false, sheetItem: null, catMode: false, accountMode: false, accountSide: '' })
+  },
+
+  noop: function () {},
+
+  attachmentCount: function (id) {
+    try { return require('../../utils/attachments').list(id).length } catch (e) { return 0 }
+  },
+
+  syncAttachmentCount: function () {
+    var item = this.data.sheetItem
+    if (!this.data.sheetVisible || !item || !item.id) return
+    var count = this.attachmentCount(item.id)
+    if (count !== item.attachmentCount) this.setData({ 'sheetItem.attachmentCount': count })
+  },
+
+  openAttachments: function () {
+    var item = this.data.sheetItem
+    if (!item || !item.id) return
+    wx.navigateTo({ url: '/pages/attachments/attachments?txId=' + encodeURIComponent(item.id) })
   },
 
   editableTx: function (id) {
@@ -385,7 +621,45 @@ Page({
   toggleCatMode: function () {
     var item = this.data.sheetItem
     if (!item || !this.editableTx(item.id)) return
-    this.setData({ catMode: !this.data.catMode })
+    this.setData({ catMode: !this.data.catMode, accountMode: false })
+  },
+
+  toggleAccountMode: function (e) {
+    var item = this.data.sheetItem
+    if (!item || !this.editableTx(item.id)) return
+    var side = item.type === 'transfer' ? (e.currentTarget.dataset.side || 'from') : ''
+    this.setData({ accountMode: !this.data.accountMode, accountSide: side, catMode: false })
+  },
+
+  pickAccount: function (e) {
+    var item = this.data.sheetItem
+    var account = this.data.sheetAccounts[e.currentTarget.dataset.idx]
+    if (!item || !account || !this.editableTx(item.id)) return
+    var patch = { accountId: account.id }
+    var side = this.data.accountSide
+    if (item.type === 'transfer') {
+      if (side === 'to') patch = { toAccountId: account.id }
+      else patch = { fromAccountId: account.id }
+      var from = side === 'to' ? (item.fromAccountId || '') : account.id
+      var to = side === 'to' ? account.id : (item.toAccountId || '')
+      if (from && to && from === to) { wx.showToast({ title: '转出和转入账户不能相同', icon: 'none' }); return }
+    }
+    if (store.update(item.id, patch) === null) return
+    var names = Object.create(null)
+    this.data.sheetAccounts.forEach(function (row) { names[row.id] = row.name })
+    var accountName = names[account.id] || account.name
+    var updates = { accountMode: false }
+    if (item.type === 'transfer') {
+      updates['sheetItem.accountName'] = (names[from] || '未指定账户') + ' → ' + (names[to] || '未指定账户')
+      if (side === 'to') updates['sheetItem.toAccountId'] = account.id
+      else updates['sheetItem.fromAccountId'] = account.id
+    } else {
+      updates['sheetItem.accountId'] = account.id
+      updates['sheetItem.accountName'] = accountName
+    }
+    this.setData(updates)
+    this.refresh()
+    wx.showToast({ title: '账户已保存', icon: 'none' })
   },
 
   editNote: function () {
@@ -441,7 +715,7 @@ Page({
     if (!tx) return
     if (store.update(item.id, { category: cat }) === null) return
     var learned = store.learn(tx.merchant, cat)
-    this.setData({ sheetVisible: false, sheetItem: null, catMode: false })
+    this.setData({ sheetVisible: false, sheetItem: null, catMode: false, accountMode: false, accountSide: '' })
     this.refresh()
     if (learned === false) {
       wx.showModal({
@@ -601,7 +875,7 @@ Page({
       success: function (res) {
         if (!res.confirm) return
         if (store.clearAll() === false) return
-        self.setData({ onlyUncat: false, filterCat: '', filterKind: '', filterDay: '', kw: '' })
+        self.setData({ onlyUncat: false, filterCat: '', filterKind: '', filterDay: '', kw: '', advanced: emptyAdvanced(), catSelected: {}, activeView: '' })
         self.refresh()
         wx.showToast({ title: '已清空', icon: 'none' })
       }

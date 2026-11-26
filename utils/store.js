@@ -1,6 +1,10 @@
 /* 本地存储：流水 / 规则 / 设置 */
 var category = require('./category')
 var format = require('./format')
+var featureBackup = require('./feature-backup')
+var budgetHistory = require('./budget-history')
+var accounts = require('./accounts')
+var accountMap = require('./account-map')
 
 var KEY_TX = 'txs_v1'
 var KEY_RULE = 'rules_v1'
@@ -8,6 +12,30 @@ var KEY_BUDGET = 'budget_v1'
 var KEY_CATBUD = 'budcats_v1'
 /* 删除日志 { id: 删除时间 }：共同账本同步时据此通知云端，重新加回来的会自动划掉 */
 var KEY_GONE = 'gone_v1'
+
+/* 微信单个 Storage key 上限为 1MB：达到上限拒绝写入，超过 900KB 提醒备份。 */
+var TX_SAFE_BYTES = 900 * 1024
+var TX_LIMIT_BYTES = 1024 * 1024
+
+function utf8Bytes(text) {
+  var bytes = 0
+  for (var i = 0; i < text.length; i++) {
+    var code = text.charCodeAt(i)
+    if (code <= 0x7f) bytes++
+    else if (code <= 0x7ff) bytes += 2
+    else if (code >= 0xd800 && code <= 0xdbff && i + 1 < text.length) {
+      var low = text.charCodeAt(i + 1)
+      if (low >= 0xdc00 && low <= 0xdfff) { bytes += 4; i++ }
+      else bytes += 3
+    } else bytes += 3
+  }
+  return bytes
+}
+
+function storageLimitFailure(bytes) {
+  wx.showToast({ title: '流水存储已达上限，请先备份后再整理', icon: 'none' })
+  return { saved: false, partial: false, code: 'TX_STORAGE_LIMIT', storageBytes: bytes, storageLimit: TX_LIMIT_BYTES }
+}
 
 var _cache = null
 var _rules = null
@@ -56,8 +84,19 @@ function all() {
 function saveChanges(changes) {
   var before = []
   var written = 0
+  var nextTxBytes = 0
+  var previousTxBytes = 0
   try {
     for (var i = 0; i < changes.length; i++) before.push(wx.getStorageSync(changes[i].key))
+    for (var t = 0; t < changes.length; t++) {
+      if (changes[t].key !== KEY_TX) continue
+      nextTxBytes = utf8Bytes(JSON.stringify(changes[t].value))
+      if (before[t] !== '' && before[t] !== undefined) previousTxBytes = utf8Bytes(JSON.stringify(before[t]))
+    }
+    /* 已经超限的老账本仍允许删除或缩短内容，避免无法自救。 */
+    if (nextTxBytes >= TX_LIMIT_BYTES && nextTxBytes >= previousTxBytes) {
+      return storageLimitFailure(nextTxBytes)
+    }
     for (var j = 0; j < changes.length; j++) {
       var change = changes[j]
       if (change.value === null) wx.removeStorageSync(change.key)
@@ -82,11 +121,34 @@ function saveChanges(changes) {
     if (changes[n].key === KEY_TX) _cache = changes[n].value
     if (changes[n].key === KEY_RULE) _rules = changes[n].value
   }
-  return { saved: true }
+  var result = { saved: true }
+  if (nextTxBytes > TX_SAFE_BYTES && nextTxBytes >= previousTxBytes) {
+    result.warning = 'TX_STORAGE_NEAR_LIMIT'
+    wx.showToast({ title: '流水存储接近上限，请及时导出备份', icon: 'none' })
+  }
+  return result
 }
 
 function copyTxs() {
   return all().map(function (t) { return Object.assign({}, t) })
+}
+
+/* 新增/导入时按支付方式文本补账户；已有 accountId 永远优先，模糊匹配不猜测。 */
+function mapAccount(tx) {
+  if (!tx || typeof tx !== 'object' || Array.isArray(tx)) return tx
+  var list = []
+  try { list = accounts.list() } catch (e) {}
+  return accountMap.assign(tx, list) || tx
+}
+
+/* 流水删除成功后再清理本机票据，避免存储回滚时图片先被删掉。 */
+function cleanupAttachments(ids) {
+  try {
+    var attachments = require('./attachments')
+    ;(ids || []).forEach(function (id) {
+      try { attachments.removeTx(id) } catch (e) {}
+    })
+  } catch (e) {}
 }
 
 function gone() {
@@ -230,10 +292,14 @@ function runAdd(list, dry) {
 }
 
 function mergeItems(list) {
+  list = list.map(mapAccount)
   var base = copyTxs()
   var idx = indexByDay(base)
   var ids = Object.create(null)
-  for (var i = 0; i < base.length; i++) ids[base[i].id] = true
+  for (var i = 0; i < base.length; i++) {
+    ids[base[i].id] = true
+    if (base[i].legacyId) ids[base[i].legacyId] = true
+  }
 
   var added = 0
   var dup = 0
@@ -245,7 +311,7 @@ function mergeItems(list) {
 
   for (var j = 0; j < list.length; j++) {
     var t = list[j]
-    if (ids[t.id]) { dup++; continue }
+    if (ids[t.id] || (t.legacyId && ids[t.legacyId])) { dup++; continue }
 
     var cands = idx[t.day + '|' + round2(t.amount)] || []
     var hit = null
@@ -262,6 +328,7 @@ function mergeItems(list) {
     }
 
     ids[t.id] = true
+    if (t.legacyId) ids[t.legacyId] = true
     fresh.push(t.id)
     var next = Object.assign({}, t)
     if (canEdit(t) && deleted[t.id]) next.edited = Math.max(Date.now(), Number(t.edited || 0) + 1, deleted[t.id] + 1)
@@ -283,17 +350,17 @@ function mergeItems(list) {
 }
 
 function addOne(t) {
+  var next = mapAccount(t)
   var cur = copyTxs()
-  var next = Object.assign({}, t)
-  var deleted = gone()[t.id]
-  if (canEdit(t) && deleted) next.edited = Math.max(Date.now(), Number(t.edited || 0) + 1, deleted + 1)
+  var deleted = gone()[next.id]
+  if (canEdit(next) && deleted) next.edited = Math.max(Date.now(), Number(next.edited || 0) + 1, deleted + 1)
   cur.push(next)
   sortDesc(cur)
   var changes = []
-  var restored = goneChange(null, [t.id])
+  var restored = goneChange(null, [next.id])
   if (restored) changes.push(restored)
   changes.push({ key: KEY_TX, value: cur })
-  return Object.assign({ tx: t }, saveChanges(changes))
+  return Object.assign({ tx: next }, saveChanges(changes))
 }
 
 function canEdit(t) {
@@ -315,6 +382,34 @@ function update(id, patch) {
     }
   }
   return null
+}
+
+/* 批量关联账户：只写一次存储，避免上千笔流水逐笔 update 卡顿。 */
+function assignAccounts(assignments) {
+  if (!Array.isArray(assignments)) return null
+  var targets = Object.create(null)
+  var validAccounts = Object.create(null)
+  accounts.list().forEach(function (item) { validAccounts[item.id] = true })
+  assignments.forEach(function (entry) {
+    if (!entry || typeof entry.id !== 'string' || typeof entry.accountId !== 'string') return
+    if (!entry.id || !validAccounts[entry.accountId]) return
+    targets[entry.id] = entry.accountId
+  })
+  var cur = copyTxs()
+  var updated = 0
+  var now = Date.now()
+  for (var i = 0; i < cur.length; i++) {
+    var tx = cur[i]
+    if (!targets[tx.id]) continue
+    if (!canEdit(tx) || accountMap.hasAccountId(tx)) continue
+    tx.accountId = targets[tx.id]
+    tx.edited = now
+    updated++
+  }
+  var skipped = Object.keys(targets).length - updated
+  if (!updated) return { saved: true, updated: 0, skipped: skipped }
+  var saved = saveChanges([{ key: KEY_TX, value: cur }])
+  return { saved: saved.saved, updated: saved.saved ? updated : 0, skipped: skipped }
 }
 
 /* 批量改分类：同一个商户的历史记录一起改，只写一次存储。
@@ -355,7 +450,9 @@ function removeMany(ids) {
   var goneNext = goneChange(hit, null)
   if (goneNext) changes.push(goneNext)
   changes.push({ key: KEY_TX, value: next })
-  return saveChanges(changes).saved ? hit.length : null
+  var saved = saveChanges(changes).saved
+  if (saved) cleanupAttachments(hit)
+  return saved ? hit.length : null
 }
 
 /* 删除一整个月的流水，返回删掉的笔数 */
@@ -382,7 +479,7 @@ function applyRemote(puts, removeIds) {
     var t = cur[k]
     if (drop[t.id]) { out.removed++; continue }
     if (put[t.id]) {
-      next.push(Object.assign({}, put[t.id]))
+      next.push(canEdit(put[t.id]) ? mapAccount(put[t.id]) : Object.assign({}, put[t.id]))
       put[t.id] = null
       out.updated++
       continue
@@ -391,7 +488,7 @@ function applyRemote(puts, removeIds) {
   }
   for (var m = 0; m < (puts || []).length; m++) {
     if (!put[puts[m].id]) continue
-    next.push(Object.assign({}, puts[m]))
+    next.push(canEdit(puts[m]) ? mapAccount(puts[m]) : Object.assign({}, puts[m]))
     put[puts[m].id] = null
     out.added++
   }
@@ -401,19 +498,25 @@ function applyRemote(puts, removeIds) {
   var restored = goneChange(null, (puts || []).filter(canEdit).map(function (t) { return t.id }))
   if (restored) changes.push(restored)
   changes.push({ key: KEY_TX, value: next })
-  return Object.assign(out, saveChanges(changes))
+  var result = saveChanges(changes)
+  if (result.saved) cleanupAttachments(removeIds || [])
+  return Object.assign(out, result)
 }
 
 function clearAll() {
   var changes = [
     { key: KEY_RULE, value: {} },
+    { key: 'disabled_rules_v1', value: null },
     { key: KEY_BUDGET, value: null },
     { key: KEY_CATBUD, value: null }
   ]
-  var deleted = goneChange(all().map(function (t) { return t.id }), null)
+  var ids = all().map(function (t) { return t.id })
+  var deleted = goneChange(ids, null)
   if (deleted) changes.push(deleted)
   changes.push({ key: KEY_TX, value: [] })
-  return saveChanges(changes).saved
+  var saved = saveChanges(changes).saved
+  if (saved) cleanupAttachments(ids)
+  return saved
 }
 
 function rules() {
@@ -423,19 +526,32 @@ function rules() {
   return _rules
 }
 
-/* 用户手动改了某笔的分类 → 记住这个商户名，下次自动命中 */
+function disabledRules() {
+  var v = wx.getStorageSync('disabled_rules_v1')
+  return Object.assign(Object.create(null), v && typeof v === 'object' && !Array.isArray(v) ? v : {})
+}
+
+/* 用户手动改了某笔的分类 → 记住这个商户名，下次自动命中。
+   手动修改是明确授权，若规则曾被停用则同时重新启用，避免两个键冲突。 */
 function learn(merchant, cat) {
   var key = String(merchant || '').trim()
   if (!key || key.length < 2 || cat === '未分类') return true
   var r = Object.assign(Object.create(null), rules())
-  if (r[key] === cat) return true
-  r[key] = cat
-  return saveChanges([{ key: KEY_RULE, value: r }]).saved
+  var disabled = disabledRules()
+  var ruleChanged = r[key] !== cat
+  var disabledChanged = Object.prototype.hasOwnProperty.call(disabled, key)
+  if (ruleChanged) r[key] = cat
+  if (disabledChanged) delete disabled[key]
+  var changes = []
+  if (ruleChanged) changes.push({ key: KEY_RULE, value: r })
+  if (disabledChanged) changes.push({ key: 'disabled_rules_v1', value: Object.keys(disabled).length ? disabled : null })
+  return !changes.length || saveChanges(changes).saved
 }
 
 /* 导入时用平台给的分类训练规则（平台分类更权威） */
 function learnFromItems(items) {
   var r = Object.assign(Object.create(null), rules())
+  var disabled = disabledRules()
   var changed = false
   for (var i = 0; i < items.length; i++) {
     var it = items[i]
@@ -446,11 +562,18 @@ function learnFromItems(items) {
     /* 淘宝/京东/抖音这类「什么都能买」的平台名不学：一旦学成购物，
      * 下次在上面买课、买药也永远是购物。它们交给平台分类每次重新判定。 */
     if (category.isLooseMerchant(key)) continue
+    if (Object.prototype.hasOwnProperty.call(disabled, key)) continue
     if (r[key]) continue
     r[key] = it.category
     changed = true
   }
   return !changed || saveChanges([{ key: KEY_RULE, value: r }]).saved
+}
+
+function archiveCurrentBudget() {
+  try {
+    budgetHistory.record(format.ymOf(Date.now()), budget(), catBudgets(), Date.now())
+  } catch (e) {}
 }
 
 /* 月度预算（只存一个数，不按月分；想看历史月份的预算再说） */
@@ -463,7 +586,10 @@ function budget() {
 function setBudget(v) {
   var n = Number(v)
   n = isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : 0
-  return saveChanges([{ key: KEY_BUDGET, value: n > 0 ? n : null }]).saved ? n : null
+  var saved = saveChanges([{ key: KEY_BUDGET, value: n > 0 ? n : null }]).saved
+  if (!saved) return null
+  archiveCurrentBudget()
+  return n
 }
 
 /* 分类预算：{ 类目名: 额度 }，只对支出有意义 */
@@ -476,7 +602,34 @@ function setCatBudget(name, v) {
   var m = Object.assign(Object.create(null), catBudgets())
   var n = Number(v)
   if (!isFinite(n) || n <= 0) { delete m[name] } else { m[name] = Math.round(n * 100) / 100 }
-  return saveChanges([{ key: KEY_CATBUD, value: m }]).saved ? m : null
+  var saved = saveChanges([{ key: KEY_CATBUD, value: m }]).saved
+  if (!saved) return null
+  archiveCurrentBudget()
+  return m
+}
+
+/* 模板整体覆盖月预算和分类预算，两个 key 一次提交，失败一起回滚。 */
+function applyBudgetTemplate(monthlyBudget, categoryBudgets) {
+  var total = Number(monthlyBudget)
+  if (!isFinite(total) || total < 0) return null
+  total = Math.round(total * 100) / 100
+  if (!categoryBudgets || typeof categoryBudgets !== 'object' || Array.isArray(categoryBudgets)) return null
+  var next = Object.create(null)
+  var keys = Object.keys(categoryBudgets)
+  for (var i = 0; i < keys.length; i++) {
+    var name = keys[i]
+    var value = Number(categoryBudgets[name])
+    if (category.CATS.expense.indexOf(name) < 0 || !isFinite(value) || value < 0) return null
+    value = Math.round(value * 100) / 100
+    if (value > 0) next[name] = value
+  }
+  var result = saveChanges([
+    { key: KEY_BUDGET, value: total > 0 ? total : null },
+    { key: KEY_CATBUD, value: keys.length ? next : null }
+  ])
+  if (!result.saved) return result
+  archiveCurrentBudget()
+  return { saved: true, budget: total, catBudgets: next }
 }
 
 /* AI 补分类：按「商户名」把这批未分类的支出改掉，并把结果沉淀成规则
@@ -484,6 +637,7 @@ function setCatBudget(name, v) {
 function applyCategories(map) {
   var cur = copyTxs()
   var r = Object.assign(Object.create(null), rules())
+  var disabled = disabledRules()
   var keys = Object.keys(map || {})
   var changed = 0
   var learned = 0
@@ -500,7 +654,7 @@ function applyCategories(map) {
       t.edited = Date.now()
       changed++
     }
-    if (!r[key]) { r[key] = cat; learned++ }
+    if (!r[key] && !Object.prototype.hasOwnProperty.call(disabled, key)) { r[key] = cat; learned++ }
   }
 
   var changes = []
@@ -519,7 +673,10 @@ function exportAll() {
     txs: all(),
     rules: rules(),
     budget: budget(),
-    catBudgets: catBudgets()
+    catBudgets: catBudgets(),
+    /* 删除标记也要备份：共同账本尚未同步删除时，换机恢复不能被旧云端行复活。 */
+    gone: gone(),
+    features: featureBackup.exportAll()
   }
 }
 
@@ -543,11 +700,28 @@ function importAll(payload) {
       (typeof payload.budget !== 'number' || !isFinite(payload.budget) || payload.budget < 0)) {
     throw new Error('备份文件格式不对')
   }
+  var backupGone = Object.create(null)
+  if (payload.gone !== undefined) {
+    if (!payload.gone || typeof payload.gone !== 'object' || Array.isArray(payload.gone)) {
+      throw new Error('备份文件格式不对')
+    }
+    var goneKeys = Object.keys(payload.gone)
+    for (var g = 0; g < goneKeys.length; g++) {
+      var goneId = goneKeys[g]
+      var goneAt = payload.gone[goneId]
+      if (!goneId || typeof goneAt !== 'number' || !isFinite(goneAt) || goneAt <= 0) {
+        throw new Error('备份文件格式不对')
+      }
+      backupGone[goneId] = goneAt
+    }
+  }
+
+  var featurePlan = featureBackup.planImport(payload.features)
 
   var clean = []
   var skipped = 0
   var kinds = ['expense', 'income', 'refund', 'transfer']
-  var textFields = ['merchant', 'desc', 'note', 'category', 'account', 'status', 'source', 'src', 'byPlatform', 'by']
+  var textFields = ['merchant', 'desc', 'note', 'category', 'account', 'status', 'source', 'src', 'byPlatform', 'by', 'legacyId']
   for (var i = 0; i < payload.txs.length; i++) {
     var t = payload.txs[i]
     var valid = t && typeof t === 'object' && !Array.isArray(t) &&
@@ -564,18 +738,36 @@ function importAll(payload) {
     var next = Object.assign({}, t)
     next.day = format.dayOf(next.time)
     next.ym = next.day.slice(0, 7)
-    clean.push(next)
+    if (backupGone[next.id]) { skipped++; continue }
+    clean.push(mapAccount(next))
   }
 
   var res = mergeItems(clean)
+  var finalGone = gone()
+  var goneChanged = false
+  var resChanges = []
+  res.changes.forEach(function (change) {
+    if (change.key !== KEY_GONE) { resChanges.push(change); return }
+    finalGone = change.value ? Object.assign(Object.create(null), change.value) : Object.create(null)
+    goneChanged = true
+  })
+  Object.keys(backupGone).forEach(function (id) {
+    var prior = finalGone[id] || 0
+    if (backupGone[id] > prior) { finalGone[id] = backupGone[id]; goneChanged = true }
+  })
   var changes = []
   var ruleAdded = 0
+  var ruleChanged = false
   if (payload.rules !== undefined) {
     var r = Object.assign(Object.create(null), rules())
     Object.keys(payload.rules).forEach(function (key) {
-      if (!r[key]) { r[key] = payload.rules[key]; ruleAdded++ }
+      if (featurePlan.disabled[key]) return
+      if (!r[key]) { r[key] = payload.rules[key]; ruleAdded++; ruleChanged = true }
     })
-    if (ruleAdded) changes.push({ key: KEY_RULE, value: r })
+    Object.keys(featurePlan.disabled).forEach(function (key) {
+      if (r[key]) { delete r[key]; ruleChanged = true }
+    })
+    if (ruleChanged) changes.push({ key: KEY_RULE, value: r })
   }
   if (payload.budget !== undefined) {
     changes.push({ key: KEY_BUDGET, value: payload.budget > 0 ? Math.round(payload.budget * 100) / 100 : null })
@@ -584,7 +776,9 @@ function importAll(payload) {
     var cm = Object.assign(Object.create(null), catBudgets(), payload.catBudgets)
     changes.push({ key: KEY_CATBUD, value: cm })
   }
-  if (res.dirty) changes = changes.concat(res.changes)
+  if (res.dirty) changes = changes.concat(resChanges)
+  if (goneChanged) changes.push({ key: KEY_GONE, value: Object.keys(finalGone).length ? finalGone : null })
+  changes = changes.concat(featurePlan.changes)
   var result = saveChanges(changes)
   return Object.assign({
     added: result.saved ? res.added : 0,
@@ -602,6 +796,7 @@ module.exports = {
   previewAdd: previewAdd,
   addOne: addOne,
   update: update,
+  assignAccounts: assignAccounts,
   canEdit: canEdit,
   relabel: relabel,
   applyCategories: applyCategories,
@@ -618,6 +813,7 @@ module.exports = {
   setBudget: setBudget,
   catBudgets: catBudgets,
   setCatBudget: setCatBudget,
+  applyBudgetTemplate: applyBudgetTemplate,
   exportAll: exportAll,
   importAll: importAll,
   reload: function () { _cache = null; _rules = null }

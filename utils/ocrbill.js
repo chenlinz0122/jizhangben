@@ -7,18 +7,50 @@
  */
 var category = require('./category')
 var format = require('./format')
+var billId = require('./bill-id')
+var hash = billId.hash
 
 function num(v) {
   var n = Number(v)
   return isNaN(n) ? 0 : n
 }
 
-function hash(s) {
-  var h = 5381
-  for (var i = 0; i < s.length; i++) {
-    h = ((h << 5) + h + s.charCodeAt(i)) >>> 0
+function hasCoord(v) {
+  return v !== '' && v !== null && v !== undefined && isFinite(Number(v)) && Number(v) >= 0
+}
+
+function imageIndex(v) {
+  if (v === '' || v === null || v === undefined || !isFinite(Number(v))) return null
+  var n = Number(v)
+  return Math.floor(n) === n && n >= 0 ? n : null
+}
+
+/* 云端协议只给 left/top/height，没有宽度。按字号估算文字宽度，至少让金额格
+   能框出来；以后若 OCR 自带 width，则优先保留原值。 */
+function textWidth(text, height) {
+  var chars = String(text || '').replace(/\s/g, '').split('')
+  var width = 0
+  for (var i = 0; i < chars.length; i++) {
+    width += /[^\x00-\xff]/.test(chars[i]) ? height : height * 0.6
   }
-  return h.toString(36)
+  return Math.max(1, width)
+}
+
+function originOf(cell, fallbackIndex) {
+  var out = {}
+  var idx = imageIndex(cell && cell.imageIndex)
+  if (idx === null) idx = imageIndex(fallbackIndex)
+  if (idx !== null) out.imageIndex = idx
+  if (!cell || !hasCoord(cell.left) || !hasCoord(cell.top) || !(Number(cell.height) > 0)) return out
+  var width = Number(cell.width)
+  if (!(width > 0)) width = textWidth(cell.text, Number(cell.height))
+  out.ocrBox = {
+    left: Number(cell.left),
+    top: Number(cell.top),
+    width: Math.round(width * 100) / 100,
+    height: Number(cell.height)
+  }
+  return out
 }
 
 /* 账单只写「X月X日」没有年份时推断年份。账单记录的都是过去发生的交易：拿「月/日」
@@ -53,6 +85,62 @@ function cleanText(s) {
   return t
 }
 
+/* ---------- OCR 复核 ----------
+ * 复核只解释「为什么拿不准」，不据此删记录。规则按固定顺序输出，
+ * 同一段 OCR 文本重复解析、文字块顺序变化时，疑点仍保持一致。 */
+var REVIEW_RULES = [
+  { reason: '未识别到交易日期，暂用今天', level: 'low' },
+  { reason: '交易日期仅精确到月份，暂按月初处理', level: 'low' },
+  { reason: '交易日期来自上方日期分组', level: 'medium' },
+  { reason: '交易日期缺少年份，已按历史交易推断', level: 'medium' },
+  { reason: '未识别到商户', level: 'low' },
+  { reason: '商户名称过长，可能混入界面文案', level: 'low' },
+  { reason: '商户内容疑似界面文案', level: 'low' },
+  { reason: '金额来自非独立金额格', level: 'low' },
+  { reason: '转账方向不明确', level: 'low' },
+  { reason: '收支方向不明确，暂按支出处理', level: 'low' },
+  { reason: '金额缺少正负号，收支方向按来源推断', level: 'medium' },
+  { reason: '转账方向依据账单文字判断', level: 'medium' },
+  { reason: '详情页缺少交易单号', level: 'low' },
+  { reason: '账单条目缺少交易单号，按日期金额商户判重', level: 'medium' },
+  { reason: '账单来源不明确', level: 'medium' }
+]
+var MERCHANT_UI_RE = /账单详情|支付凭证|全部账单|账单服务|收支分析|本月已省|交易成功|交易关闭|当前状态|付款方式|支付方式|订单详情|收支统计|筛选|搜索|点击.*(?:查看|详情)|长按.*(?:识别|复制)/
+var TRANSFER_DIRECTION_RE = /转入|转出|转给|提现|还款|赎回|申购|零钱充值|充值到零钱|网银充值|银行卡充值|来自银行卡|来自储蓄卡/
+var BANK_TRANSFER_DIRECTION_RE = /还款|取现|取款|ATM|申购|赎回|转存|定活互转/
+
+function reviewOf(reasons) {
+  var confidence = 'high'
+  var reviewReasons = []
+  for (var i = 0; i < REVIEW_RULES.length; i++) {
+    var rule = REVIEW_RULES[i]
+    if (reasons.indexOf(rule.reason) < 0) continue
+    reviewReasons.push(rule.reason)
+    if (rule.level === 'low') confidence = 'low'
+    else if (confidence !== 'low') confidence = 'medium'
+  }
+  return { confidence: confidence, reviewReasons: reviewReasons }
+}
+
+function reviewed(item, reasons) {
+  var review = reviewOf(reasons)
+  item.confidence = review.confidence
+  item.reviewReasons = review.reviewReasons
+  return compact(item)
+}
+
+function merchantReview(merchant) {
+  var reasons = []
+  if (!merchant || merchant === '截图识别' || merchant === '账单导入') reasons.push('未识别到商户')
+  if (merchant && merchant.length > 24) reasons.push('商户名称过长，可能混入界面文案')
+  if (merchant && MERCHANT_UI_RE.test(merchant)) reasons.push('商户内容疑似界面文案')
+  return reasons
+}
+
+function hasFullDate(text) {
+  return /\d{4}\s*(?:年|[-/.])\s*\d{1,2}/.test(String(text || ''))
+}
+
 /* 账单卡片里那行小字其实是平台给好的分类：日用百货 / 投资理财 / 交通出行… */
 function findPlatformCat(text) {
   var keys = Object.keys(category.PLATFORM_MAP)
@@ -79,23 +167,28 @@ function groupRows(items) {
       text: text,
       left: num(it.left),
       top: num(it.top),
-      h: num(it.height) || 20
+      h: num(it.height) || 20,
+      height: it.height,
+      width: it.width,
+      imageIndex: it.imageIndex,
+      hasPos: hasCoord(it.left) && hasCoord(it.top) && Number(it.height) > 0
     })
   }
   if (!list.length) return []
 
   var hasPos = false
   for (var k = 0; k < list.length; k++) {
-    if (list[k].top > 0 || list[k].left > 0) { hasPos = true; break }
+    if (list[k].hasPos) { hasPos = true; break }
   }
-  /* 没有坐标就退化成「一行一条」 */
+  /* 没有坐标就退化成「一行一条」，不伪造 ocrBox */
   if (!hasPos) {
     return list.map(function (x) {
       return {
         baseTop: 0,
         h: 20,
         text: x.text,
-        cells: [{ text: x.text, left: 0, top: 0 }]
+        imageIndex: x.imageIndex,
+        cells: [{ text: x.text, left: 0, top: 0, imageIndex: x.imageIndex }]
       }
     })
   }
@@ -108,7 +201,8 @@ function groupRows(items) {
   for (var j = 0; j < list.length; j++) {
     var cur = list[j]
     var last = rows[rows.length - 1]
-    if (last && Math.abs(cur.top - last.baseTop) <= Math.max(10, Math.min(cur.h, last.h) * 0.65)) {
+    var sameImage = last && imageIndex(cur.imageIndex) === imageIndex(last.cells[0].imageIndex)
+    if (last && sameImage && Math.abs(cur.top - last.baseTop) <= Math.max(10, Math.min(cur.h, last.h) * 0.65)) {
       last.cells.push(cur)
       last.h = Math.min(last.h, cur.h)
     } else {
@@ -218,7 +312,12 @@ function isDateTimeCell(ct) {
 }
 
 /* ---------- 4. 整行文字里直接抠（没有坐标时的兜底） ---------- */
+function stripBalance(text) {
+  return String(text || '').replace(/(?:账户余额|可用余额|当前余额|余额)(?:\(元\)|（元）)?\s*[:：]?\s*[¥￥]?\s*[+-]?\s*(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?\s*元?/g, ' ')
+}
+
 function parseInline(text) {
+  text = stripBalance(text)
   var re = /[¥￥]?\s*([+-])?\s*(\d{1,3}(?:,\d{3})*|\d+)\.(\d{1,2})(?:\s*元)?/g
   var m
   var hit = null
@@ -269,13 +368,13 @@ function pickBigAmount(rows) {
       var amt = parseAmountCell(cell.text)
       if (!amt) continue
       var h = cell.h || 20
-      if (!best || h > best.h + 1) best = { value: amt.value, sign: amt.sign, h: h, row: i }
+      if (!best || h > best.h + 1) best = { value: amt.value, sign: amt.sign, h: h, row: i, cell: cell }
     }
   }
   return best
 }
 
-function parseDetail(rows, nowInfo, userRules, allText, source) {
+function parseDetail(rows, nowInfo, userRules, allText, source, opts) {
   var best = pickBigAmount(rows)
   if (!best) {
     return { items: [], skipped: 0, source: source, error: '详情页里没找到金额，换张清楚点的截图' }
@@ -283,11 +382,13 @@ function parseDetail(rows, nowInfo, userRules, allText, source) {
 
   /* 时间：第一处带完整日期的行（详情页一定有「支付时间 2026-11-16 23:00:50」） */
   var dRow = null
+  var dText = ''
   var tRow = null
   for (var r = 0; r < rows.length; r++) {
     var d = dateInText(rows[r].text, nowInfo)
     if (!d) continue
     dRow = d
+    dText = rows[r].text
     tRow = timeInText(rows[r].text) || timeInText(rows[r + 1] ? rows[r + 1].text : '')
     break
   }
@@ -335,13 +436,15 @@ function parseDetail(rows, nowInfo, userRules, allText, source) {
   }
 
   var type = 'expense'
+  var guessedDirection = false
+  var directionContext = merchant + ' ' + desc + ' ' + state
   if (/退款|已退/.test(state)) {
     type = 'refund'
   } else if (/已收钱|收款成功/.test(state)) {
     type = 'income'
   } else if (/关闭|失效/.test(state)) {
     return { items: [], skipped: 1, source: source, error: '这一笔是「' + state + '」，没有成交，就不记账了' }
-  } else if (/转入|转出|转账给|提现|还款|赎回|申购|零钱充值|充值到零钱|网银充值|银行卡充值|来自银行卡|来自储蓄卡/.test(merchant + ' ' + desc + ' ' + state)) {
+  } else if (/转入|转出|转账给|提现|还款|赎回|申购|零钱充值|充值到零钱|网银充值|银行卡充值|来自银行卡|来自储蓄卡/.test(directionContext)) {
     /* 注意：不能拿「零钱通/余额宝」当转账依据——那只是付款方式，
      * 「支付方式 零钱通」是拿零钱通付款，属于正常支出。
      * 也只看商户/说明/状态这三处，不喂整页文字（页面上的「收单机构」等字样会把分类带偏） */
@@ -351,6 +454,7 @@ function parseDetail(rows, nowInfo, userRules, allText, source) {
   } else if (best.sign === '-') {
     type = 'expense'
   } else {
+    guessedDirection = true
     type = (source === '支付宝') ? 'income' : 'expense'
   }
 
@@ -370,30 +474,50 @@ function parseDetail(rows, nowInfo, userRules, allText, source) {
 
   /* 有单号就用单号当身份（前缀 b，跟账单文件一致），没有才退回日期+金额+商户 */
   var id = sn
-    ? 'b' + hash('sn|' + source + '|' + sn)
+    ? billId.tradeNoId(source, sn)
     : 'h' + hash(format.dayOf(ts) + '|' + best.value + '|' + merchant + '|' + source)
 
   var cat = type === 'refund'
     ? '退款'
     : (type === 'transfer' ? category.transferCat(merchant, clsText) : cls.cat)
 
+  var reasons = merchantReview(merchant)
+  if (!dRow) reasons.push('未识别到交易日期，暂用今天')
+  else if (!hasFullDate(dText)) reasons.push('交易日期缺少年份，已按历史交易推断')
+  if (!sn) reasons.push('详情页缺少交易单号')
+  if (type === 'transfer') {
+    if (!best.sign) {
+      reasons.push(TRANSFER_DIRECTION_RE.test(directionContext)
+        ? '转账方向依据账单文字判断'
+        : '转账方向不明确')
+    }
+  } else if (guessedDirection) {
+    reasons.push(source === '支付宝'
+      ? '金额缺少正负号，收支方向按来源推断'
+      : '收支方向不明确，暂按支出处理')
+  }
+
+  var item = {
+    id: id,
+    legacyId: sn ? billId.legacyTradeNoId(source, sn) : '',
+    time: ts,
+    day: format.dayOf(ts),
+    ym: format.ymOf(ts),
+    amount: best.value,
+    type: type,
+    merchant: merchant,
+    desc: desc.slice(0, 24),
+    category: cat,
+    account: '',
+    status: state,
+    source: source,
+    byPlatform: cls.by,
+    note: ''
+  }
+  Object.assign(item, originOf(best.cell, opts && opts.imageIndex))
+
   return {
-    items: [compact({
-      id: id,
-      time: ts,
-      day: format.dayOf(ts),
-      ym: format.ymOf(ts),
-      amount: best.value,
-      type: type,
-      merchant: merchant,
-      desc: desc.slice(0, 24),
-      category: cat,
-      account: '',
-      status: state,
-      source: source,
-      byPlatform: cls.by,
-      note: ''
-    })],
+    items: [reviewed(item, reasons)],
     skipped: 0,
     source: source,
     error: ''
@@ -451,6 +575,8 @@ function blockText(rows, i) {
 }
 
 function parseItems(items, userRules, opts) {
+  opts = opts || {}
+  var fallbackImageIndex = imageIndex(opts.imageIndex)
   var now = new Date()
   var nowInfo = { y: now.getFullYear(), m: now.getMonth() + 1, d: now.getDate(), ts: now.getTime() }
   var rows = groupRows(items)
@@ -469,10 +595,11 @@ function parseItems(items, userRules, opts) {
   /* 单笔详情页（微信支付凭证 / 支付宝账单详情）：版面跟列表页完全不同，走另一条解析。
    * 只在认出 2 个以上详情页标志词时才切过去，避免把列表页误判成详情页 */
   if (detailScore(allText) >= 2) {
-    return parseDetail(rows, nowInfo, userRules, allText, source)
+    return parseDetail(rows, nowInfo, userRules, allText, source, opts)
   }
 
   var ctxDate = null
+  var ctxDateExact = true
   var out = []
   var skipped = 0
   var seen = {}
@@ -496,6 +623,7 @@ function parseItems(items, userRules, opts) {
     var amtCell = null
     var amtIdx = -1
     var inlineMerchant = ''
+    var inlineAmount = false
     var balIdx = -1
     for (var bc = 0; bc < cells.length; bc++) {
       if (/余额/.test(String(cells[bc].text || ''))) { balIdx = bc; break }
@@ -516,16 +644,18 @@ function parseItems(items, userRules, opts) {
       if (inl) {
         amtCell = { value: inl.value, sign: inl.sign }
         inlineMerchant = inl.merchant
+        inlineAmount = true
       }
     }
 
     if (!amtCell) {
       /* 没有金额 → 可能是日期头/月份头/界面文字 */
       var d0 = dateInText(text, nowInfo)
-      if (d0) ctxDate = d0
+      if (d0) { ctxDate = d0; ctxDateExact = true }
       var mh = monthHeader(text, nowInfo)
-      if (mh) {
-        ctxDate = ctxDate && ctxDate.m === mh.m ? ctxDate : { y: mh.y, m: mh.m, d: 1 }
+      if (mh && !(ctxDate && ctxDate.m === mh.m)) {
+        ctxDate = { y: mh.y, m: mh.m, d: 1 }
+        ctxDateExact = false
       }
       skipped++
       continue
@@ -592,7 +722,7 @@ function parseItems(items, userRules, opts) {
       }
     }
 
-    if (dRow) ctxDate = dRow
+    if (dRow) { ctxDate = dRow; ctxDateExact = true }
     var useDate = dRow || ctxDate
     var baseDate = useDate
       ? new Date(useDate.y, useDate.m - 1, useDate.d)
@@ -608,6 +738,7 @@ function parseItems(items, userRules, opts) {
      * 微信：支出带负号，收入带正号，转账类可能不带号
      * 退款、理财进出、转给他人都不算日常收支，单列出来 */
     var type = 'expense'
+    var guessedDirection = false
     var markRefund = /已全额退款|已退款|退款成功|已退/.test(block)
     if (!markRefund && /退款|退货|冲正/.test(block)) {
       type = 'refund'
@@ -624,6 +755,7 @@ function parseItems(items, userRules, opts) {
       } else if (amtCell.sign === '+') {
         type = 'income'
       } else {
+        guessedDirection = true
         type = 'expense'
       }
     } else if (/转入|转出|转给|提现|还款|赎回|申购|基金|理财通|零钱通|收益发放|收益入账|理财收益|余额宝收益|零钱充值|充值到零钱|网银充值|银行卡充值|来自银行卡|来自储蓄卡/.test(block)) {
@@ -640,6 +772,7 @@ function parseItems(items, userRules, opts) {
       type = 'expense'
     } else {
       /* 没符号：支付宝的支出一定带负号，所以正数视为收入；其他来源保守按支出 */
+      guessedDirection = true
       type = (source === '支付宝') ? 'income' : 'expense'
     }
 
@@ -657,7 +790,26 @@ function parseItems(items, userRules, opts) {
       ? '退款'
       : (isInvestYield ? '理财' : (type === 'transfer' ? category.transferCat(merchant, '') : cls.cat))
 
-    out.push({
+    var reasons = merchantReview(merchant)
+    if (inlineAmount) reasons.push('金额来自非独立金额格')
+    if (!dRow && !ctxDate) reasons.push('未识别到交易日期，暂用今天')
+    else if (!dRow && !ctxDateExact) reasons.push('交易日期仅精确到月份，暂按月初处理')
+    else if (!dRow) reasons.push('交易日期来自上方日期分组')
+    else if (!hasFullDate(block)) reasons.push('交易日期缺少年份，已按历史交易推断')
+    if (type === 'transfer') {
+      if (!amtCell.sign) {
+        var directionRe = source === '银行卡' ? BANK_TRANSFER_DIRECTION_RE : TRANSFER_DIRECTION_RE
+        reasons.push(directionRe.test(block)
+          ? '转账方向依据账单文字判断'
+          : '转账方向不明确')
+      }
+    } else if (guessedDirection) {
+      reasons.push(source === '支付宝'
+        ? '金额缺少正负号，收支方向按来源推断'
+        : '收支方向不明确，暂按支出处理')
+    }
+
+    var item = {
       id: id,
       time: ts,
       day: format.dayOf(ts),
@@ -672,7 +824,10 @@ function parseItems(items, userRules, opts) {
       source: source,
       byPlatform: cls.by,
       note: ''
-    })
+    }
+    var originCell = amtIdx >= 0 ? cells[amtIdx] : cells[0]
+    Object.assign(item, originOf(originCell, fallbackImageIndex))
+    out.push(reviewed(item, reasons))
   }
 
   if (!out.length) {
@@ -688,7 +843,7 @@ function parseItems(items, userRules, opts) {
 }
 
 /* 账单文件（微信 xlsx / 支付宝 csv）解析出来的条目 → 流水对象
- * id 规则和截图识别一致（日期+金额+商户），所以两条路导入的数据能互相去重 */
+ * 有交易单号时与文本导入、详情截图共用同一个 b 前缀 ID；没有单号才用日期+金额+商户。 */
 function fromBill(items, userRules) {
   var seen = {}
   var out = []
@@ -716,6 +871,10 @@ function fromBill(items, userRules) {
 
     var amt = Math.round(Number(it.a) * 100) / 100
     var sn = String(it.sn || '').trim()
+    var reasons = merchantReview(merchant)
+    if (!sn) reasons.push('账单条目缺少交易单号，按日期金额商户判重')
+    if (!it.s) reasons.push('账单来源不明确')
+    if (!it.ty) reasons.push('收支方向不明确，暂按支出处理')
 
     /* 有交易单号就用单号当身份（同一份账单重导、跨月导出重叠部分都不会重复记）
      * 截图没有单号，只好退回「日期+金额+商户+来源」 */
@@ -728,8 +887,9 @@ function fromBill(items, userRules) {
     }
     var id = (sn ? 'b' : 'h') + idKey + (seen[idKey] > 1 ? '#' + seen[idKey] : '')
 
-    out.push(compact({
+    out.push(reviewed({
       id: id,
+      legacyId: sn ? billId.legacyTradeNoId(it.s || '', sn) : '',
       time: it.t,
       day: format.dayOf(it.t),
       ym: format.ymOf(it.t),
@@ -742,7 +902,7 @@ function fromBill(items, userRules) {
         : (type === 'transfer' ? moveKind : cat),
       source: it.s || '账单文件',
       byPlatform: cls.by
-    }))
+    }, reasons))
   }
 
   return {
@@ -750,6 +910,89 @@ function fromBill(items, userRules) {
     source: out.length ? out[0].source : '',
     skipped: items.length - out.length
   }
+}
+
+/* 人工修正只更新这一条，不重新猜测其他字段，也不丢记录。已修字段对应的 OCR
+   疑点被消除，其余疑点保留；置信度仍按同一套 REVIEW_RULES 重算。 */
+var CORRECTION_REASONS = {
+  merchant: ['未识别到商户', '商户名称过长，可能混入界面文案', '商户内容疑似界面文案'],
+  amount: ['金额来自非独立金额格'],
+  date: [
+    '未识别到交易日期，暂用今天',
+    '交易日期仅精确到月份，暂按月初处理',
+    '交易日期来自上方日期分组',
+    '交易日期缺少年份，已按历史交易推断'
+  ],
+  type: [
+    '转账方向不明确',
+    '收支方向不明确，暂按支出处理',
+    '金额缺少正负号，收支方向按来源推断',
+    '转账方向依据账单文字判断'
+  ],
+  category: []
+}
+
+function correctItem(item, patch, userRules) {
+  if (!item || typeof item !== 'object') return null
+  patch = patch || {}
+  var next = Object.assign({}, item)
+  if (next.ocrBox) next.ocrBox = Object.assign({}, next.ocrBox)
+  var changed = {}
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'merchant')) {
+    var merchant = String(patch.merchant || '').trim()
+    if (!merchant) return null
+    changed.merchant = merchant !== item.merchant
+    next.merchant = merchant
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'amount')) {
+    var amount = Number(String(patch.amount).replace(/,/g, ''))
+    if (!isFinite(amount) || amount <= 0) return null
+    amount = Math.round(amount * 100) / 100
+    changed.amount = amount !== Number(item.amount)
+    next.amount = amount
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'date')) {
+    var dm = String(patch.date || '').match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
+    if (!dm) return null
+    var date = makeDate(parseInt(dm[1], 10), parseInt(dm[2], 10), parseInt(dm[3], 10))
+    if (!date || format.dayOf(new Date(date.y, date.m - 1, date.d).getTime()) !== patch.date) return null
+    var old = new Date(item.time)
+    var correctedTime = new Date(date.y, date.m - 1, date.d, old.getHours(), old.getMinutes(), old.getSeconds(), old.getMilliseconds()).getTime()
+    changed.date = format.dayOf(correctedTime) !== format.dayOf(item.time)
+    next.time = correctedTime
+    next.day = format.dayOf(correctedTime)
+    next.ym = format.ymOf(correctedTime)
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'type')) {
+    if (['expense', 'income', 'refund', 'transfer'].indexOf(patch.type) < 0) return null
+    changed.type = patch.type !== item.type
+    next.type = patch.type
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'category')) {
+    var cat = String(patch.category || '')
+    if (category.catsOf(next.type).indexOf(cat) < 0) return null
+    changed.category = cat !== item.category
+    next.category = cat
+  }
+
+  /* 商户或收支类型变化时，若用户没有显式指定分类，按修正后的内容重新归类。 */
+  if ((changed.merchant || changed.type) && !Object.prototype.hasOwnProperty.call(patch, 'category')) {
+    var cls = category.classify(next.merchant, ((next.desc || '') + ' ' + (next.status || '')).trim(), '', userRules, next.type)
+    next.category = cls.cat
+    next.byPlatform = cls.by
+  }
+
+  var reasons = (next.reviewReasons || []).slice()
+  Object.keys(CORRECTION_REASONS).forEach(function (field) {
+    if (!changed[field]) return
+    reasons = reasons.filter(function (reason) { return CORRECTION_REASONS[field].indexOf(reason) < 0 })
+  })
+  if (changed.merchant) reasons = reasons.concat(merchantReview(next.merchant))
+  var review = reviewOf(reasons)
+  next.confidence = review.confidence
+  next.reviewReasons = review.reviewReasons
+  return compact(next)
 }
 
 /* 一条流水要占本地存储，空字段不写，能省下两三成体积 */
@@ -767,5 +1010,6 @@ module.exports = {
   parseDetail: parseDetail,
   groupRows: groupRows,
   parseAmountCell: parseAmountCell,
-  fromBill: fromBill
+  fromBill: fromBill,
+  correctItem: correctItem
 }

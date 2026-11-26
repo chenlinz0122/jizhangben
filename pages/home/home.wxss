@@ -61,7 +61,25 @@
   .q-rep { background: rgba(139,92,196,.13); }
 .quick-name { display: block; width: 100%; max-width: 100%; font-size: 25rpx; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .quick-note { display: block; width: 100%; max-width: 100%; margin-top: 5rpx; font-size: 19rpx; color: var(--secondary); font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.feature-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12rpx; margin: -8rpx 0 22rpx; }
+.feature-action { display: flex; flex-direction: column; align-items: center; gap: 8rpx; min-width: 0; padding: 16rpx 4rpx; border-radius: 18rpx; background: var(--surface-soft); color: var(--text); font-size: 21rpx; }
+.feature-mark { display: flex; align-items: center; justify-content: center; width: 46rpx; height: 46rpx; border-radius: 14rpx; background: var(--surface); color: var(--brand); font-size: 23rpx; font-weight: 600; }
+.networth-value { margin: 4rpx 0 10rpx; font-size: 46rpx; font-weight: 650; font-variant-numeric: tabular-nums; }
+.networth-currency { margin-right: 6rpx; font-size: 28rpx; color: var(--secondary); }
+.reminder-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 8rpx 18rpx; margin: -8rpx 0 22rpx; padding: 22rpx 24rpx; border: 1rpx solid #ead7b7; border-radius: 20rpx; background: #fbf4e8; color: #6f532b; }
+.reminder-title { flex: 1; font-size: 25rpx; font-weight: 600; }
+.reminder-text { flex-basis: 100%; font-size: 21rpx; color: #8a6a3d; }
+.insight-card { border-color: var(--brand-line, #cfe0da); }
+.dark .reminder-banner { background: #3b3426; border-color: #5a4b33; color: #e0c58f; }
+.dark .reminder-text { color: #c9ae7d; }
+.rate-alert-banner { background: #edf4f8; border-color: #cddfe8; color: #31576b; }
+.rate-alert-banner .reminder-text { color: #53748a; }
+.dark .rate-alert-banner { background: #25333b; border-color: #38515f; color: #b8d6e5; }
+.dark .rate-alert-banner .reminder-text { color: #9cb9c9; }
 .home-card { background: var(--surface); border: 1rpx solid var(--line); border-radius: 26rpx; padding: 28rpx; margin-top: 22rpx; }
+/* 净资产卡：跟普通白卡区分开，用淡品牌底 + 细边，数字才是主角 */
+.networth-card { background: var(--brand-soft, #eef6f3); border-color: var(--brand-line, #cfe0da); }
+.dark .networth-card { background: #22302a; border-color: #33503f; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin-bottom: 22rpx; }
 .section-title { font-size: 29rpx; font-weight: 600; }
 .section-link { font-size: 23rpx; color: var(--brand); white-space: nowrap; }

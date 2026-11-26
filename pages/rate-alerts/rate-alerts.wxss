@@ -1,0 +1,360 @@
+.rate-page {
+  --rate-bg: #f3f5f4;
+  --rate-surface: #ffffff;
+  --rate-text: #1d2925;
+  --rate-muted: #6f7d77;
+  --rate-line: #e3eae6;
+  --rate-soft: var(--brand-soft, #e7f5ef);
+  --rate-brand: var(--brand, #17806b);
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: calc(18rpx + env(safe-area-inset-top)) 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  background: var(--rate-bg);
+  color: var(--rate-text);
+}
+
+.rate-page.dark {
+  --rate-bg: #111916;
+  --rate-surface: #1b2421;
+  --rate-text: #e5eee9;
+  --rate-muted: #9aa9a2;
+  --rate-line: #2c3831;
+  --rate-soft: #223a32;
+  --rate-brand: #93cdb8;
+}
+
+.rate-back {
+  display: inline-block;
+  margin: 4rpx 0 14rpx;
+  padding: 8rpx 18rpx;
+  border-radius: 999rpx;
+  background: var(--rate-surface);
+  color: var(--rate-brand);
+  font-size: 24rpx;
+}
+
+.rate-header {
+  margin-bottom: 24rpx;
+}
+
+.rate-title {
+  display: block;
+  font-size: 40rpx;
+  line-height: 1.3;
+  font-weight: 700;
+}
+
+.rate-subtitle {
+  display: block;
+  margin-top: 8rpx;
+  color: var(--rate-muted);
+  font-size: 24rpx;
+  line-height: 1.5;
+}
+
+.rate-notice,
+.rate-error,
+.rate-card {
+  margin-bottom: 24rpx;
+  border-radius: 26rpx;
+}
+
+.rate-notice {
+  padding: 24rpx 28rpx;
+  border: 1rpx solid #ead9ae;
+  background: #fff8e8;
+  color: #795c20;
+  font-size: 22rpx;
+  line-height: 1.65;
+}
+
+.rate-notice-title {
+  display: block;
+  margin-bottom: 4rpx;
+  font-size: 25rpx;
+  font-weight: 700;
+}
+
+.dark .rate-notice {
+  border-color: #51462d;
+  background: #302b20;
+  color: #e2cb97;
+}
+
+.rate-error {
+  padding: 24rpx 28rpx;
+  background: #fff0ee;
+  color: #b63d35;
+  font-size: 24rpx;
+  line-height: 1.55;
+}
+
+.dark .rate-error {
+  background: #492d2a;
+  color: #ffaea5;
+}
+
+.rate-card {
+  padding: 30rpx;
+  border: 1rpx solid var(--rate-line);
+  background: var(--rate-surface);
+}
+
+.rate-row,
+.rate-card-heading,
+.rate-input-row,
+.rate-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rate-row {
+  gap: 20rpx;
+  min-height: 58rpx;
+}
+
+.rate-row + .rate-row {
+  border-top: 1rpx solid var(--rate-line);
+}
+
+.rate-label {
+  flex: none;
+  color: var(--rate-muted);
+  font-size: 24rpx;
+}
+
+.rate-value,
+.rate-account-name {
+  min-width: 0;
+  text-align: right;
+  font-size: 27rpx;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.rate-number {
+  color: var(--rate-brand);
+  font-variant-numeric: tabular-nums;
+}
+
+.rate-hint {
+  display: block;
+  margin-top: 12rpx;
+  color: var(--rate-muted);
+  font-size: 21rpx;
+  line-height: 1.55;
+}
+
+.rate-card-heading {
+  gap: 20rpx;
+  margin-bottom: 28rpx;
+}
+
+.rate-card-title {
+  font-size: 31rpx;
+  font-weight: 700;
+}
+
+.rate-field {
+  margin-bottom: 26rpx;
+}
+
+.rate-input-row {
+  gap: 16rpx;
+  margin-top: 14rpx;
+  padding: 0 20rpx;
+  border: 2rpx solid var(--rate-line);
+  border-radius: 18rpx;
+  background: var(--rate-bg);
+}
+
+.rate-input {
+  flex: 1;
+  min-width: 0;
+  height: 88rpx;
+  color: var(--rate-text);
+  font-size: 34rpx;
+  font-weight: 600;
+}
+
+.rate-placeholder {
+  color: var(--rate-muted);
+  font-size: 24rpx;
+  font-weight: 400;
+}
+
+.rate-unit {
+  color: var(--rate-muted);
+  font-size: 23rpx;
+}
+
+.rate-direction-label {
+  display: block;
+  margin-bottom: 14rpx;
+}
+
+.rate-directions {
+  display: flex;
+  gap: 16rpx;
+}
+
+.rate-direction {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 22rpx 18rpx;
+  border: 2rpx solid var(--rate-line);
+  border-radius: 20rpx;
+}
+
+.rate-direction.selected {
+  border-color: var(--rate-brand);
+  background: var(--rate-soft);
+}
+
+.rate-direction-mark {
+  display: block;
+  margin-bottom: 10rpx;
+  color: var(--rate-brand);
+  font-size: 26rpx;
+}
+
+.rate-direction-title {
+  display: block;
+  font-size: 26rpx;
+  font-weight: 600;
+}
+
+.rate-direction-sub {
+  display: block;
+  margin-top: 8rpx;
+  color: var(--rate-muted);
+  font-size: 20rpx;
+  line-height: 1.5;
+}
+
+.rate-actions {
+  gap: 16rpx;
+  margin-top: 28rpx;
+}
+
+.rate-button {
+  flex: 1;
+  padding: 24rpx 12rpx;
+  border: 1rpx solid var(--rate-line);
+  border-radius: 18rpx;
+  color: var(--rate-brand);
+  text-align: center;
+  font-size: 27rpx;
+  font-weight: 600;
+}
+
+.rate-button-primary {
+  border-color: var(--rate-brand);
+  background: var(--rate-brand);
+  color: #ffffff;
+}
+
+.dark .rate-button-primary {
+  color: #14271f;
+}
+
+.rate-button-warning {
+  margin-top: 22rpx;
+  border-color: #d7a43a;
+  background: #fff5dc;
+  color: #8c6317;
+}
+
+.dark .rate-button-warning {
+  background: #443a28;
+  color: #f2cb84;
+}
+
+.rate-center {
+  text-align: center;
+}
+
+.rate-badge {
+  flex: none;
+  padding: 7rpx 16rpx;
+  border-radius: 999rpx;
+  background: var(--rate-bg);
+  color: var(--rate-muted);
+  font-size: 21rpx;
+}
+
+.rate-badge.active {
+  background: var(--rate-soft);
+  color: var(--rate-brand);
+}
+
+.rate-badge.pending {
+  background: #fff0d2;
+  color: #8c6317;
+}
+
+.dark .rate-badge.pending {
+  background: #443a28;
+  color: #f2cb84;
+}
+
+.rate-status.pending {
+  border-color: #d7a43a;
+}
+
+.rate-pending {
+  margin-bottom: 20rpx;
+  padding: 22rpx;
+  border-radius: 18rpx;
+  background: #fff8e8;
+  color: #795c20;
+  font-size: 23rpx;
+  line-height: 1.6;
+}
+
+.dark .rate-pending {
+  background: #302b20;
+  color: #e2cb97;
+}
+
+.rate-pending-title {
+  display: block;
+  margin-bottom: 4rpx;
+  font-size: 28rpx;
+  font-weight: 700;
+}
+
+.rate-empty-title {
+  display: block;
+  margin-bottom: 10rpx;
+  font-size: 29rpx;
+  font-weight: 700;
+}
+
+.rate-empty {
+  color: var(--rate-muted);
+  font-size: 24rpx;
+  line-height: 1.6;
+}
+
+.rate-account-picker {
+  margin-top: 14rpx;
+  padding: 20rpx 22rpx;
+  border-radius: 16rpx;
+  background: var(--rate-soft, #f1f5f3);
+  color: var(--rate-text, #244038);
+  font-size: 27rpx;
+}
+
+@media (prefers-color-scheme: dark) {
+  .rate-page:not(.dark) {
+    --rate-bg: #111916;
+    --rate-surface: #1b2421;
+    --rate-text: #e5eee9;
+    --rate-muted: #9aa9a2;
+    --rate-line: #2c3831;
+    --rate-soft: #223a32;
+  }
+}

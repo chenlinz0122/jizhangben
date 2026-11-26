@@ -47,26 +47,29 @@ async function submit(openid, event) {
   const fileID = String((event && event.fileID) || '').trim().slice(0, 200)
   const page = String((event && event.page) || '').trim().slice(0, 60)
 
-  const recent = await db.collection(FEEDBACKS)
-    .where({ openid: openid, createdAt: db.command.gte(todayStart()) })
-    .count()
-  if (recent && recent.total >= MAX_PER_DAY) {
-    return bad('RATE_LIMIT', '今天已经提交 ' + recent.total + ' 条了，明天再来')
-  }
+  /* 计数和写入放在同一事务里，避免并发请求都读到 2 条后一起写成第 3、4 条。 */
+  return await db.runTransaction(async function (transaction) {
+    const recent = await transaction.collection(FEEDBACKS)
+      .where({ openid: openid, createdAt: db.command.gte(todayStart()) })
+      .count()
+    if (recent && recent.total >= MAX_PER_DAY) {
+      return bad('RATE_LIMIT', '今天已经提交 ' + recent.total + ' 条了，明天再来')
+    }
 
-  const doc = {
-    openid: openid,
-    type: type,
-    content: content,
-    contact: contact,
-    fileID: fileID,
-    page: page,
-    createdAt: Date.now(),
-    status: 'new',
-    version: 1
-  }
-  const res = await db.collection(FEEDBACKS).add({ data: doc })
-  return ok({ id: (res && res._id) || '' })
+    const doc = {
+      openid: openid,
+      type: type,
+      content: content,
+      contact: contact,
+      fileID: fileID,
+      page: page,
+      createdAt: Date.now(),
+      status: 'new',
+      version: 1
+    }
+    const res = await transaction.collection(FEEDBACKS).add({ data: doc })
+    return ok({ id: (res && res._id) || '' })
+  })
 }
 
 exports.main = async function (event) {

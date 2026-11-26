@@ -35,6 +35,22 @@ Page({
     billStep: ''
   },
 
+  onUnload: function () {
+    this._unloaded = true
+    this._taskToken = (this._taskToken || 0) + 1
+    ;(this._retryTimers || []).forEach(function (id) { clearTimeout(id) })
+    this._retryTimers = []
+  },
+
+  beginTask: function () {
+    this._taskToken = (this._taskToken || 0) + 1
+    return this._taskToken
+  },
+
+  taskActive: function (token) {
+    return !this._unloaded && token === this._taskToken
+  },
+
   onInput: function (e) {
     this.setData({ text: e.detail.value, preview: null, result: null })
     this._items = null
@@ -62,24 +78,33 @@ Page({
       type: 'file',
       extension: ['xlsx', 'csv', 'txt'],
       success: function (res) {
+        if (self._unloaded) return
         var f = (res.tempFiles || [])[0]
         if (!f) return
+        var token = self.beginTask()
         self.setData({ preview: null, result: null, billBusy: true, billStep: '正在上传…' })
-        self.uploadAndParse(f.path, f.name)
+        self.uploadAndParse(f.path, f.name, token)
       },
       fail: function (err) {
+        if (self._unloaded) return
         var msg = String((err && err.errMsg) || '')
         if (!/cancel/i.test(msg)) wx.showToast({ title: '没选到文件', icon: 'none' })
       }
     })
   },
 
-  uploadAndParse: function (filePath, fileName) {
+  uploadAndParse: function (filePath, fileName, token) {
     var self = this
+    var task = token === undefined ? this.beginTask() : token
+    if (!this.taskActive(task)) return
     var cloudPath = 'bills/' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) +
       (/\.(xlsx|csv|txt)$/i.test(fileName || '') ? fileName.match(/\.(xlsx|csv|txt)$/i)[0] : '.csv')
 
     this.uploadWithRetry(filePath, cloudPath, function (err, up) {
+      if (!self.taskActive(task)) {
+        if (up) self.cleanupFile(up.fileID)
+        return
+      }
       if (err) {
         var msg = String((err && err.errMsg) || '')
         if (/ECONNRESET|reset|network|timeout/i.test(msg)) {
@@ -96,6 +121,7 @@ Page({
         data: { fileID: up.fileID, name: fileName || '' },
         success: function (r) {
           self.cleanupFile(up.fileID)
+          if (!self.taskActive(task)) return
           var res = (r && r.result) || {}
           if (!res.ok) {
             self.setData({ billBusy: false, billStep: '' })
@@ -110,6 +136,7 @@ Page({
         },
         fail: function (err2) {
           self.cleanupFile(up.fileID)
+          if (!self.taskActive(task)) return
           var m2 = String((err2 && err2.errMsg) || '')
           if (/function not found|FunctionName/i.test(m2)) {
             m2 = '云函数 parseBill 还没部署：在开发者工具里右键 cloudfunctions/parseBill → 上传并部署'
@@ -121,22 +148,35 @@ Page({
     })
   },
 
-  uploadWithRetry: function (filePath, cloudPath, done) {
+  uploadWithRetry: function (filePath, cloudPath, done, token) {
     var self = this
+    var task = token === undefined ? this.beginTask() : token
     var tries = 0
     var MAX = 3
+    this._retryTimers = this._retryTimers || []
+
+    function later(fn) {
+      var id = setTimeout(function () {
+        var i = self._retryTimers.indexOf(id)
+        if (i >= 0) self._retryTimers.splice(i, 1)
+        fn()
+      }, 800)
+      self._retryTimers.push(id)
+    }
 
     function attempt() {
+      if (!self.taskActive(task)) return
       tries++
       wx.cloud.uploadFile({
         cloudPath: cloudPath,
         filePath: filePath,
         success: function (up) { done(null, up) },
         fail: function (err) {
+          if (!self.taskActive(task)) { done(err); return }
           var msg = String((err && err.errMsg) || '')
           if (/ECONNRESET|reset|timeout|network|socket/i.test(msg) && tries < MAX) {
             self.setData({ billStep: '上传中断，重试中（' + tries + '/' + (MAX - 1) + '）…' })
-            setTimeout(attempt, 800)
+            later(attempt)
             return
           }
           done(err)
@@ -199,6 +239,7 @@ Page({
 
   chooseFile: function () {
     var self = this
+    var token = this.beginTask()
     if (!wx.chooseMessageFile) {
       wx.showToast({ title: '这个版本不支持选文件，请用粘贴', icon: 'none' })
       return
@@ -209,17 +250,20 @@ Page({
         type: 'file',
         extension: ['csv', 'txt'],
         success: function (res) {
+          if (!self.taskActive(token)) return
           var f = res.tempFiles[0]
           if (!f) return
           wx.getFileSystemManager().readFile({
             filePath: f.path,
             encoding: 'utf-8',
             success: function (r) {
+              if (!self.taskActive(token)) return
               self.setData({ text: r.data, preview: null, result: null })
               self._items = null
               wx.showToast({ title: '读到了，点解析', icon: 'none' })
             },
             fail: function () {
+              if (!self.taskActive(token)) return
               wx.showToast({ title: '读不了这个文件，改用「账单文件导入」', icon: 'none' })
             }
           })
@@ -297,12 +341,14 @@ Page({
   /* 一键导入：先读剪贴板，自动识别并解析；读不到或识别不出再走备选入口 */
   oneTapImport: function () {
     var self = this
+    var token = this.beginTask()
     if (!wx.getClipboardData) {
       this.fallbackSheet()
       return
     }
     wx.getClipboardData({
       success: function (res) {
+        if (!self.taskActive(token)) return
         var text = String((res && res.data) || '').trim()
         if (text.replace(/\s/g, '').length < 20) {
           wx.showToast({ title: '剪贴板里还没有账单内容', icon: 'none' })
@@ -313,6 +359,7 @@ Page({
         self.parseText(text)
       },
       fail: function (err) {
+        if (!self.taskActive(token)) return
         var msg = String((err && err.errMsg) || '')
         if (/privacy|112|104|auth|scope/i.test(msg)) {
           wx.showModal({
@@ -333,6 +380,7 @@ Page({
     wx.showActionSheet({
       itemList: ['选择账单文件（xlsx/csv）', '手动粘贴账单'],
       success: function (res) {
+        if (self._unloaded) return
         if (res.tapIndex === 0) {
           self.chooseBillFile()
         } else {

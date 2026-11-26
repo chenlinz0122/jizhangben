@@ -380,6 +380,31 @@ try {
     })
   }
 
+  scenario('预算模板整体覆盖并校验分类', () => {
+    const env = fresh()
+    same('非法分类拒绝写入', invoke(() => env.store.applyBudgetTemplate(3000, { 不存在: 100 })), null)
+    const result = invoke(() => env.store.applyBudgetTemplate(3000.126, { 餐饮: 1200.126, 交通: 300, 购物: 0 }))
+    check('模板保存成功', !!result && result.saved === true, result)
+    same('月预算按分保存', env.store.budget(), 3000.13)
+    same('分类预算整体替换', env.store.catBudgets(), { 餐饮: 1200.13, 交通: 300 })
+    persisted(env)
+  })
+
+  for (const key of [BUDGET, CAT]) {
+    scenario('预算模板在 ' + key + ' 失败时两个 key 一起回滚', () => {
+      const env = fresh()
+      const before = snapshot(env)
+      env.fail(key)
+      const result = invoke(() => env.store.applyBudgetTemplate(2600, { 餐饮: 1000, 交通: 200 }))
+      check('失败不报成功', !!result && result.saved === false, result)
+      unchanged(env, before)
+      const retry = invoke(() => env.store.applyBudgetTemplate(2600, { 餐饮: 1000, 交通: 200 }))
+      check('重试成功', !!retry && retry.saved === true, retry)
+      same('重试后月预算正确', env.store.budget(), 2600)
+      same('重试后分类预算正确', env.store.catBudgets(), { 餐饮: 1000, 交通: 200 })
+    })
+  }
+
   scenario('成功 clearAll 不触碰会员、主题、shared 标记', () => {
     const env = fresh()
     const before = snapshot(env)
@@ -388,7 +413,7 @@ try {
     same('账目、规则、预算清空', view(env.store), { txs: [], rules: {}, budget: 0, catBudgets: {} })
     const protectedKeys = Object.keys(before.disk).filter((key) => !DATA_KEYS.includes(key))
     for (const key of protectedKeys) same('保留 ' + key, env.disk[key], before.disk[key])
-    check('只写账本数据与删除日志', env.writes().every((e) => DATA_KEYS.includes(e.key)), env.writes())
+    check('只写账本数据与删除日志', env.writes().every((e) => DATA_KEYS.includes(e.key) || e.key === 'disabled_rules_v1'), env.writes())
     heldUnchanged(before)
     persisted(env)
   })

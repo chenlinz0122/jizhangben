@@ -181,6 +181,7 @@
       </view>
     </view>
     <text class="ysub">自然年累计 · {{year.count}} 笔</text>
+    <text class="link annual-link" bindtap="goAnnual">查看完整年度报告 ›</text>
     <view class="ygrid">
       <view class="ycell">
         <text class="yn">¥{{year.expenseText}}</text>
@@ -263,6 +264,9 @@
       <text class="title inline">月度预算</text>
       <view class="links">
         <text class="link" bindtap="toggleCatBudget">{{catBudgetOpen ? '收起分类预算' : '分类预算'}}</text>
+        <text class="link" bindtap="goBudgetTemplates">模板</text>
+        <text class="link" bindtap="goBudgetVariance">偏差分析</text>
+        <text class="link" bindtap="goBudgetHistory">历史</text>
         <text class="link" bindtap="setBudget">{{budget > 0 ? '修改' : '设置'}}</text>
       </view>
     </view>

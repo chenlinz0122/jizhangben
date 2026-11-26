@@ -84,6 +84,28 @@ function setup(options = {}) {
   result = await env.sync()
   check(result.ok && env.calls.filter((c) => c.action === 'push').length === pushCount, '已确认记录不重复上传')
 
+  const foreign = Object.assign(tx('foreign'), {
+    amount: 72, nativeAmount: 10, currency: 'USD', rateToCny: 7.2,
+    accountId: 'local-only-account', toCurrency: 'EUR', toNativeAmount: 9, toRateToCny: 8
+  })
+  env = setup({ local: [foreign] })
+  result = await env.sync()
+  check(result.ok && result.pushed === 1, '外币流水可正常同步')
+  const sent = env.calls.find((c) => c.action === 'push').txs[0]
+  check(sent.nativeAmount === 10 && sent.currency === 'USD' && sent.rateToCny === 7.2 &&
+    sent.toNativeAmount === 9 && sent.toCurrency === 'EUR' && sent.toRateToCny === 8,
+  '上传保留原币金额、币种与汇率快照')
+  check(sent.accountId === undefined, '本机账户 ID 不随共同账本上传')
+
+  env = setup({ remote: [remote('foreign-remote', {
+    amount: 72, nativeAmount: 10, currency: 'USD', rateToCny: 7.2
+  })] })
+  result = await env.sync()
+  check(result.ok && result.added === 1, '外币云端流水可正常拉取')
+  const pulled = env.store.all()[0]
+  check(pulled.nativeAmount === 10 && pulled.currency === 'USD' && pulled.rateToCny === 7.2,
+    '拉取保留原币金额、币种与汇率快照')
+
   env = setup({ local: [tx('local', '2020-01-02')], remote: [remote('new')], failKeys: ['txs_v1'] })
   result = await env.sync()
   check(!result.ok && env.store.all().length === 1, '落库失败不假成功且缓存不污染')

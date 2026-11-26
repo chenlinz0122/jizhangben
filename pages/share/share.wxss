@@ -295,7 +295,7 @@
   color: #ffffff;
   background: var(--brand, #2f6f5e);
 }
-.scope-option[disabled] { opacity: 0.6; }
+.scope-option.is-off { opacity: 0.6; }
 .page.dark .scope-option:not(.selected) {
   color: #cfd5da;
   background: #262c33;

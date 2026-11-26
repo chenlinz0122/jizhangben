@@ -32,16 +32,86 @@
       <text class="muted">{{preview.photos > 1 ? preview.photos + ' 张图 · ' : ''}}{{preview.source}}</text>
     </view>
     <view class="muted" wx:if="{{preview.fails.length > 0}}">
-      有 {{preview.fails.length}} 张没认出流水（第 {{preview.fails[0].no}} 张：{{preview.fails[0].why}}），这些图的内容没有进下面的预览。
+      有 {{preview.fails.length}} 张没认出流水，这些图的内容没有进下面的预览：
+      <view class="fail" wx:for="{{preview.fails}}" wx:key="no">第 {{item.no}} 张：{{item.why}}</view>
     </view>
     <view class="stat">
       <view class="sitem"><text class="sv">{{preview.add}}</text><text class="sl">可新增</text></view>
       <view class="sitem"><text class="sv">{{preview.merged}}</text><text class="sl">合并</text></view>
       <view class="sitem"><text class="sv">{{preview.dup}}</text><text class="sl">跳重复</text></view>
     </view>
+    <view class="original-review" wx:if="{{preview.images.length > 0}}">
+      <view class="between original-title">
+        <text>原图核对</text>
+        <text class="muted">{{preview.images[reviewImageIndex].label}}</text>
+      </view>
+      <view class="imagetabs">
+        <view class="imagetab {{reviewImageIndex === index ? 'on' : ''}}" wx:for="{{preview.images}}" wx:key="imageIndex"
+              data-index="{{index}}" bindtap="selectOriginalImage">{{item.label}}</view>
+      </view>
+      <view class="original-stage" wx:if="{{preview.images[reviewImageIndex]}}">
+        <image class="original-image" src="{{preview.images[reviewImageIndex].path}}" mode="widthFix" lazy-load="true"></image>
+        <view class="ocr-layer">
+          <view wx:for="{{preview.images[reviewImageIndex].boxes}}" wx:key="boxKey"
+                class="ocrbox {{item.low ? 'low' : ''}} {{highlightKey === item.reviewKey ? 'highlight' : ''}}"
+                style="left:{{item.leftPct}}%;top:{{item.topPct}}%;width:{{item.widthPct}}%;height:{{item.heightPct}}%;"></view>
+        </view>
+      </view>
+      <view class="muted original-meta" wx:if="{{preview.images[reviewImageIndex].width > 0}}">
+        原图 {{preview.images[reviewImageIndex].width}} × {{preview.images[reviewImageIndex].height}} px · 已标 {{preview.images[reviewImageIndex].boxes.length}} 项
+      </view>
+      <view class="muted original-meta" wx:if="{{preview.images[reviewImageIndex].unmappedCount > 0}}">
+        另有 {{preview.images[reviewImageIndex].unmappedCount}} 项缺少坐标或原图尺寸，请按下方文字核对。
+      </view>
+    </view>
+    <view class="reviewbox" wx:if="{{preview.lowCount > 0}}">
+      <view class="reviewtitle">有 {{preview.lowCount}} 笔低置信度，请逐条核对</view>
+      <view class="reviewhint">这些记录仍会导入，不会自动丢弃。点击条目定位原图框，也可直接修正。</view>
+      <view class="reviewitem {{highlightKey === item.reviewKey ? 'active' : ''}}" wx:for="{{preview.lowItems}}" wx:key="reviewKey"
+            data-index="{{item.parsedIndex}}" bindtap="focusReviewItem">
+        <view class="reviewhead">
+          <text class="reviewmerchant">{{item.merchant}}</text>
+          <text class="siamt {{item.type === 'income' || item.type === 'refund' ? 'inc' : (item.type === 'transfer' ? 'mut' : 'exp')}}">
+            {{item.type === 'income' || item.type === 'refund' ? '+' : (item.type === 'transfer' ? '' : '-')}}¥{{item.amountText}}
+          </text>
+        </view>
+        <view class="sisub">{{item.timeText}} · {{item.category}} · {{item.imageIndex >= 0 ? '第 ' + (item.imageIndex + 1) + ' 张' : '图片序号缺失'}}</view>
+        <view class="reasons">
+          <text class="reason" wx:for="{{item.reviewReasons}}" wx:key="*this">{{item}}</text>
+        </view>
+        <view class="reviewactions">
+          <text class="reviewaction" wx:if="{{item.hasBox}}" bindtap="focusReviewItem" data-index="{{item.parsedIndex}}">定位原图</text>
+          <text class="reviewaction fix" catchtap="editReviewItem" data-index="{{item.parsedIndex}}">修正</text>
+        </view>
+      </view>
+    </view>
+    <view class="editbox" wx:if="{{editForm}}">
+      <view class="title">修正识别项</view>
+      <view class="field">商户</view>
+      <input class="reviewinput" value="{{editForm.merchant}}" maxlength="48" data-field="merchant" bindinput="onReviewField" placeholder="填写商户名称"></input>
+      <view class="field">金额</view>
+      <input class="reviewinput" type="digit" value="{{editForm.amount}}" data-field="amount" bindinput="onReviewField" placeholder="大于 0 的金额"></input>
+      <view class="field">日期</view>
+      <picker mode="date" value="{{editForm.date}}" bindchange="onReviewDate">
+        <view class="reviewvalue">{{editForm.date}} ›</view>
+      </picker>
+      <view class="field">类型</view>
+      <picker range="{{editTypeOptions}}" range-key="label" value="{{editTypeIndex}}" bindchange="onReviewType">
+        <view class="reviewvalue">{{editTypeOptions[editTypeIndex].label}} ›</view>
+      </picker>
+      <view class="field">分类</view>
+      <picker range="{{editCategories}}" value="{{editCategoryIndex}}" bindchange="onReviewCategory">
+        <view class="reviewvalue">{{editCategories[editCategoryIndex]}} ›</view>
+      </picker>
+      <view class="muted edit-hint">保存后重新计算疑点，并需要再次确认才能导入。</view>
+      <view class="oprow">
+        <view class="btn plain half" bindtap="cancelReviewEdit">取消</view>
+        <view class="btn half" bindtap="saveReviewEdit">保存修正</view>
+      </view>
+    </view>
     <view class="divider"></view>
     <view class="muted">前几条长这样，看对不对：</view>
-    <view class="sample" wx:for="{{preview.sample}}" wx:key="merchant">
+    <view class="sample" wx:for="{{preview.sample}}" wx:key="sampleKey">
       <view class="ileft">
         <text class="sim">{{item.merchant}}</text>
         <text class="sisub">{{item.timeText}} · {{item.category}}</text>
@@ -52,9 +122,9 @@
     </view>
     <view class="oprow">
       <view class="btn plain half" bindtap="redraw">重选图片</view>
-      <view class="btn half" bindtap="doImport">确认导入</view>
+      <view class="btn half" bindtap="requestImport">{{preview.lowCount > 0 ? '核对后确认导入' : '确认导入'}}</view>
     </view>
-    <view class="muted tip">金额或商户认错了？先在「导入」页用复制粘贴重来；导入后也能在流水页逐笔改分类。</view>  </view>
+    <view class="muted tip">金额、商户、日期、类型或分类不对？点击低置信度条目的「修正」，保存后请重新确认。</view>  </view>
 
   <view class="card" wx:if="{{result}}">
     <view class="done">导入完成：新增 {{result.added}} 条{{result.merged ? '，合并 ' + result.merged + ' 条' : ''}}{{result.dup ? '，跳过重复 ' + result.dup + ' 条' : ''}}</view>

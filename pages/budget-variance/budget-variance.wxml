@@ -1,0 +1,178 @@
+<view class="theme-{{themeKey}} bv-page {{dark ? 'dark' : ''}}">
+  <view class="bv-back" wx:if="{{backTab}}" bindtap="goBack">‹ 返回{{backLabel}}</view>
+
+  <view class="bv-header">
+    <view class="bv-title-row">
+      <view>
+        <text class="bv-title">预算执行偏差分析</text>
+        <text class="bv-subtitle">看预算是否花在计划内</text>
+      </view>
+      <view class="bv-copy-mini" bindtap="copyReport">复制报告</view>
+    </view>
+
+    <view class="bv-month-row">
+      <view class="bv-arrow {{ym <= '1970-01' ? 'off' : ''}}" bindtap="prevMonth">‹</view>
+      <picker mode="date" fields="month" value="{{ym}}" end="{{maxYm}}" bindchange="pickMonth">
+        <view class="bv-month">
+          <text>{{monthText}}</text>
+          <text class="bv-chevron">⌄</text>
+        </view>
+      </picker>
+      <view class="bv-arrow {{canNext ? '' : 'off'}}" bindtap="nextMonth">›</view>
+      <text class="bv-current" bindtap="currentMonth">本月</text>
+    </view>
+
+    <view class="bv-scope" wx:if="{{sharedOn}}">
+      <text class="bv-scope-label">{{scopeText}}</text>
+      <view class="bv-scope-switch">
+        <text class="bv-scope-item {{scope === 'mine' ? 'on' : ''}}" data-k="mine" bindtap="setScope">只看自己</text>
+        <text class="bv-scope-item {{scope === 'both' ? 'on' : ''}}" data-k="both" bindtap="setScope">看双方</text>
+        <text class="bv-scope-item {{scope === 'peer' ? 'on' : ''}}" data-k="peer" bindtap="setScope">只看对方</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="bv-error" wx:if="{{error}}">{{error}}</view>
+
+  <view class="bv-overview {{statusClass}}">
+    <view class="bv-overview-head">
+      <text class="bv-section-light">本月总览</text>
+      <text class="bv-status">{{overallLabel}}</text>
+    </view>
+    <text class="bv-amount-label">实际净支出</text>
+    <text class="bv-amount {{netNegative ? 'negative' : ''}}">{{actualNetSpendMoneyText}}</text>
+    <text class="bv-summary-note">{{summaryNote}}</text>
+
+    <view class="bv-progress" wx:if="{{hasBudget}}">
+      <view class="bv-progress-fill {{statusClass}}" style="width:{{barPct}}%"></view>
+    </view>
+
+    <view class="bv-metrics">
+      <view class="bv-metric">
+        <text class="bv-metric-label">总预算</text>
+        <text class="bv-metric-value">{{hasBudget ? '¥' + totalBudgetText : '未设置'}}</text>
+      </view>
+      <view class="bv-metric">
+        <text class="bv-metric-label">使用率</text>
+        <text class="bv-metric-value">{{usageRateText}}</text>
+      </view>
+      <view class="bv-metric">
+        <text class="bv-metric-label">{{remainingLabel}}</text>
+        <text class="bv-metric-value {{statusClass === 'over' ? 'danger' : ''}}">{{remainingMoneyText}}</text>
+      </view>
+    </view>
+
+    <view class="bv-overview-foot">
+      <text wx:if="{{hasData}}">付款 {{grossSpentText}} · 退款 {{refundReceivedText}}</text>
+      <text wx:else>本月暂无流水</text>
+      <text class="bv-settings" bindtap="goBudgetSettings">{{hasBudget ? '调整预算' : '去设置预算'}} ›</text>
+    </view>
+  </view>
+
+  <view class="bv-card bv-trend-card">
+    <view class="bv-card-head">
+      <view>
+        <text class="bv-card-title">近 6 个月偏差趋势</text>
+        <text class="bv-card-sub">截至所选月份 · 差额 = 预算 − 实际净支出</text>
+      </view>
+      <text class="bv-copy-mini" bindtap="copyTrend">复制趋势</text>
+    </view>
+
+    <scroll-view scroll-x class="bv-trend-scroll" show-scrollbar="{{false}}">
+      <view class="bv-trend-table">
+        <view class="bv-trend-row bv-trend-head">
+          <text class="bv-trend-month">月份</text>
+          <text class="bv-trend-budget">预算</text>
+          <text class="bv-trend-spent">实际净支出</text>
+          <text class="bv-trend-variance">差额</text>
+          <text class="bv-trend-usage">使用率</text>
+          <text class="bv-trend-status">状态</text>
+        </view>
+        <view class="bv-trend-row {{item.active ? 'active' : ''}}" wx:for="{{trendMonths}}" wx:key="ym">
+          <text class="bv-trend-month">{{item.monthShort}}</text>
+          <text class="bv-trend-budget {{item.hasBudget ? '' : 'muted'}}">{{item.budgetMoneyText}}</text>
+          <text class="bv-trend-spent {{item.negative ? 'refund' : ''}}">{{item.spentMoneyText}}</text>
+          <text class="bv-trend-variance {{item.statusClass === 'over' ? 'danger' : ''}} {{item.hasBudget ? '' : 'muted'}}">{{item.varianceMoneyText}}</text>
+          <view class="bv-trend-usage">
+            <text>{{item.usageRateText}}</text>
+            <view class="bv-trend-progress">
+              <view class="bv-trend-progress-fill {{item.statusClass}}" style="width:{{item.barPct}}%"></view>
+            </view>
+          </view>
+          <text class="bv-trend-status {{item.statusClass}}">{{item.statusText}}</text>
+        </view>
+      </view>
+    </scroll-view>
+    <text class="bv-trend-note">{{trendBudgetNote}}。跨月退款按到账月抵减，负净支出使用率为 0%。</text>
+  </view>
+
+  <view class="bv-card">
+    <view class="bv-card-head">
+      <view>
+        <text class="bv-card-title">分类偏差</text>
+        <text class="bv-card-sub">差额 = 预算 − 净支出，正数为结余</text>
+      </view>
+      <text class="bv-count">{{categories.length}} 类</text>
+    </view>
+
+    <view class="bv-empty" wx:if="{{!hasCategories}}">
+      <text>本月暂无分类支出或分类预算</text>
+      <text class="bv-empty-sub">记录支出或设置分类预算后，这里会逐项展示。</text>
+    </view>
+
+    <view class="bv-cat {{item.statusClass}}" wx:for="{{categories}}" wx:key="category">
+      <view class="bv-cat-head">
+        <view class="bv-cat-name-wrap">
+          <view class="bv-cat-icon" style="background:{{item.tint}}"><text>{{item.icon}}</text></view>
+          <view class="bv-cat-name-col">
+            <text class="bv-cat-name">{{item.category}}</text>
+            <text class="bv-cat-state" wx:if="{{item.noSpend && item.hasBudget}}">本月无支出</text>
+          </view>
+        </view>
+        <text class="bv-cat-status {{item.statusClass}}">{{item.statusText}}</text>
+      </view>
+
+      <view class="bv-cat-numbers">
+        <view class="bv-cat-number">
+          <text class="bv-number-label">预算</text>
+          <text class="bv-number-value">{{item.hasBudget ? '¥' + item.budgetText : '未设'}}</text>
+        </view>
+        <view class="bv-cat-number">
+          <text class="bv-number-label">净支出</text>
+          <text class="bv-number-value {{item.negative ? 'refund' : ''}}">{{item.spentMoneyText}}</text>
+        </view>
+        <view class="bv-cat-number align-right">
+          <text class="bv-number-label">差额 / 偏差</text>
+          <text class="bv-number-value {{item.statusClass === 'over' ? 'danger' : ''}}">{{item.varianceMoneyText}} · {{item.variancePctText}}</text>
+        </view>
+      </view>
+
+      <view class="bv-cat-progress" wx:if="{{item.hasBudget}}">
+        <view class="bv-cat-progress-fill {{item.statusClass}}" style="width:{{item.barPct}}%;background:{{item.color}}"></view>
+      </view>
+      <view class="bv-cat-meta" wx:if="{{item.hasBudget}}">
+        <text>已用 {{item.usageRateText}}</text>
+        <text wx:if="{{item.grossSpent > 0 && item.negative}}">退款抵减后为负数</text>
+      </view>
+      <text class="bv-advice">{{item.advice}}</text>
+    </view>
+  </view>
+
+  <view class="bv-card">
+    <view class="bv-card-head">
+      <view>
+        <text class="bv-card-title">执行建议</text>
+        <text class="bv-card-sub">基于本月已记录流水，仅作预算管理参考</text>
+      </view>
+    </view>
+    <view class="bv-suggestion" wx:for="{{suggestions}}" wx:key="*this">
+      <text class="bv-suggestion-index">{{index + 1}}</text>
+      <text class="bv-suggestion-text">{{item}}</text>
+    </view>
+  </view>
+
+  <view class="bv-footer">
+    <view class="bv-btn {{loading || error || !reportText ? 'disabled' : ''}}" bindtap="copyReport">复制分析报告</view>
+    <text class="bv-footer-note">退款按到账月抵减，不追溯修改付款月份</text>
+  </view>
+</view>

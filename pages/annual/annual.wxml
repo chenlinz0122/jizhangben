@@ -1,0 +1,178 @@
+<view class="page theme-{{themeKey}} {{dark ? 'dark' : ''}}">
+  <view class="hero">
+    <view class="hero-top">
+      <view class="back" bindtap="goBack">‹ 返回</view>
+      <text class="scope">{{scopeText}}</text>
+    </view>
+    <view class="hero-title">年度财务报告</view>
+    <view class="hero-sub">回看全年收支、消费结构与账目健康</view>
+    <view class="year-bar">
+      <view class="year-arrow" bindtap="prevYear">‹</view>
+      <picker mode="date" fields="year" value="{{year}}" start="1970" end="{{maxYear}}" bindchange="pickYear">
+        <view class="year-picker">{{yearText}}<text class="year-caret">⌄</text></view>
+      </picker>
+      <view class="year-arrow {{canNext ? '' : 'off'}}" bindtap="nextYear">›</view>
+    </view>
+    <view class="current-year {{year === maxYear ? 'on' : ''}}" bindtap="currentYear">回到今年</view>
+  </view>
+
+  <view class="loading card" wx:if="{{loading}}">正在生成年度报告…</view>
+  <view class="empty card" wx:if="{{!loading && error}}">
+    <view class="empty-title">暂时无法生成年报</view>
+    <view class="empty-desc">{{error}}</view>
+    <view class="primary-action" bindtap="refresh">重新生成</view>
+  </view>
+
+  <block wx:if="{{!loading && !error}}">
+    <canvas canvas-id="annual-share-canvas" class="share-canvas" width="750" height="1000"></canvas>
+    <view class="section-head overview-heading"><text class="section-title">年度总览</text><text class="section-note">金额按分计算</text></view>
+    <view class="overview card">
+      <view class="overview-head">
+        <text class="overview-label">全年收支结余</text>
+        <text class="overview-count">{{txCount}} 笔流水 · {{recordedMonthsText}} 月有记录</text>
+      </view>
+      <text class="overview-value {{balanceClass}}">{{balanceText}}</text>
+      <view class="metric-grid">
+        <view class="metric"><text class="metric-label">收入</text><text class="metric-value positive">{{incomeText}}</text></view>
+        <view class="metric"><text class="metric-label">净支出</text><text class="metric-value">{{netExpenseText}}</text><text class="metric-hint">退款已抵减</text></view>
+        <view class="metric"><text class="metric-label">退款</text><text class="metric-value">{{refundText}}</text></view>
+        <view class="metric"><text class="metric-label">年度储蓄率</text><text class="metric-value">{{savingsRateText}}</text></view>
+      </view>
+      <view class="metric-line"><text>平均月支出</text><text>{{averageExpenseText}}</text></view>
+      <view class="metric-line"><text>最高支出月</text><text>{{highestMonthText}}</text></view>
+      <view class="metric-line"><text>最低支出月</text><text>{{lowestMonthText}}</text></view>
+      <view class="metric-hint">平均与极值仅按有记录月份计算；无记录月份不按零支出参与比较。</view>
+    </view>
+
+    <view class="empty card" wx:if="{{!hasData}}">
+      <view class="empty-title">这一年还没有流水</view>
+      <view class="empty-desc">保留 12 个月空位，不推测消费趋势。记账或导入账单后即可生成年报。</view>
+    </view>
+
+    <view class="section-head"><text class="section-title">12 月趋势</text><text class="section-note">净支出 · 无记录留空</text></view>
+    <view class="trend card">
+      <scroll-view class="trend-scroll" scroll-x enhanced show-scrollbar="{{false}}">
+        <view class="trend-inner">
+          <view class="trend-item {{item.hasData ? '' : 'no-data'}}" wx:for="{{months}}" wx:key="ym">
+            <text class="trend-value">{{item.trendText}}</text>
+            <view class="trend-track"><view class="trend-bar {{item.trendNegative ? 'negative-bar' : ''}}" style="{{item.trendStyle}}"></view></view>
+            <text class="trend-label">{{item.label}}</text>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
+
+    <view class="section-head"><text class="section-title">支出分类 TOP</text><text class="section-note">按支出发生额</text></view>
+    <view class="ranking card">
+      <view class="rank-item" wx:for="{{topCategories}}" wx:key="name">
+        <view class="rank-head">
+          <text class="rank-number">{{item.rank}}</text>
+          <text class="rank-name">{{item.name}}</text>
+          <text class="rank-amount">{{item.amountText}}</text>
+        </view>
+        <view class="rank-detail">
+          <view class="rank-track"><view class="rank-bar" style="{{item.barStyle}};background: {{item.color}}"></view></view>
+          <text class="rank-percent">{{item.percentText}}</text>
+        </view>
+        <text class="rank-hint">退款另计 · 分类净支出 {{item.netExpenseText}}</text>
+      </view>
+      <view class="empty-desc" wx:if="{{!topCategories.length}}">暂无支出分类。</view>
+    </view>
+
+    <view class="section-head"><text class="section-title">月份明细</text><text class="section-note">收入 / 支出 / 退款 / 结余</text></view>
+    <view class="month-list card">
+      <view class="month-row {{item.hasData ? '' : 'no-data'}}" wx:for="{{months}}" wx:key="ym">
+        <view class="month-title"><text class="month-name">{{item.label}}</text><text class="month-state">{{item.hasData ? item.txCount + ' 笔' : '无记录'}}</text></view>
+        <view class="month-numbers" wx:if="{{item.hasData}}">
+          <text>收入 {{item.incomeText}}</text><text>支出 {{item.expenseText}}</text>
+          <text>退款 {{item.refundText}}</text><text>净支出 {{item.netExpenseText}}</text>
+          <text class="{{item.balanceCents < 0 ? 'negative' : 'positive'}}">结余 {{item.balanceText}}</text>
+        </view>
+        <view class="month-numbers" wx:else><text>该月暂无记录，不参与趋势与月均统计。</text></view>
+      </view>
+    </view>
+
+    <view class="section-head"><text class="section-title">年度健康概览</text><text class="section-note">只使用已有数据</text></view>
+    <view class="health-card card">
+      <view class="health-primary">
+        <view><text class="health-label">有收入月平均储蓄率</text><text class="health-hint">逐月计算后取平均，不把无收入月当作 0%</text></view>
+        <text class="health-value">{{health.averageSavingsRateText}}</text>
+      </view>
+      <view class="metric-line"><text>有收入月份</text><text>{{health.incomeMonths}} 个月</text></view>
+      <view class="metric-line"><text>预算覆盖</text><text>{{health.budgetMonths}} / 12 个月</text></view>
+      <view class="metric-line"><text>预算合计 / 使用</text><text>{{health.budgetText}} · {{health.budgetUsageText}}</text></view>
+      <view class="metric-line"><text>超支月份</text><text>{{health.overBudgetMonths}} 个月</text></view>
+      <view class="metric-line"><text>数据体检</text><text>{{health.issueSummaryText}}</text></view>
+      <view class="health-tags"><text class="health-tag" wx:for="{{health.types}}" wx:key="type">{{item.label}} {{item.countText}}</text></view>
+      <view class="metric-hint">体检覆盖 {{health.scanCoverageText}}；{{budgetNote}}</view>
+    </view>
+
+    <view class="net-worth card">
+      <view><text class="net-worth-label">当前账户净资产快照</text><text class="net-worth-hint">非去年末资产，不参与评分，也不推断历史趋势</text></view>
+      <text class="net-worth-value">{{netWorthText}}</text>
+    </view>
+
+    <view class="report-note">金额按分计算，退款按发生月抵减。报告仅反映已记录数据，不构成投资或借贷建议。</view>
+
+    <view class="section-head"><text class="section-title">分享模板</text><text class="section-note">自动保存到本机</text></view>
+    <view class="share-template card">
+      <text class="template-label">主题</text>
+      <view class="theme-options">
+        <view class="theme-option theme-option-{{item.key}} {{sharePrefs.theme === item.key ? 'selected' : ''}} {{shareBusy ? 'disabled' : ''}}" wx:for="{{shareThemes}}" wx:key="key" data-theme="{{item.key}}" bindtap="selectShareTheme">
+          <view class="theme-swatch"><view class="theme-swatch-dot"></view><view class="theme-swatch-line"></view></view>
+          <text>{{item.label}}</text>
+        </view>
+      </view>
+      <view class="template-field">
+        <text class="template-label">标题</text>
+        <input class="template-input" value="{{sharePrefs.title}}" maxlength="30" placeholder="默认：年份 年度财务报告" disabled="{{shareBusy}}" bindinput="inputShareTitle" />
+      </view>
+      <view class="template-field">
+        <text class="template-label">副标题</text>
+        <input class="template-input" value="{{sharePrefs.subtitle}}" maxlength="40" placeholder="默认：当前流水口径" disabled="{{shareBusy}}" bindinput="inputShareSubtitle" />
+      </view>
+      <view class="template-field accent-field">
+        <text class="template-label">强调色</text>
+        <input class="accent-input" type="color" value="{{sharePrefs.accentColor || '#16705c'}}" disabled="{{shareBusy}}" bindinput="inputShareAccent" />
+        <text class="accent-reset {{shareBusy ? 'disabled' : ''}}" bindtap="resetShareAccent">跟随主题</text>
+      </view>
+      <view class="template-switch">
+        <text>显示支出分类 TOP 3</text>
+        <switch checked="{{sharePrefs.showTopCategories}}" color="#17806b" disabled="{{shareBusy}}" data-field="showTopCategories" bindchange="toggleShareModule" />
+      </view>
+      <view class="template-switch">
+        <text>显示年度健康概览</text>
+        <switch checked="{{sharePrefs.showHealth}}" color="#17806b" disabled="{{shareBusy}}" data-field="showHealth" bindchange="toggleShareModule" />
+      </view>
+      <view class="template-switch">
+        <text>显示生成日期</text>
+        <switch checked="{{sharePrefs.showGeneratedAt}}" color="#17806b" disabled="{{shareBusy}}" data-field="showGeneratedAt" bindchange="toggleShareModule" />
+      </view>
+      <view class="template-reset {{shareBusy ? 'disabled' : ''}}" bindtap="resetSharePrefs">恢复默认</view>
+    </view>
+
+    <view class="section-head"><text class="section-title">分享图片</text><text class="section-note">仅在本机生成</text></view>
+    <view class="share-card card">
+      <view class="share-actions">
+        <button class="share-button {{(shareBusy || loading) ? 'is-off' : ''}}" disabled="{{!hasData || loading || shareBusy}}" bindtap="generateShare">生成分享图</button>
+        <button class="share-button {{(shareBusy || loading) ? 'is-off' : ''}}" disabled="{{!shareImage || shareBusy}}" bindtap="shareToFriends">分享给好友</button>
+        <button class="share-button secondary {{(shareBusy || loading) ? 'is-off' : ''}}" disabled="{{!shareImage || shareBusy}}" bindtap="saveShareImage">保存到相册</button>
+      </view>
+      <view class="share-hint" wx:if="{{!hasData}}">这一年还没有流水，记账或导入账单后再生成。</view>
+      <view class="share-hint" wx:elif="{{shareBusy}}">{{shareStatus}}</view>
+      <view class="share-hint" wx:elif="{{shareStatus}}">{{shareStatus}}</view>
+      <view class="share-hint" wx:else>生成后可预览、手动分享给好友或保存到相册，不会在后台自动分享。</view>
+      <view class="share-error" wx:if="{{shareError}}">
+        <text>{{shareError}}</text>
+        <text wx:if="{{shareImage && shareRetryAction === 'share'}}" class="share-retry" bindtap="shareToFriends">重试分享</text>
+        <text wx:elif="{{shareImage}}" class="share-retry" bindtap="saveShareImage">重试保存</text>
+        <text wx:else class="share-retry" bindtap="generateShare">重新生成</text>
+      </view>
+      <image wx:if="{{shareImage}}" class="share-preview" src="{{shareImage}}" mode="widthFix" bindtap="previewShareImage"></image>
+      <view class="share-preview-hint" wx:if="{{shareImage}}">生成于 {{shareGeneratedAt}} · 点击图片预览</view>
+    </view>
+
+    <view class="copy-button" bindtap="copyReport">复制年报文本</view>
+    <view class="safe-bottom"></view>
+  </block>
+</view>

@@ -79,7 +79,7 @@ Page({
   onLoad: function (opts) {
     var self = this
     this.setData({ dark: darkmode.isDark() })
-    darkmode.watch(function (d) { self.setData({ dark: d }) })
+    this._unwatchDark = darkmode.watch(function (d) { if (!self._unloaded) self.setData({ dark: d }) })
 
     /* 分享链接带 code：填进输入框，让用户确认一下再加入（不偷偷加入） */
     var q = (opts && (opts.code || opts.share)) || shared.pendingShare()
@@ -95,6 +95,11 @@ Page({
     this.load()
   },
 
+  onUnload: function () {
+    this._unloaded = true
+    if (this._unwatchDark) this._unwatchDark()
+  },
+
   onNick: function (e) {
     var v = String(e.detail.value || '').slice(0, 10)
     try { wx.setStorageSync('share_nick_v1', v) } catch (err) {}
@@ -105,6 +110,10 @@ Page({
   onCode: function (e) {
     var v = String(e.detail.value || '').toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 6)
     this.setData({ codeInput: v, msg: '' })
+  },
+
+  goSettlement: function () {
+    if (!this._unloaded) wx.navigateTo({ url: '/pages/settlement/settlement' })
   },
 
   load: function () {
@@ -119,6 +128,7 @@ Page({
     this.setData({ loading: true, msg: '' })
     // 没有本机缓存也查询云端；只有明确返回未加入，才显示创建/加入表单。
     shared.info(function (res) {
+      if (self._unloaded) return
       self.setData({ loading: false })
       if (!res || !res.ok) {
         var cached = shared.current() || b

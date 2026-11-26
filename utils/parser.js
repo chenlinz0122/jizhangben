@@ -4,6 +4,7 @@
  */
 var category = require('./category')
 var format = require('./format')
+var billId = require('./bill-id')
 
 var HEAD_ALIAS = {
   /* 银行导出普遍把日期和时间分成两列（交易日期 + 交易时间），所以 time 之外单列一个 clock */
@@ -145,14 +146,6 @@ function toTs(s) {
   }
   var d = Date.parse(t)
   return isNaN(d) ? 0 : d
-}
-
-function hash(s) {
-  var h = 5381
-  for (var i = 0; i < s.length; i++) {
-    h = ((h << 5) + h + s.charCodeAt(i)) >>> 0
-  }
-  return h.toString(36)
 }
 
 function detectSource(headerCells) {
@@ -320,10 +313,11 @@ function parse(text, userRules) {
 
     /* 有交易单号的就是账单型，统一用 b 前缀（store 的 mergeInto/数据体检都只认 b），
      * 之前用 n 前缀会导致这类记录不计入 bill、也不会触发截图记录 h→b 的升级。 */
-    var id = tradeNo ? 'b' + hash(source + tradeNo) : 'h' + hash(ts + '|' + amount + '|' + merchant)
+    var id = tradeNo ? billId.tradeNoId(source, tradeNo) : 'h' + billId.hash(ts + '|' + amount + '|' + merchant)
 
     items.push({
       id: id,
+      legacyId: tradeNo ? billId.legacyTradeNoId(source, tradeNo) : '',
       time: ts,
       day: format.dayOf(ts),
       ym: format.ymOf(ts),

@@ -1,0 +1,207 @@
+<view class="theme-{{themeKey}} page {{dark ? 'dark' : ''}}">
+  <view class="hero">
+    <view class="hero-head">
+      <view>
+        <view class="hero-title">周期账单</view>
+        <view class="hero-sub">固定收支与订阅，到期一键记账</view>
+      </view>
+      <view class="add-hero" bindtap="openForm">＋ 新增</view>
+    </view>
+    <view class="hero-stats">
+      <view class="hero-stat"><text class="hero-num">{{activeCount}}</text><text class="hero-label">启用中</text></view>
+      <view class="hero-stat"><text class="hero-num">{{dueCount}}</text><text class="hero-label">今日及近 7 天</text></view>
+      <view class="hero-stat"><text class="hero-num">{{overdue.length}}</text><text class="hero-label">已逾期</text></view>
+    </view>
+  </view>
+
+  <view class="notice">
+    <view class="notice-title">应用内提醒 · 微信授权</view>
+    <view class="notice-text">应用内近期提醒只在本页显示；微信订阅消息需手动授权，是否发送由微信平台规则决定。不会在后台自动运行，也不会发送推送。每次只生成当前到期的一期，不追补更早的历史周期；稳定 ID 保证重复点击不会重复入账。</view>
+  </view>
+
+  <view class="card">
+    <view class="between section-head">
+      <view class="title">提醒设置</view>
+      <view class="muted">本机独立保存</view>
+    </view>
+    <view class="reminder-setting">
+      <view class="reminder-main">
+        <view class="reminder-label">应用内近期提醒</view>
+        <view class="reminder-desc">显示已启用且未跳过的逾期、今天及提前期内账单</view>
+      </view>
+      <switch class="item-switch" checked="{{reminderPrefs.enabled}}" color="{{dark ? '#93cdb8' : themeColor}}" bindchange="toggleReminder" />
+    </view>
+    <view class="field reminder-field">
+      <text class="flabel">提前天数</text>
+      <picker range="{{leadDayOptions}}" value="{{reminderPrefs.leadDays}}" bindchange="onReminderLeadDays"><view class="fvalue">{{leadDayOptions[reminderPrefs.leadDays]}} ›</view></picker>
+    </view>
+    <view class="reminder-status" wx:if="{{!reminderPrefs.templateId}}">未配置微信模板，仅支持应用内提醒</view>
+    <view class="reminder-status" wx:elif="{{reminderPrefs.subscribedAt > 0}}">已记录微信订阅授权，实际发送以微信平台为准</view>
+    <view class="reminder-status" wx:else>尚未获得微信提醒授权</view>
+    <view class="btn reminder-auth {{reminderAuthorizing ? 'disabled' : ''}}" bindtap="authorizeReminder">{{reminderAuthorizing ? '正在请求授权…' : '授权微信提醒'}}</view>
+    <view class="tip">授权仅申请订阅消息，不创建后台定时任务；模板为空或 API 不可用时仅应用内提醒。微信是否实际发送由平台规则决定。</view>
+    <view class="between reminder-list-head">
+      <view class="form-label">近期提醒</view>
+      <view class="muted">{{reminderItems.length}} 项</view>
+    </view>
+    <view wx:if="{{!reminderPrefs.enabled}}" class="reminder-empty">开启开关后显示近期提醒</view>
+    <view wx:elif="{{!reminderItems.length}}" class="reminder-empty">近期没有需要提醒的周期账单</view>
+    <block wx:else>
+      <view wx:for="{{reminderItems}}" wx:key="id" class="reminder-item">
+        <view class="due-main">
+          <view class="due-name">{{item.name}}</view>
+          <view class="due-meta">{{item.typeName}} · {{item.intervalName}} · {{item.nextDate}}</view>
+        </view>
+        <view class="due-when {{item.overdue ? 'overdue-text' : ''}}">{{item.whenText}}</view>
+        <view class="due-amount {{item.type === 'expense' ? 'exp' : (item.type === 'income' ? 'inc' : 'transfer')}}">{{item.amountText}}</view>
+      </view>
+    </block>
+  </view>
+
+  <view class="card">
+    <view class="between section-head">
+      <view class="title">到期提醒</view>
+      <view class="muted">按天下单期排列</view>
+    </view>
+    <view wx:if="{{dueToday.length}}" class="due-group">
+      <view class="group-title today-title">今天到期 · {{dueToday.length}} 项</view>
+      <view wx:for="{{dueToday}}" wx:key="id" class="due-row">
+        <view class="due-main">
+          <view class="due-name">{{item.name}}</view>
+          <view class="due-meta">{{typeNames[item.type]}} · {{intervalNames[item.interval]}} · {{item.nextDate}}</view>
+        </view>
+        <view class="due-amount {{item.type === 'expense' ? 'exp' : (item.type === 'income' ? 'inc' : 'transfer')}}">{{item.type === 'expense' ? '-' : (item.type === 'income' ? '+' : '')}}¥{{item.amount}}</view>
+        <view class="mini-action" data-id="{{item.id}}" bindtap="skipItem">跳过本期</view>
+      </view>
+    </view>
+    <view wx:if="{{overdue.length}}" class="due-group">
+      <view class="group-title overdue-title">已逾期 · {{overdue.length}} 项</view>
+      <view wx:for="{{overdue}}" wx:key="id" class="due-row">
+        <view class="due-main">
+          <view class="due-name">{{item.name}}</view>
+          <view class="due-meta">{{typeNames[item.type]}} · 应于 {{item.nextDate}}</view>
+        </view>
+        <view class="due-amount {{item.type === 'expense' ? 'exp' : (item.type === 'income' ? 'inc' : 'transfer')}}">{{item.type === 'expense' ? '-' : (item.type === 'income' ? '+' : '')}}¥{{item.amount}}</view>
+        <view class="mini-action" data-id="{{item.id}}" bindtap="skipItem">跳过本期</view>
+      </view>
+    </view>
+    <view wx:if="{{dueSoon.length}}" class="due-group">
+      <view class="group-title">近期到期 · {{dueSoon.length}} 项</view>
+      <view wx:for="{{dueSoon}}" wx:key="id" class="due-row">
+        <view class="due-main">
+          <view class="due-name">{{item.name}}</view>
+          <view class="due-meta">{{typeNames[item.type]}} · {{item.nextDate}}</view>
+        </view>
+        <view class="due-when">{{item.daysLeft}} 天后</view>
+        <view class="due-amount {{item.type === 'expense' ? 'exp' : (item.type === 'income' ? 'inc' : 'transfer')}}">{{item.type === 'expense' ? '-' : (item.type === 'income' ? '+' : '')}}¥{{item.amount}}</view>
+      </view>
+    </view>
+    <view wx:if="{{!dueCount}}" class="empty">今天没有到期账单</view>
+    <view class="btn {{dueCount === 0 || generating ? 'disabled' : ''}}" bindtap="generateDue">{{generating ? '正在生成…' : '生成今日到期账单'}}</view>
+  </view>
+
+  <view class="between list-head">
+    <view class="title">全部周期账单</view>
+    <view class="muted">{{items.length}} 项</view>
+  </view>
+  <view wx:if="{{!items.length}}" class="card empty">还没有周期账单，点击右上角新增</view>
+  <view wx:for="{{items}}" wx:key="id" class="card item-card {{item.enabled ? '' : 'is-off'}}">
+    <view class="between item-top">
+      <view class="item-title">{{item.name}}</view>
+      <switch class="item-switch" checked="{{item.enabled}}" color="{{dark ? '#93cdb8' : themeColor}}" data-id="{{item.id}}" bindchange="toggleItem" />
+    </view>
+    <view class="between item-money">
+      <view class="item-amount {{item.amountClass}}">{{item.amountText}}</view>
+      <view class="date-badge {{item.canSkip ? 'is-due' : ''}}">{{item.dateLabel}}</view>
+    </view>
+    <view class="item-meta">{{item.typeName}} · {{item.category}} · {{item.scheduleText}}</view>
+    <view class="item-meta" wx:if="{{item.merchant}}">商户：{{item.merchant}}</view>
+    <view class="item-meta" wx:if="{{item.type === 'transfer'}}">{{item.fromAccountName}} → {{item.toAccountName}}</view>
+    <view class="item-meta" wx:elif="{{item.accountId}}">账户：{{item.accountName}}</view>
+    <view class="item-meta" wx:if="{{item.note}}">备注：{{item.note}}</view>
+    <view class="item-actions">
+      <view class="action" data-id="{{item.id}}" bindtap="openForm">编辑</view>
+      <view wx:if="{{item.canSkip}}" class="action" data-id="{{item.id}}" bindtap="skipItem">跳过本期</view>
+      <view class="action danger" data-id="{{item.id}}" bindtap="deleteItem">删除</view>
+    </view>
+  </view>
+  <view class="foot">开始日期：{{today}} · 数据仅保存在本机</view>
+
+  <view wx:if="{{showForm}}" class="sheet-mask" catchtap="closeForm">
+    <view class="sheet" catchtap="noop">
+      <view class="sheet-handle"></view>
+      <view class="between sheet-head">
+        <view class="sheet-title">{{formTitle}}</view>
+        <view class="close" bindtap="closeForm">取消</view>
+      </view>
+      <scroll-view scroll-y class="form-scroll">
+        <view class="seg">
+          <view wx:for="{{typeNames}}" wx:key="*this" class="segi {{form.type === item ? 'on' : ''}}" data-type="{{item}}" bindtap="switchType">{{item}}</view>
+        </view>
+        <view class="form-card">
+          <view class="field">
+            <text class="flabel">名称</text>
+            <input class="finput" value="{{form.name}}" data-field="name" bindinput="onFormInput" placeholder="如房租、视频会员" placeholder-class="ph" maxlength="80" />
+          </view>
+          <view class="field amount-field">
+            <text class="flabel">金额</text>
+            <text class="cny">¥</text>
+            <input class="finput" type="digit" value="{{form.amount}}" data-field="amount" bindinput="onFormInput" placeholder="0.00" placeholder-class="ph" />
+          </view>
+          <view wx:if="{{form.type !== 'transfer'}}" class="field">
+            <text class="flabel">账户</text>
+            <picker range="{{accountOptions}}" range-key="name" value="{{accountIndex}}" bindchange="onAccount"><view class="fvalue">{{accountOptions[accountIndex].name}} ›</view></picker>
+          </view>
+          <block wx:if="{{form.type === 'transfer'}}">
+            <view class="field">
+              <text class="flabel">转出账户</text>
+              <picker range="{{accountOptions}}" range-key="name" value="{{fromAccountIndex}}" bindchange="onFromAccount"><view class="fvalue">{{accountOptions[fromAccountIndex].name}} ›</view></picker>
+            </view>
+            <view class="field">
+              <text class="flabel">转入账户</text>
+              <picker range="{{accountOptions}}" range-key="name" value="{{toAccountIndex}}" bindchange="onToAccount"><view class="fvalue">{{accountOptions[toAccountIndex].name}} ›</view></picker>
+            </view>
+          </block>
+        </view>
+
+        <view class="form-card">
+          <view class="form-label">分类</view>
+          <view class="cats">
+            <view wx:for="{{cats}}" wx:key="*this" class="chip {{form.category === item ? 'on' : ''}}" data-category="{{item}}" bindtap="pickCategory">{{item}}</view>
+          </view>
+          <view class="field">
+            <text class="flabel">商户</text>
+            <input class="finput" value="{{form.merchant}}" data-field="merchant" bindinput="onFormInput" placeholder="可不填" placeholder-class="ph" maxlength="120" />
+          </view>
+          <view class="field">
+            <text class="flabel">备注</text>
+            <input class="finput" value="{{form.note}}" data-field="note" bindinput="onFormInput" placeholder="可不填" placeholder-class="ph" maxlength="500" />
+          </view>
+        </view>
+
+        <view class="form-card">
+          <view class="form-label">重复周期</view>
+          <view class="seg interval-seg">
+            <view wx:for="{{intervalNames}}" wx:key="*this" class="segi {{form.interval === item ? 'on' : ''}}" data-interval="{{item}}" bindtap="switchInterval">{{item}}</view>
+          </view>
+          <view class="field">
+            <text class="flabel">开始日期</text>
+            <picker mode="date" value="{{form.startDate}}" bindchange="onStartDate"><view class="fvalue">{{form.startDate}} ›</view></picker>
+          </view>
+          <view wx:if="{{form.interval === 'month'}}" class="field">
+            <text class="flabel">每月几号</text>
+            <picker mode="selector" range="{{monthDays}}" value="{{form.dayOfMonth - 1}}" bindchange="onMonthDay"><view class="fvalue">{{form.dayOfMonth}} 日 ›</view></picker>
+          </view>
+          <view class="tip" wx:if="{{form.interval === 'month'}}">短月自动按月末执行，例如 31 日在 2 月为月末。</view>
+          <view wx:if="{{form.interval === 'week'}}" class="field">
+            <text class="flabel">星期</text>
+            <picker mode="selector" range="{{weekNames}}" value="{{form.dayOfWeek}}" bindchange="onWeekDay"><view class="fvalue">{{weekNames[form.dayOfWeek]}} ›</view></picker>
+          </view>
+          <view wx:if="{{form.interval === 'year'}}" class="tip">每年按开始日期的月日执行；2 月 29 日在平年按 2 月 28 日。</view>
+        </view>
+        <view class="form-tip">修改周期或开始日期后，将从今天重新计算下一期。已经生成的流水不会被修改。</view>
+        <view class="btn submit" bindtap="submitForm">{{editingId ? '保存修改' : '添加周期账单'}}</view>
+      </scroll-view>
+    </view>
+  </view>
+</view>

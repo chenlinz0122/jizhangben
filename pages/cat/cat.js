@@ -96,6 +96,8 @@ Page({
     this.setData({ sheetVisible: false, sheet: null })
   },
 
+  noop: function () {},
+
   build: function () {
     var year = this.data.year
     var cat = this.data.cat

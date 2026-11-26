@@ -1,0 +1,115 @@
+<view class="page theme-{{themeKey}} {{dark ? 'dark' : ''}}">
+  <view class="hero">
+    <view class="hero-top">
+      <view class="back" bindtap="goBack">‹ 返回</view>
+      <view class="refresh" bindtap="runScan">刷新</view>
+    </view>
+    <view class="hero-title">流水查重与数据体检</view>
+    <view class="hero-sub">先核对，再处理；所有删除都由你逐笔确认</view>
+
+    <view class="scope-line" wx:if="{{sharedOn}}">
+      <text class="scope-caption">{{scopeText}}</text>
+      <view class="scope-segment">
+        <text class="scope-chip {{scope === 'mine' ? 'on' : ''}}" data-scope="mine" bindtap="setScope">自己</text>
+        <text class="scope-chip {{scope === 'both' ? 'on' : ''}}" data-scope="both" bindtap="setScope">全部成员</text>
+      </view>
+    </view>
+
+    <view class="stats">
+      <view class="stat"><text class="stat-num">{{summary.total}}</text><text class="stat-label">检查流水</text></view>
+      <view class="stat"><text class="stat-num">{{summary.issueCount}}</text><text class="stat-label">问题组</text></view>
+      <view class="stat"><text class="stat-num">{{summary.affectedTxCount}}</text><text class="stat-label">涉及流水</text></view>
+    </view>
+    <view class="severity-row" wx:if="{{summary.issueCount > 0}}">
+      <text class="severity-pill high">{{summary.highCount}} 项优先</text>
+      <text class="severity-pill medium">{{summary.mediumCount}} 项核对</text>
+      <text class="severity-pill low">{{summary.lowCount}} 项完善</text>
+    </view>
+    <view class="threshold" bindtap="adjustLargeAmount">
+      <text>异常大额线</text><text class="threshold-value">¥{{largeAmountText}} ›</text>
+    </view>
+    <text class="scan-time" wx:if="{{refreshedAt}}">最近检查 {{refreshedAt}}</text>
+  </view>
+
+  <view class="loading card" wx:if="{{loading}}">正在检查流水…</view>
+  <view class="empty card" wx:if="{{!loading && error}}">
+    <view class="empty-title">{{error}}</view>
+    <view class="primary-action" bindtap="runScan">重新检查</view>
+  </view>
+  <view class="empty card" wx:if="{{!loading && !error && !hasTx}}">
+    <view class="empty-title">当前范围还没有流水</view>
+    <view class="empty-desc">记一笔或导入账单后，再来这里查重和体检。</view>
+    <view class="primary-action" bindtap="goList">去流水页</view>
+  </view>
+  <view class="empty success-card" wx:if="{{!loading && !error && hasTx && summary.healthy}}">
+    <view class="success-mark">✓</view>
+    <view class="empty-title">体检通过，未发现异常</view>
+    <view class="empty-desc">已检查重复、未来日期、零负金额、缺少商户、未分类和大额流水。</view>
+    <view class="empty-desc">查重只提示可疑记录，不代表两笔真实交易一定重复。</view>
+  </view>
+
+  <block wx:if="{{!loading && !error && hasTx && !summary.healthy}}">
+    <view class="filters">
+      <text class="filter-chip {{activeType === 'all' ? 'on' : ''}}" data-type="all" bindtap="filterType">全部 {{summary.issueCount}}</text>
+      <text class="filter-chip {{activeType === type.type ? 'on' : ''}}"
+            wx:for="{{types}}" wx:key="type" data-type="{{type.type}}" bindtap="filterType">
+        {{type.label}} {{type.count}}
+      </text>
+    </view>
+
+    <view class="empty card" wx:if="{{groups.length === 0}}">
+      <view class="empty-title">该类型暂无问题</view>
+      <view class="primary-action plain" data-type="all" bindtap="filterType">查看全部问题</view>
+    </view>
+
+    <view class="group card" wx:for="{{groups}}" wx:key="key" wx:for-item="group">
+      <view class="group-head">
+        <view class="group-heading">
+          <text class="group-title">{{group.label}}</text>
+          <text class="group-count">{{group.count}} 组 · 涉及 {{group.txCount}} 笔</text>
+        </view>
+        <view class="group-link" data-key="{{group.key}}" bindtap="goIssue">
+          {{group.type === 'uncategorized' ? '去流水筛选' : '核对这组流水'}} ›
+        </view>
+      </view>
+      <text class="group-hint">{{group.hint}}</text>
+
+      <view class="issue" wx:for="{{group.issues}}" wx:key="key" wx:for-item="issue">
+        <view class="issue-head">
+          <text class="issue-title">{{issue.title}}</text>
+          <text class="issue-severity sev-{{issue.severity}}">{{issue.severityText}}</text>
+        </view>
+        <text class="issue-desc">{{issue.description}}</text>
+        <view class="issue-items">
+          <view class="tx-row" wx:for="{{issue.items}}" wx:key="id" wx:for-item="tx"
+                data-id="{{tx.id}}" data-key="{{issue.key}}" bindtap="goTx">
+            <view class="tx-main">
+              <view class="tx-title-line">
+                <text class="tx-merchant">{{tx.merchant}}</text>
+                <text class="readonly" wx:if="{{!tx.canEdit}}">他人只读</text>
+              </view>
+              <text class="tx-meta">{{tx.day || '日期未知'}} · {{tx.category}} · {{tx.typeText}}</text>
+              <text class="tx-desc" wx:if="{{tx.desc}}">{{tx.desc}}</text>
+              <text class="tx-by" wx:if="{{tx.byLabel}}">{{tx.byLabel}} 标记的</text>
+            </view>
+            <view class="tx-side">
+              <text class="tx-amount">{{tx.amountText}}</text>
+              <view class="tx-actions">
+                <text class="tx-action" data-id="{{tx.id}}" data-key="{{issue.key}}" catchtap="goTx">查看明细</text>
+                <text class="tx-action danger" wx:if="{{issue.type === 'duplicate' && tx.canEdit}}"
+                      data-id="{{tx.id}}" catchtap="requestDelete">删除这笔</text>
+              </view>
+            </view>
+          </view>
+        </view>
+        <view class="suggestion">
+          <text class="suggestion-label">建议</text><text class="suggestion-text">{{issue.suggestion}}</text>
+        </view>
+      </view>
+    </view>
+  </block>
+
+  <view class="footer-note">
+    查重按成员、账本、日期、金额、商户和类型分组，仅作提示。删除前会再次校验：只能删除自己记的账，且每次只处理一笔。
+  </view>
+</view>

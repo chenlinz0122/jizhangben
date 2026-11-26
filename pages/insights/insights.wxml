@@ -1,0 +1,134 @@
+<view class="page theme-{{themeKey}} {{dark ? 'dark' : ''}}">
+  <view class="hero">
+    <view class="hero-top">
+      <view class="back" bindtap="goBack">‹ 返回</view>
+      <text class="scope">{{scopeText}}</text>
+    </view>
+    <view class="hero-title">月度财务健康报告</view>
+    <view class="hero-sub">看收支结构，也看账目是否可靠</view>
+
+    <view class="month-bar">
+      <view class="month-arrow" bindtap="prevMonth">‹</view>
+      <picker mode="date" fields="month" value="{{ym}}" start="1970-01" end="{{maxYm}}" bindchange="pickMonth">
+        <view class="month-picker">{{monthText || ym}}<text class="month-caret">⌄</text></view>
+      </picker>
+      <view class="month-arrow {{canNext ? '' : 'off'}}" bindtap="nextMonth">›</view>
+    </view>
+    <view class="current-month {{ym === maxYm ? 'on' : ''}}" bindtap="currentMonth">回到本月</view>
+  </view>
+
+  <view class="loading card" wx:if="{{loading}}">正在生成本月报告…</view>
+  <view class="empty card" wx:if="{{!loading && error}}">
+    <view class="empty-title">暂时无法生成报告</view>
+    <view class="empty-desc">{{error}}</view>
+    <view class="primary-action" bindtap="refresh">重新生成</view>
+  </view>
+
+  <block wx:if="{{!loading && !error}}">
+    <view class="score-card card">
+      <view class="score-ring" style="{{ringStyle}}">
+        <view class="score-center">
+          <text class="score-number">{{score}}</text>
+          <text class="score-total">/ 100</text>
+        </view>
+      </view>
+      <view class="score-copy">
+        <text class="score-label">健康评分 · {{level}}</text>
+        <text class="score-desc">储蓄、预算、分类与数据质量综合评定</text>
+        <text class="score-count">本月 {{txCount}} 笔流水</text>
+      </view>
+    </view>
+
+    <view class="empty card" wx:if="{{!hasData}}">
+      <view class="empty-title">这个月还没有流水</view>
+      <view class="empty-desc">暂无数据时不评分，也不推测净资产趋势。记一笔或导入账单后即可生成报告。</view>
+      <view class="primary-action" bindtap="goList">去记一笔</view>
+    </view>
+
+    <block wx:if="{{hasData}}">
+      <view class="section-head">
+        <text class="section-title">关键指标</text>
+        <text class="section-note">金额按分计算</text>
+      </view>
+      <view class="metrics card">
+        <view class="metric-grid">
+          <view class="metric">
+            <text class="metric-label">本月收入</text>
+            <text class="metric-value positive">{{incomeText}}</text>
+          </view>
+          <view class="metric">
+            <text class="metric-label">净支出</text>
+            <text class="metric-value">{{netExpenseText}}</text>
+            <text class="metric-hint">已抵减退款</text>
+          </view>
+          <view class="metric">
+            <text class="metric-label">收支结余</text>
+            <text class="metric-value {{balanceClass}}">{{balanceText}}</text>
+          </view>
+          <view class="metric">
+            <text class="metric-label">储蓄率</text>
+            <text class="metric-value">{{savingsRateText}}</text>
+          </view>
+        </view>
+        <view class="metric-line">
+          <text class="metric-line-label">预算使用</text>
+          <text class="metric-line-value">{{budgetText}}</text>
+        </view>
+        <view class="metric-line">
+          <text class="metric-line-label">最大已分类支出</text>
+          <text class="metric-line-value">{{topCategoryText}}</text>
+        </view>
+        <view class="metric-line">
+          <text class="metric-line-label">待分类流水</text>
+          <text class="metric-line-value">{{uncategorizedText}}</text>
+        </view>
+        <view class="metric-line">
+          <text class="metric-line-label">数据体检</text>
+          <text class="metric-line-value {{healthClass}}">{{healthText}}</text>
+        </view>
+      </view>
+
+      <view class="net-worth card">
+        <view>
+          <text class="net-worth-label">当前账户净资产快照</text>
+          <text class="net-worth-hint">非本月期末值，不参与评分</text>
+        </view>
+        <text class="net-worth-value">{{netWorthText}}</text>
+      </view>
+
+      <view class="section-head">
+        <text class="section-title">评分拆解</text>
+        <text class="section-note">满分 100</text>
+      </view>
+      <view class="breakdown card">
+        <view class="breakdown-item" wx:for="{{breakdown}}" wx:key="key">
+          <view class="breakdown-head">
+            <text class="breakdown-label">{{item.label}}</text>
+            <text class="breakdown-score">{{item.score}}<text class="breakdown-max"> / {{item.max}}</text></text>
+          </view>
+          <view class="progress-track"><view class="progress-fill" style="{{item.barStyle}}"></view></view>
+          <text class="breakdown-value">{{item.valueText}}</text>
+          <text class="breakdown-hint">{{item.hint}}</text>
+        </view>
+      </view>
+
+      <view class="section-head">
+        <text class="section-title">行动建议</text>
+        <text class="section-note">按优先级排列</text>
+      </view>
+      <view class="suggestions card">
+        <view class="suggestion" wx:for="{{suggestions}}" wx:key="*this">
+          <text class="suggestion-index">{{index + 1}}</text>
+          <text class="suggestion-text">{{item}}</text>
+        </view>
+      </view>
+    </block>
+
+    <view class="report-note">
+      <text>评分只反映已记录数据，不构成投资或借贷建议。</text>
+      <text>历史月份按当前预算设置评估；净资产为当前快照，单月无法得出趋势。</text>
+    </view>
+    <view class="copy-button" bindtap="copyReport">复制报告文本</view>
+    <view class="safe-bottom"></view>
+  </block>
+</view>

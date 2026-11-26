@@ -1,0 +1,111 @@
+<view class="attachments-page theme-{{themeKey}} {{dark ? 'dark' : ''}}">
+  <view class="topbar">
+    <view class="back" bindtap="goBack" aria-label="返回流水">‹</view>
+    <view class="heading">
+      <text class="title">流水票据</text>
+      <text class="subtitle">图片仅保存在本机</text>
+    </view>
+    <view class="head-action" bindtap="clearTx" wx:if="{{rows.length}}">清空</view>
+    <view class="head-action placeholder" wx:else></view>
+  </view>
+
+  <view class="error-banner" wx:if="{{error}}" role="alert">
+    <view class="error-copy">
+      <text class="error-title">操作未完成</text>
+      <text class="error-message">{{error}}</text>
+    </view>
+    <view class="retry" bindtap="refresh">重试</view>
+  </view>
+
+  <view class="loading" wx:if="{{loading}}">正在读取票据…</view>
+
+  <block wx:if="{{!loading && tx}}">
+    <view class="tx-card">
+      <view class="tx-main">
+        <view class="tx-copy">
+          <text class="merchant">{{tx.merchant}}</text>
+          <text class="tx-meta">{{tx.typeText}} · {{tx.category}} · {{tx.dateText}} {{tx.timeText}}</text>
+          <text class="tx-account">{{tx.account}}</text>
+        </view>
+        <text class="amount">{{tx.sign}}¥{{tx.amountText}}</text>
+      </view>
+      <view class="tx-desc" wx:if="{{tx.desc}}">{{tx.desc}}</view>
+      <view class="tx-desc" wx:if="{{tx.note}}">备注：{{tx.note}}</view>
+    </view>
+
+    <view class="missing-tip" wx:if="{{missingCount}}">
+      <text>{{missingCount}} 张票据的原文件已不存在，请重新添加；旧记录不会自动恢复图片。</text>
+    </view>
+
+    <view class="operation-panel" wx:if="{{rows.length}}">
+      <view class="progress-copy" wx:if="{{action}}">
+        <text>{{actionLabel}}中…</text>
+        <text>{{progressDone}} / {{progressTotal}}</text>
+      </view>
+      <progress class="operation-progress" percent="{{progressTotal ? progressDone * 100 / progressTotal : 0}}" stroke-width="6" active="{{!!action}}" wx:if="{{action}}" />
+      <view class="feedback {{feedback.tone}}" wx:if="{{feedback}}">
+        <text class="feedback-title">{{feedback.title}}</text>
+        <text class="feedback-detail" wx:if="{{feedback.detail}}">{{feedback.detail}}</text>
+      </view>
+      <view class="batch-actions">
+        <button class="secondary-button {{(adding || !!action) ? 'is-off' : ''}}" bindtap="compressAll" loading="{{action === 'compress'}}" disabled="{{adding || !!action}}" aria-label="压缩全部票据图片">压缩全部</button>
+        <button class="secondary-button {{(adding || !!action) ? 'is-off' : ''}}" bindtap="exportAll" loading="{{action === 'exportToAlbum'}}" disabled="{{adding || !!action}}" aria-label="导出全部票据到相册">导出到相册</button>
+      </view>
+      <text class="operation-note">压缩会生成新副本；导出逐张保存到系统相册，不打包 ZIP。</text>
+    </view>
+
+    <view class="section-head">
+      <view>
+        <text class="section-title">票据图片</text>
+        <text class="section-note">共 {{rows.length}} 张 · 点图片预览</text>
+      </view>
+      <view class="add-small" bindtap="chooseImages" wx:if="{{rows.length}}">＋ 添加</view>
+    </view>
+
+    <view class="empty" wx:if="{{!rows.length}}">
+      <view class="empty-icon">▧</view>
+      <text class="empty-title">还没有关联票据</text>
+      <text class="empty-desc">可拍摄或从相册选择发票、收据小票图片</text>
+      <button class="primary-button {{(adding || !!action) ? 'is-off' : ''}}" bindtap="chooseImages" loading="{{adding}}" disabled="{{adding}}" aria-label="添加票据图片">＋ 添加票据图片</button>
+    </view>
+
+    <view class="grid" wx:else>
+      <view class="tile {{item.missing ? 'is-missing' : ''}}" wx:for="{{rows}}" wx:key="id">
+        <view class="image-wrap" data-id="{{item.id}}" bindtap="preview">
+          <image class="receipt" wx:if="{{!item.missing}}" src="{{item.path}}" mode="aspectFill" data-id="{{item.id}}" binderror="imageError" />
+          <view class="missing-face" wx:else>
+            <text class="missing-symbol">×</text>
+            <text>文件不存在</text>
+            <text class="missing-action">需重新添加</text>
+          </view>
+        </view>
+        <view class="tile-name">{{item.name}}</view>
+        <view class="tile-size">{{item.compressedText}}</view>
+        <view class="tile-foot">
+          <text>{{item.addedText}}</text>
+          <view class="remove" data-id="{{item.id}}" bindtap="askRemove" aria-label="删除{{item.name}}">删除</view>
+        </view>
+        <view class="tile-compress" wx:if="{{!item.missing && !item.compressedAt}}" data-id="{{item.id}}" bindtap="compressOne" aria-label="压缩{{item.name}}">压缩这张</view>
+        <view class="tile-compressed" wx:elif="{{!item.missing && item.compressedAt}}">已压缩</view>
+      </view>
+    </view>
+
+    <button class="primary-button add-bottom {{(adding || !!action) ? 'is-off' : ''}}" bindtap="chooseImages" loading="{{adding}}" disabled="{{adding}}" wx:if="{{rows.length}}">＋ 添加票据图片</button>
+    <view class="footnote">删除票据只清除本机图片与关联，不修改流水。备份仅包含图片路径元数据，换机后需重新添加图片。</view>
+  </block>
+
+  <view class="preview-layer" wx:if="{{previewVisible}}">
+    <view class="preview-mask" bindtap="closePreview"></view>
+    <view class="preview-head">
+      <text class="preview-count">{{previewIndex + 1}} / {{previewRows.length}}</text>
+      <text class="preview-close" bindtap="closePreview">关闭</text>
+    </view>
+    <swiper class="preview-swiper" current="{{previewIndex}}" bindchange="changePreview" circular="{{previewRows.length > 1}}">
+      <swiper-item wx:for="{{previewRows}}" wx:key="id">
+        <image class="preview-image" src="{{item.path}}" mode="aspectFit" binderror="previewError" />
+      </swiper-item>
+    </swiper>
+    <text class="preview-name">{{previewRows[previewIndex].name}}</text>
+    <view class="preview-delete" data-id="{{previewRows[previewIndex].id}}" bindtap="askRemove">删除这张票据</view>
+  </view>
+</view>

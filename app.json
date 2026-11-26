@@ -12,7 +12,19 @@
     "pages/login/login",
     "pages/promo/promo",
     "pages/share/share",
-    "pages/feedback/feedback"
+    "pages/feedback/feedback",
+    "pages/accounts/accounts",
+    "pages/recurring/recurring",
+    "pages/rules/rules",
+    "pages/health/health",
+    "pages/settlement/settlement",
+    "pages/attachments/attachments",
+    "pages/insights/insights",
+    "pages/annual/annual",
+    "pages/budget-templates/budget-templates",
+    "pages/budget-variance/budget-variance",
+    "pages/budget-history/budget-history",
+    "pages/rate-alerts/rate-alerts"
   ],
   "window": {
     "backgroundTextStyle": "@backgroundText",

@@ -34,11 +34,16 @@
     </view>
 
     <view class="card">
+      <view class="between"><text class="ct">成员结算</text><text class="edit" bindtap="goSettlement">查看结算建议 ›</text></view>
+      <text class="li">按本月实际支出和退款计算垫付，平均分摊后给出谁该给谁转多少。</text>
+    </view>
+
+    <view class="card">
       <text class="ct">我的共享范围</text>
       <text class="li">{{scopeText}}</text>
-      <view class="scope-options">
-        <button class="scope-option {{shareScope === 'recent' ? 'selected' : ''}}" data-scope="recent" bindtap="chooseScope" disabled="{{busy || loading}}">加入当天起</button>
-        <button class="scope-option {{shareScope === 'all' ? 'selected' : ''}}" data-scope="all" bindtap="chooseScope" disabled="{{busy || loading}}">全部本人流水</button>
+      <view class="scope-options {{(busy || loading) ? 'is-off' : ''}}">
+        <button class="scope-option {{shareScope === 'recent' ? 'selected' : ''}} {{(busy || loading) ? 'is-off' : ''}}" data-scope="recent" bindtap="chooseScope" disabled="{{busy || loading}}">加入当天起</button>
+        <button class="scope-option {{shareScope === 'all' ? 'selected' : ''}} {{(busy || loading) ? 'is-off' : ''}}" data-scope="all" bindtap="chooseScope" disabled="{{busy || loading}}">全部本人流水</button>
       </view>
       <text class="hint">首次同步前必须明确确认。加入当天起：按流水日期，从加入当天的本地零点开始；全部：包含本人历史账目。</text>
       <text class="hint">金额、商户、流水备注等会上传云端并对成员可见；确认后首页可自动同步。「只看自己 / 看双方 / 只看对方」只影响显示，不改变上传范围。</text>

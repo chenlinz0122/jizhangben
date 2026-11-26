@@ -67,6 +67,9 @@ exports.main = async function (event) {
     if (!parsed || !parsed.items.length) {
       return { ok: false, error: '这个文件里没读到流水，确认是「微信支付账单」「支付宝交易明细」或者银行 App 导出的流水原件' }
     }
+    if (parsed.items.length > 20000) {
+      return { ok: false, error: '流水超过 20000 条，请先按月份拆分后再导入' }
+    }
 
     /* 太老的数据不要，避免一次塞爆本地存储 */
     return {

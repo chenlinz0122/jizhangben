@@ -51,6 +51,23 @@
   color: #d3d8db;
 }
 
+.currency-strip {
+  padding: 18rpx 40rpx 24rpx;
+  border-bottom: 1rpx solid #f0f2f3;
+  background: #ffffff;
+}
+
+.currency-caption,
+.currency-preview {
+  display: block;
+  font-size: 23rpx;
+  line-height: 1.6;
+}
+
+.currency-caption { color: #8b9198; }
+.currency-preview { margin-top: 4rpx; color: var(--brand, #17806b); }
+.currency-note { padding: 8rpx 0 18rpx; line-height: 1.6; }
+
 .cats {
   display: flex;
   flex-wrap: wrap;
@@ -107,6 +124,10 @@
   margin: 32rpx 24rpx 0;
 }
 
+.savebtn.saving {
+  opacity: 0.6;
+}
+
 .sugs {
   display: flex;
   flex-wrap: wrap;
@@ -132,5 +153,8 @@
 .dark .divider { background: #2c3831; }
 
 /* 深色：页面特有的底色 */
-.dark .seg, .dark .amtbox { background: #1b2421; }
+.dark .seg, .dark .amtbox, .dark .currency-strip { background: #1b2421; border-color: #2c3831; }
+.dark .currency-caption, .dark .currency-note { color: #a0b0a7; }
+.dark .currency-preview { color: #a4d4c2; }
+.dark .cny, .dark .fvalue { color: #e5eee9; }
 .dark .segi, .dark .chip { background: #24332c; }

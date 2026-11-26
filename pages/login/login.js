@@ -48,7 +48,9 @@ Page({
   },
 
   onUnload: function () {
+    this._unloaded = true
     if (this._errTimer) clearTimeout(this._errTimer)
+    if (this._loginTimer) clearTimeout(this._loginTimer)
     /* 从返回键走掉也算「先逛逛」，不然下次冷启动又弹一次 */
     if (!account.isLogin()) account.markSkip()
   },
@@ -59,6 +61,7 @@ Page({
     var p = (e && e.detail && e.detail.avatarUrl) || ''
     if (!p) return
     account.persistAvatar(p, function (saved) {
+      if (self._unloaded) return
       self.setData({ avatar: saved || p })
     })
   },
@@ -106,7 +109,10 @@ Page({
     var self = this
     this.setData({ agreedError: true })
     if (this._errTimer) clearTimeout(this._errTimer)
-    this._errTimer = setTimeout(function () { self.setData({ agreedError: false }) }, 3000)
+    this._errTimer = setTimeout(function () {
+      self._errTimer = null
+      if (!self._unloaded) self.setData({ agreedError: false })
+    }, 3000)
     return false
   },
 
@@ -133,6 +139,7 @@ Page({
 
     /* 顺手向云函数要一次 openid：会员核销只认它，拿不到也不挡登录（账本仍可用） */
     vip.refresh(function () {
+      if (self._unloaded) return
       account.login({
         nick: nick,
         avatar: self.data.avatar,
@@ -141,7 +148,10 @@ Page({
       account.clearSkip()
       self.setData({ busy: false })
       wx.showToast({ title: '登录成功', icon: 'success', duration: 1200 })
-      setTimeout(function () { self.goAfterLogin() }, 700)
+      self._loginTimer = setTimeout(function () {
+        self._loginTimer = null
+        if (!self._unloaded) self.goAfterLogin()
+      }, 700)
     })
   },
 

@@ -205,6 +205,9 @@
 
 .sheet.up {
   transform: translateY(0);
+  max-height: 88vh;
+  overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .sheethd {
@@ -297,3 +300,5 @@
 /* 深色：页面特有的底色 */
 .dark .items { background: #1b2421; }
 .dark .sheet { background: #1b2421; }
+.dark .mlabel, .dark .im, .dark .shm, .dark .shv { color: #e5eee9; }
+.dark .items .item, .dark .shrow, .dark .sheethd { border-bottom-color: #2c3831; }

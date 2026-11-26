@@ -16,6 +16,7 @@ const format = require('../utils/format')
 const store = require('../utils/store')
 const stats = require('../utils/stats')
 const prefs = require('../utils/prefs')
+const refundpair = require('../utils/refundpair')
 const ym = format.ymOf(Date.now())
 const prior = format.shiftMonth(ym, -1)
 function tx(id, type, amount, month, day, cat, merchant) {
@@ -179,4 +180,58 @@ check(report.data.cells.some((c) => c.d === 2 && c.negative), '日历明确标�
 check(report.data.months.some((m) => m.ym === ym && m.negative && m.h > 0), '月度负值有可见柱而非被截断')
 store.setBudget(100); report.refresh()
 check(report.data.s.expenseText === '-100.00' && report.data.budgetSpentText === '0.00' && report.data.budgetLeftText === '100.00', '只在预算消耗处夹到零，不能抹掉实际净退款')
+
+seed([
+  tx('filter-a', 'expense', 100, ym, 3, '餐饮', '餐厅'),
+  tx('filter-b', 'expense', 20, ym, 4, '交通', '地铁'),
+  tx('filter-c', 'income', 50, ym, 5, '工资', '公司'),
+  tx('filter-d', 'transfer', 200, ym, 6, '账户转移', '银行')
+])
+list.setData({
+  kw: '', filterDay: '', filterCat: '', filterKind: '', onlyUncat: false,
+  advanced: { minAmount: '50', maxAmount: '150', cats: ['餐饮'], accountId: '__none__', dateFrom: '', dateTo: '', excludeTransfer: true }
+})
+list.refresh()
+check(visible().length === 1 && visible()[0].id === 'filter-a' && list.data.s.count === 1, '流水页组合高级筛选正确')
+list.setData({ 'advanced.dateFrom': ym + '-04', 'advanced.dateTo': ym + '-30' })
+list.refresh()
+check(list.data.allDates && list.data.monthText === '自定义日期' && visible().length === 0, '自定义日期区间跨月筛选并显示正确标题')
+list.clearFilter()
+check(visible().length === 4 && !list.data.allDates, '清除全部筛选恢复默认流水')
+
+const originalPair = refundpair.pair
+let pairCalls = 0
+refundpair.pair = function (rows) { pairCalls++; return originalPair(rows) }
+try {
+  seed([expense, refund])
+  prefs.setRefundExcluded(true)
+  report.refresh()
+  check(pairCalls === 1, '报表抵减模式一次刷新只配对退款一次')
+  pairCalls = 0
+  prefs.setRefundExcluded(false)
+  report.refresh()
+  check(pairCalls === 1, '报表入账模式只为预算/洞察计算一次抵减投影')
+  pairCalls = 0
+  prefs.setRefundExcluded(true)
+  home.syncData()
+  check(pairCalls === 1, '首页汇总只配对退款一次')
+} finally {
+  refundpair.pair = originalPair
+  prefs.setRefundExcluded(true)
+}
+const vip = require('../utils/vip')
+report.goAnnual()
+check(nav[nav.length - 1] === '/pages/annual/annual?year=' + ym.slice(0, 4), '报表可进入对应年度报告')
+const originalGuard = vip.guard
+vip.guard = () => true
+try {
+  report.goBudgetTemplates()
+  check(nav[nav.length - 1] === '/pages/budget-templates/budget-templates', '会员可进入预算模板')
+  report.goBudgetVariance()
+  check(nav[nav.length - 1] === '/pages/budget-variance/budget-variance', '会员可进入预算偏差分析')
+  report.goBudgetHistory()
+  check(nav[nav.length - 1] === '/pages/budget-history/budget-history', '报表可进入历史预算存档')
+} finally {
+  vip.guard = originalGuard
+}
 console.log('通过 ' + pass + ' 项，失败 0 项')

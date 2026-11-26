@@ -908,20 +908,6 @@
   font-weight: 600;
 }
 
-.cal-minus {
-  position: absolute;
-  right: 2rpx;
-  top: 2rpx;
-  width: 26rpx;
-  height: 26rpx;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.94);
-  color: #16705c;
-  font-size: 20rpx;
-  font-weight: 700;
-  line-height: 24rpx;
-  text-align: center;
-}
 
 .cat.negative .camt,
 .cat.negative .cmeta,

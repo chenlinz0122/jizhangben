@@ -319,7 +319,6 @@
       <view class="cell {{item.blank ? 'blank' : 'lv' + item.level}} {{item.negative ? 'net-refund cal-net' : ''}} {{item.today ? 'is-today' : ''}}"
             wx:for="{{cells}}" wx:key="k" data-item="{{item}}" bindtap="tapDay">
         <text class="cd" wx:if="{{!item.blank}}">{{item.d}}</text>
-        <text class="cal-minus" wx:if="{{item.negative}}">−</text>
       </view>
     </view>
     <view class="calsel">按实际发生日期计入 · 点格子看当天明细</view>

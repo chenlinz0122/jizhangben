@@ -158,3 +158,6 @@
 .dark .currency-preview { color: #a4d4c2; }
 .dark .cny, .dark .fvalue { color: #e5eee9; }
 .dark .segi, .dark .chip { background: #24332c; }
+.dark .chip { background: #24332c; color: #c2d2c9; }
+.dark .chip.own { background: #1f2a25; color: #a9c9bc; }
+.dark .chip-new { background: transparent; border-color: rgba(148, 203, 183, 0.55); color: #94cbb7; }

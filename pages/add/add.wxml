@@ -19,8 +19,8 @@
   <view class="card">
     <view class="title">{{type === 'transfer' ? '资金流水类型' : '分类'}}</view>
     <view class="cats">
-      <text class="chip {{cat === item.name ? 'on' : ''}}" wx:for="{{cats}}" wx:key="name"
-            data-cat="{{item.name}}" bindtap="pickCat">{{item.icon}} {{item.name}}</text>
+      <text class="chip {{cat === item.name ? 'on' : ''}}{{item.mine ? ' own' : ''}}" wx:for="{{cats}}" wx:key="name" data-cat="{{item.name}}" data-mine="{{item.mine}}" bindtap="pickCat" bindlongpress="removeMyCat">{{item.icon}} {{item.name}}</text>
+      <text wx:if="{{type !== 'transfer'}}" class="chip chip-new" bindtap="addMyCat">＋ 自定义</text>
     </view>
     <view class="muted" wx:if="{{type === 'transfer'}}">账户之间的划转，不计入收支统计</view>
   </view>

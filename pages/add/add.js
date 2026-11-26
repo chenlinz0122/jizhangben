@@ -2,6 +2,7 @@ var darkmode = require('../../utils/darkmode')
 var format = require('../../utils/format')
 var store = require('../../utils/store')
 var category = require('../../utils/category')
+var myCats = require('../../utils/my-cats')
 var accounts = require('../../utils/accounts')
 var currency = require('../../utils/currency')
 
@@ -20,8 +21,12 @@ function accountById(list, id) {
   return list.filter(function (item) { return item.id === id })[0] || null
 }
 
-function withIcons(names) {
-  return names.map(function (n) { return { name: n, icon: category.iconOf(n) } })
+function withIcons(names, mine) {
+  var own = mine || []
+  return names.map(function (n) {
+    var isMine = own.indexOf(n) >= 0
+    return { name: n, icon: isMine ? '🏷️' : category.iconOf(n), mine: isMine }
+  })
 }
 
 /* 历史商户 + 规则里记过的商户，按出现次数排，供输入时补全 */
@@ -48,7 +53,7 @@ Page({
     dark: false,
     themeKey: 'green',
     type: 'expense',
-    cats: withIcons(category.catsOf('expense')),
+    cats: withIcons(category.catsWithMine('expense'), myCats.list('expense')),
     cat: '餐饮',
     amount: '',
     merchant: '',
@@ -212,7 +217,8 @@ Page({
 
   switchType: function (e) {
     var t = e.currentTarget.dataset.t
-    var cats = withIcons(category.catsOf(t))
+    var mine = myCats.list(t)
+    var cats = withIcons(category.catsWithMine(t), mine)
     this.setData({ type: t, cats: cats, cat: cats[0].name })
     this.syncCurrency()
   },
@@ -249,6 +255,57 @@ Page({
 
   pickCat: function (e) {
     this.setData({ cat: e.currentTarget.dataset.cat })
+  },
+
+  /* 新增自定义分类：可输入弹窗拿名字，校验后写本地并直接选中 */
+  addMyCat: function () {
+    var self = this
+    var type = this.data.type
+    if (type === 'transfer') {
+      wx.showToast({ title: '资金流水类型不支持自定义', icon: 'none' })
+      return
+    }
+    wx.showModal({
+      title: '新增分类',
+      editable: true,
+      placeholderText: '最多 6 个字，例如 咖啡',
+      confirmText: '添加',
+      cancelText: '取消',
+      success: function (res) {
+        if (!res.confirm) return
+        var r = myCats.add(type, res.content, category.catsOf(type))
+        if (!r.ok) {
+          wx.showToast({ title: r.msg, icon: 'none' })
+          return
+        }
+        var mine = myCats.list(type)
+        self.setData({ cats: withIcons(category.catsWithMine(type), mine), cat: r.name })
+        wx.showToast({ title: '已添加「' + r.name + '」', icon: 'none' })
+      }
+    })
+  },
+
+  /* 长按自建分类才能删；内置分类长按不响应 */
+  removeMyCat: function (e) {
+    var ds = e.currentTarget.dataset
+    if (!ds.mine) return
+    var self = this
+    var type = this.data.type
+    var name = ds.cat
+    wx.showModal({
+      title: '删除分类',
+      content: '删除「' + name + '」？已经记过的流水不受影响。',
+      confirmText: '删除',
+      confirmColor: '#d9433f',
+      success: function (res) {
+        if (!res.confirm) return
+        myCats.remove(type, name)
+        var mine = myCats.list(type)
+        var cats = withIcons(category.catsWithMine(type), mine)
+        var keep = self.data.cat === name ? cats[0].name : self.data.cat
+        self.setData({ cats: cats, cat: keep })
+      }
+    })
   },
 
   save: function () {

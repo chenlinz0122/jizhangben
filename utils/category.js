@@ -12,6 +12,7 @@
  */
 
 var R = require('./category-rules')
+var myCats = require('./my-cats')
 
 var UNCAT = '未分类'
 
@@ -141,7 +142,12 @@ function pickLongest(text, list) {
 }
 
 function has(list, cat) {
-  return !!cat && list.indexOf(cat) >= 0
+  if (!cat) return false
+  if (list.indexOf(cat) >= 0) return true
+  /* 自建分类不在内置表里，但同样是合法目标：
+   * 不认它的话，「商户 → 分类」的学习会把自建分类当成非法值丢掉，
+   * 用户自己建的「咖啡」下次就永远学不会。 */
+  return myCats.has(cat)
 }
 
 /* 综合平台索引：{ name, fallback, subs:[{kw,cat}] }
@@ -291,6 +297,25 @@ function catsOf(type) {
   return CATS[type] || CATS.expense
 }
 
+/* 「记一笔」里可选的分类：内置 + 用户自建，自定义的插在「未分类」前面，
+ * 这样默认选项和末尾的兜底类目都不会被自定义的顶走。 */
+function catsWithMine(type) {
+  var base = CATS[type] || CATS.expense
+  var mine = myCats.list(type)
+  if (!mine.length) return base.slice()
+  var out = []
+  var placed = false
+  for (var i = 0; i < base.length; i++) {
+    if (base[i] === UNCAT && !placed) {
+      for (var j = 0; j < mine.length; j++) out.push(mine[j])
+      placed = true
+    }
+    out.push(base[i])
+  }
+  if (!placed) for (var k = 0; k < mine.length; k++) out.push(mine[k])
+  return out
+}
+
 /**
  * 不计收支的资金流水再分三类（对齐官方：理财 / 借还款 / 账户转移）
  */
@@ -307,6 +332,8 @@ function transferCat(merchant, desc) {
  */
 function migrate(t) {
   var cat = String(t.category || '')
+  /* 用户自建的分类原样保留，不能被下面「认不出的类目 → 其他支出」改写 */
+  if (myCats.has(cat)) return cat
   /* 银行卡进出的两个旧类目，现在统一并进「账户转移」（老数据读出来时顺手改类型） */
   if (cat === '转入银行卡' || cat === '银行卡转出') return '账户转移'
   if (t.type === 'transfer' || t.ty === 'transfer') {
@@ -331,6 +358,7 @@ module.exports = {
   classify: classify,
   isLooseMerchant: isLooseMerchant,
   catsOf: catsOf,
+  catsWithMine: catsWithMine,
   isMoveCat: function (name) { return MOVE_CATS.indexOf(String(name || '')) >= 0 },
   transferCat: transferCat,
   migrate: migrate,

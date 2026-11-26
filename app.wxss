@@ -100,6 +100,18 @@ page {
   box-shadow: none;
 }
 
+/* 深色模式下白底按钮会亮成一片，统一沉下去 */
+.dark .btn.plain {
+  background: #1f2723;
+  color: #79c9b1;
+  border-color: #2c3631;
+}
+
+.dark .btn.disabled {
+  background: #2a3330;
+  color: #7d8a84;
+}
+
 .title {
   font-size: 30rpx;
   font-weight: 600;

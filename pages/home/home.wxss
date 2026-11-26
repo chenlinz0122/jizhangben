@@ -55,15 +55,15 @@
 .home-page .quick-action:active { background: var(--surface-soft); }
 .quick-icon { flex: none; width: 78rpx; height: 78rpx; line-height: 78rpx; text-align: center; font-size: 34rpx; border-radius: 22rpx; margin-bottom: 12rpx; overflow: hidden; }
   /* 用半透明底：浅色下是淡彩、深色下自动沉下去，不用再单独写一套深色 */
-  .q-add { background: rgba(23,128,107,.12); }
-  .q-shot { background: rgba(214,127,54,.14); }
-  .q-imp { background: rgba(70,110,200,.13); }
-  .q-rep { background: rgba(139,92,196,.13); }
+  /* 四格图标统一品牌色系：只保留「记一笔」一个强调色，其余沉到中性底，避免橙蓝紫抢主题 */
+  .q-add { background: rgba(23,128,107,.14); }
+  .q-shot, .q-imp, .q-rep { background: var(--surface-soft); }
 .quick-name { display: block; width: 100%; max-width: 100%; font-size: 25rpx; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .quick-note { display: block; width: 100%; max-width: 100%; margin-top: 5rpx; font-size: 19rpx; color: var(--secondary); font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.feature-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12rpx; margin: -8rpx 0 22rpx; }
-.feature-action { display: flex; flex-direction: column; align-items: center; gap: 8rpx; min-width: 0; padding: 16rpx 4rpx; border-radius: 18rpx; background: var(--surface-soft); color: var(--text); font-size: 21rpx; }
-.feature-mark { display: flex; align-items: center; justify-content: center; width: 46rpx; height: 46rpx; border-radius: 14rpx; background: var(--surface); color: var(--brand); font-size: 23rpx; font-weight: 600; }
+.feature-grid { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8rpx; margin: 8rpx 0 0; padding: 20rpx 4rpx 2rpx; border-top: 1rpx dashed var(--line); }
+.feature-action { display: flex; flex-direction: column; align-items: center; gap: 8rpx; min-width: 0; padding: 8rpx 2rpx; border-radius: 16rpx; background: transparent; color: var(--text); font-size: 21rpx; }
+.feature-name { max-width: 100%; font-size: 20rpx; color: var(--secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.feature-mark { display: flex; align-items: center; justify-content: center; width: 46rpx; height: 46rpx; border-radius: 14rpx; background: rgba(23,128,107,0.08); color: var(--brand); font-size: 23rpx; font-weight: 600; }
 .networth-value { margin: 4rpx 0 10rpx; font-size: 46rpx; font-weight: 650; font-variant-numeric: tabular-nums; }
 .networth-currency { margin-right: 6rpx; font-size: 28rpx; color: var(--secondary); }
 .reminder-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 8rpx 18rpx; margin: -8rpx 0 22rpx; padding: 22rpx 24rpx; border: 1rpx solid #ead7b7; border-radius: 20rpx; background: #fbf4e8; color: #6f532b; }

@@ -52,15 +52,15 @@
   <view class="quick-grid">
     <button class="quick-action" hover-class="none" bindtap="goAdd"><view class="quick-icon q-add">✍️</view><text class="quick-name">记一笔</text><text class="quick-note">随手记录</text></button>
     <button class="quick-action" hover-class="none" bindtap="goShot"><view class="quick-icon q-shot">📷</view><text class="quick-name">截图识别</text><text class="quick-note">从图片记账</text></button>
-    <button class="quick-action" hover-class="none" bindtap="goImport"><view class="quick-icon q-imp">📥</view><text class="quick-name">账单导入</text><text class="quick-note">微信/支付宝/银行</text></button>
+    <button class="quick-action" hover-class="none" bindtap="goImport"><view class="quick-icon q-imp">📥</view><text class="quick-name">账单导入</text><text class="quick-note">三类账单</text></button>
     <button class="quick-action" hover-class="none" bindtap="goReport"><view class="quick-icon q-rep">📊</view><text class="quick-name">看报表</text><text class="quick-note">了解钱的去向</text></button>
-  </view>
 
-  <view class="feature-grid">
-    <button class="feature-action" hover-class="none" bindtap="goFeature" data-url="/pages/accounts/accounts"><text class="feature-mark">账</text><text>账户余额</text></button>
-    <button class="feature-action" hover-class="none" bindtap="goFeature" data-url="/pages/recurring/recurring"><text class="feature-mark">循</text><text>周期账单</text></button>
-    <button class="feature-action" hover-class="none" bindtap="goFeature" data-url="/pages/rules/rules"><text class="feature-mark">规</text><text>分类规则</text></button>
-    <button class="feature-action" hover-class="none" bindtap="goFeature" data-url="/pages/health/health"><text class="feature-mark">检</text><text>数据体检</text></button>
+    <view class="feature-grid">
+      <button class="feature-action" hover-class="none" bindtap="goFeature" data-url="/pages/accounts/accounts"><text class="feature-mark">账</text><text class="feature-name">账户余额</text></button>
+      <button class="feature-action" hover-class="none" bindtap="goFeature" data-url="/pages/recurring/recurring"><text class="feature-mark">循</text><text class="feature-name">周期账单</text></button>
+      <button class="feature-action" hover-class="none" bindtap="goFeature" data-url="/pages/rules/rules"><text class="feature-mark">规</text><text class="feature-name">分类规则</text></button>
+      <button class="feature-action" hover-class="none" bindtap="goFeature" data-url="/pages/health/health"><text class="feature-mark">检</text><text class="feature-name">数据体检</text></button>
+    </view>
   </view>
 
   <view class="reminder-banner" wx:if="{{reminderCount > 0}}" bindtap="goFeature" data-url="/pages/recurring/recurring">

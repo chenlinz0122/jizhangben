@@ -331,23 +331,23 @@
 .dbar {
   width: 68%;
   border-radius: 4rpx 4rpx 0 0;
-  background: #d7dee0;
+  background: rgba(23,128,107,.16);
 }
 
 .dbar.expense {
-  background: #cbbfbd;
+  background: rgba(23,128,107,.48);
 }
 
 .dbar.expense.max {
-  background: #d9433f;
+  background: var(--brand, #17806b);
 }
 
 .dbar.income {
-  background: #d5e7ed;
+  background: rgba(23,128,107,.24);
 }
 
 .dbar.income.max {
-  background: #26809b;
+  background: #4f9e88;
 }
 
 .xaxis {
@@ -418,15 +418,15 @@
 }
 
 .mbar.income.on {
-  background: #26809b;
+  background: #4f9e88;
 }
 
 .mbar.expense {
-  background: #c8d8d3;
+  background: rgba(23,128,107,.34);
 }
 
 .mbar.income {
-  background: #cfe0e7;
+  background: rgba(23,128,107,.16);
 }
 
 .mlab {
@@ -794,15 +794,15 @@
 }
 
 .cell.lv0 {
-  background: #f7f8f9;
+  background: #f1f6f3;
 }
 
 .cell.lv1 {
-  background: #e9efec;
+  background: #e3f0e9;
 }
 
 .cell.lv2 {
-  background: #c4d9cd;
+  background: #c9e3d6;
 }
 
 .cell.lv3 {
@@ -839,15 +839,19 @@
   display: inline-block;
 }
 
-.sw.lv0 { background: #f7f8f9; }
-.sw.lv1 { background: #e9efec; }
-.sw.lv2 { background: #c4d9cd; }
+.sw.lv0 { background: #f1f6f3; }
+.sw.lv1 { background: #e3f0e9; }
+.sw.lv2 { background: #c9e3d6; }
 .sw.lv3 { background: #8fbfa8; }
 .sw.lv4 { background: var(--brand, #17806b); }
 
 .lgtext {
   font-size: 20rpx;
   color: #a2a8ae;
+}
+
+.cell.cal-net {
+  background: repeating-linear-gradient(135deg, #16705c 0, #16705c 7rpx, #4f9e88 7rpx, #4f9e88 12rpx);
 }
 
 .legend {
@@ -885,7 +889,7 @@
 .mbar.income.net-refund,
 .cell.net-refund,
 .sw.net-refund {
-  background: repeating-linear-gradient(135deg, #26809b 0, #26809b 7rpx, #58b2c9 7rpx, #58b2c9 12rpx);
+  background: repeating-linear-gradient(135deg, #16705c 0, #16705c 7rpx, #4f9e88 7rpx, #4f9e88 12rpx);
 }
 
 .dbar.zero,
@@ -1261,33 +1265,33 @@
 
 /* ---------- 深色模式（跟随系统）：只救背景 / 卡片 / 正文，图表色本身够亮 ---------- */
 .page.dark {
-  background: #12161a;
+  background: #141a17;
 }
 
 .page.dark .card {
-  background: #1b2026;
+  background: #1d2521;
   box-shadow: none;
 }
 
 .page.dark .title,
 .page.dark .cname,
 .page.dark .dname {
-  color: #e6e9ec;
+  color: #e7ece9;
 }
 
 .page.dark .cmeta,
 .page.dark .bsub,
 .page.dark .hint {
-  color: #818a92;
+  color: #8b9a93;
 }
 
 .page.dark .tease {
-  background: #171c21;
-  border-color: #262c33;
+  background: #1a211d;
+  border-color: #2c3631;
 }
 
 .page.dark .tease .tc-name {
-  color: #cfd5da;
+  color: #cdd6d1;
 }
 
 .page.dark .tease .tc-bar {
@@ -1298,5 +1302,28 @@
 .dark .camt { color: #e5eee9; }
 .dark .track { background: #2c3831; }
 .dark .cmeta { color: #93a19a; }
-.dark .iv, .dark .yn { color: #e6e9ec; }
+.dark .iv, .dark .yn { color: #e7ece9; }
 .dark .bline { color: #b7c2bd; }
+
+/* ---------- 日历暗色 ---------- */
+.page.dark .cell.lv0 { background: #1f2723; }
+.page.dark .cell.lv1 { background: #24302b; }
+.page.dark .cell.lv2 { background: #2f443b; }
+.page.dark .cell.lv3 { background: #3c6656; }
+.page.dark .cell.cal-net { background: repeating-linear-gradient(135deg, #1c4d40 0, #1c4d40 7rpx, #37705f 7rpx, #37705f 12rpx); }
+.page.dark .cd { color: #c6d2cc; }
+.page.dark .cw { color: #6d7b76; }
+.page.dark .calsel,
+.page.dark .legend,
+.page.dark .lgtext { color: #8b9a93; }
+.page.dark .sw.lv0 { background: #1f2723; }
+.page.dark .sw.lv1 { background: #24302b; }
+.page.dark .sw.lv2 { background: #2f443b; }
+.page.dark .sw.lv3 { background: #3c6656; }
+
+/* ---------- 报表暗色补漏 ---------- */
+.page.dark .btn.plain { background: #1f2723; color: #79c9b1; }
+.page.dark .aicat-t { color: #e7ece9; }
+.page.dark .aicat-s { color: #8b9a93; }
+.sw { border: 1rpx solid rgba(15,60,50,0.08); }
+.page.dark .sw { border-color: rgba(255,255,255,0.10); }

@@ -17,9 +17,14 @@ page { background: #f4f6f5; }
   background: var(--mine-bg);
 }
 
-.mine-heading { padding: 4rpx 8rpx 26rpx; }
-.mine-title { display: block; font-size: 40rpx; font-weight: 600; letter-spacing: 1rpx; line-height: 1.4; }
+.mine-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20rpx; padding: 4rpx 8rpx 26rpx; }
+.heading-copy { flex: 1; min-width: 0; }
+.mine-title { display: block; font-size: 40rpx; font-weight: 600; letter-spacing: 1rpx; line-height: 1.35; }
 .mine-subtitle { display: block; margin-top: 6rpx; font-size: 21rpx; color: var(--mine-muted); }
+.vip-chip { flex: none; display: flex; align-items: center; gap: 8rpx; margin: 8rpx 0 0; padding: 12rpx 14rpx 12rpx 20rpx; border: 1rpx solid var(--mine-line); border-radius: 999rpx; background: var(--mine-card); color: var(--mine-accent-text); font-size: 21rpx; line-height: 1.3; }
+.vip-chip::after { border: 0; }
+.vip-chip-label { font-weight: 600; }
+.vip-chip-state { max-width: 200rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--mine-muted); }
 .mine-card { border: 1rpx solid var(--mine-line); border-radius: 24rpx; background: var(--mine-card); overflow: hidden; }
 .mine-button { margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--mine-text); font-size: 28rpx; font-weight: 400; text-align: left; line-height: 1.5; }
 .mine-button::after { border: 0; }
@@ -43,10 +48,6 @@ page { background: #f4f6f5; }
 .backup-time { display: block; margin-top: 8rpx; font-size: 23rpx; font-weight: 500; line-height: 1.5; }
 .summary-note { display: block; margin-top: 6rpx; font-size: 20rpx; color: var(--mine-muted); line-height: 1.5; }
 
-.membership-strip { display: flex; align-items: center; width: 100%; box-sizing: border-box; margin-top: 20rpx; padding: 24rpx 28rpx; border: 1rpx solid var(--mine-line); border-radius: 24rpx; background: var(--mine-tint); color: var(--mine-accent-text); }
-.membership-title { display: block; font-size: 27rpx; font-weight: 600; }
-.membership-status { display: block; font-size: 21rpx; margin-top: 6rpx; line-height: 1.6; }
-.membership-action { flex: none; margin-left: 18rpx; font-size: 23rpx; font-weight: 500; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; padding: 36rpx 8rpx 16rpx; font-size: 25rpx; font-weight: 600; }
 .section-note { font-size: 21rpx; font-weight: 400; color: var(--mine-muted); }
 .icon-tile { display: flex; align-items: center; justify-content: center; width: 64rpx; height: 64rpx; border-radius: 20rpx; margin-right: 20rpx; background: var(--mine-tint); color: var(--mine-accent-text); flex: none; }

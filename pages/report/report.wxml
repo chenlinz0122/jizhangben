@@ -316,7 +316,7 @@
       <text class="cw">六</text>
     </view>
     <view class="cal">
-      <view class="cell {{item.blank ? 'blank' : 'lv' + item.level}} {{item.negative ? 'net-refund' : ''}}"
+      <view class="cell {{item.blank ? 'blank' : 'lv' + item.level}} {{item.negative ? 'net-refund cal-net' : ''}}"
             wx:for="{{cells}}" wx:key="k" data-item="{{item}}" bindtap="tapDay">
         <text class="cd" wx:if="{{!item.blank}}">{{item.d}}</text>
         <text class="cal-minus" wx:if="{{item.negative}}">−</text>

@@ -1,7 +1,14 @@
 <view class="mine-page theme-{{themeKey}} {{dark ? 'dark' : ''}}">
   <view class="mine-heading">
-    <text class="mine-title">我的</text>
-    <text class="mine-subtitle">本机账本 · 安心记录</text>
+    <view class="heading-copy">
+      <text class="mine-title">我的</text>
+      <text class="mine-subtitle">本机账本 · 安心记录</text>
+    </view>
+    <button class="vip-chip {{busy ? 'is-off' : ''}}" bindtap="goVip" disabled="{{busy}}" hover-class="mine-pressed">
+      <text class="vip-chip-label">记账会员</text>
+      <text class="vip-chip-state">{{vipText}}</text>
+      <view class="ui-icon icon-chevron"></view>
+    </button>
   </view>
 
   <view class="mine-card">
@@ -28,15 +35,6 @@
       </view>
     </view>
   </view>
-
-  <button class="mine-button membership-strip {{busy ? 'is-off' : ''}}" bindtap="goVip" disabled="{{busy}}" hover-class="mine-pressed">
-    <view class="row-copy">
-      <text class="membership-title">记账会员</text>
-      <text class="membership-status">{{vipText}}</text>
-    </view>
-    <text class="membership-action">{{vipAction}}</text>
-    <view class="ui-icon icon-chevron"></view>
-  </button>
 
   <view class="section-heading"><text>共同账本</text><text class="section-note">本机状态</text></view>
   <view class="mine-card shared-card">
